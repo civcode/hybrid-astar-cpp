@@ -42,6 +42,13 @@
 5. Compare changes against previous baseline; any claimed speedup must include equivalent success-rate and path-feasibility results.
 6. Profile locally before optimizing; avoid running GitHub Actions for local builds or benchmarks.
 
+## Simplicity and evidence gate (ADR-0020)
+
+- Keep the first complete planner pipeline readable and reproducible; count unnecessary abstractions, mutable shared ownership and optional dependencies as maintenance costs, not automatic benefits.
+- Every proposed optimization first supplies a motivating reproducible failure or benchmark, then reports end-to-end results (success/feasibility, output quality including optional refinement, latency and memory), not just microbenchmark improvement.
+- Preserve robust model/collision validation, clear numerical failure modes and honest reporting of approximate guarantees even when implementation is deliberately minimal.
+- Stage optional search policies, map publication optimizations, actuator-effort tables and sophisticated refinement behind evidence rather than requiring them for the first viable product.
+
 ## Open acceptance thresholds
 
 - [ ] Define reference machines and supported OS/compiler versions.
