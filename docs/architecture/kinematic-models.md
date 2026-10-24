@@ -42,7 +42,7 @@ It is nonholonomic despite in-place rotation (\(v=0,\omega\ne0\)). Optionally re
 \dot{\mathbf q}=(v\cos\theta,\ v\sin\theta,\ v\tan\delta/L).
 \]
 
-For steering-rate constraints, extend state to \(\mathbf q=(x,y,\theta,\delta)\) and control to \(\mathbf u=(v,\dot\delta)\). This is a *different model* for indexing and analytic-connector assumptions; Dubins/Reeds–Shepp paths do not automatically respect finite steering rate.
+**Accepted Ackermann baseline (ADR-0014):** use three-state \(\mathbf q=(x,y,\theta)\) and a finite catalog of constant-curvature forward/reverse arcs, including straight and maximum left/right turns (optional intermediate curvatures). The fixed-curvature geometric model limits turning radius but does not guarantee steering-angle continuity or finite steering rate between primitives. For steering-rate constraints, introduce a distinct model with state \(\mathbf q=(x,y,\theta,\delta)\) and control \(\mathbf u=(v,\dot\delta)\), or separately validate an actual smoothing/steering connector. Dubins/Reeds–Shepp paths do not automatically respect finite steering rate.
 
 ### Ideal mecanum / omnidirectional chassis
 
@@ -200,4 +200,4 @@ The output path retains full model state, segmented progress, maneuver semantics
 
 ## Unresolved details
 
-OQ-002 (exact extent API) is still a design detail, but its **geometric parameterization principle is accepted**; OQ-003 (path address) is accepted. Open issues include OQ-004 (cost units), OQ-007 (Ackermann steering state), OQ-019 (capability metadata), OQ-020 (mecanum milestone), OQ-021 (state/tangent integration customization), OQ-022 (articulated geometry/control conventions), and OQ-024 (speed-profile and retiming boundary).
+OQ-002 (exact extent API) is still a design detail, but its **geometric parameterization principle is accepted**; OQ-003 (path address) is accepted. Open issues include OQ-004 (cost units), OQ-019 (capability metadata), OQ-020 (mecanum milestone), OQ-021 (state/tangent integration customization), OQ-022 (articulated geometry/control conventions), and OQ-024 (speed-profile and retiming boundary). OQ-007's **three-state fixed-curvature Ackermann baseline is accepted** (ADR-0014); a four-state steering-rate extension remains optional.
