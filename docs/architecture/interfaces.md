@@ -53,7 +53,7 @@ Contract:
 ```cpp
 template<class M> struct PrimitiveCandidate {
     typename M::Control control;
-    double extent;          // model-defined domain; OQ-002 not yet decided
+    typename M::PrimitiveExtent extent;  // geometric; model-defined units
     uint32_t primitiveId;
 };
 template<class M> concept PrimitiveProvider = requires(
@@ -72,7 +72,7 @@ template<class M> concept StateIndexer = requires(
 
 Contracts:
 - Candidate trajectories include start, end, and sufficient intermediate state/body motion information for collision validation. Cached local trajectories must still transform against the **continuous** parent state.
-- **Open OQ-002:** consider explicit traveled-distance extents for translating primitives and angular/configuration extents for zero-translation maneuvers; the model's time-domain derivative remains available for integration. A singular `dq/ds` at zero speed must not rule out feasible articulation or rotation. No universal length or time choice has yet been accepted.
+- **Accepted OQ-002:** translating primitives use explicit traveled-distance extents; zero-translation rotations/steering/articulation maneuvers use model-specific angular/configuration extents ([ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md)). Kinematic models retain time-domain ODEs and may use time-domain integration; spatial reparameterization must not divide by zero at stationary motions. The exact typed extent/control-law signature is still under review.
 - Search node stores continuous state, accumulated `g`, stable parent reference and the exact action/connector necessary to reconstruct its edge.
 - The state key must include steering/articulation/other dimensions when their values affect reachability or collision. Do not conflate identical poses with different vehicle configurations.
 - **Accepted:** the search supports compile-time `SingleLabelPolicy` (default) and `MultiLabelPolicy` ([ADR-0010](../adr/0010-compile-time-search-label-policy.md)). When single-label is selected, key storage contains exactly one label ID, with no vector/chain, per-key multi-label fields, or per-expansion runtime mode branch. A facade can dispatch once to separately specialized planner types. Multi-label retention, eviction and resource budget are still open.
@@ -145,6 +145,8 @@ struct PlanResult {
 ```
 
 Contract: no partial/unverified path is reported as `Success`. Failure carries diagnostic reason and counters; cancellation is checked at bounded intervals. Planner instances should avoid rebuilding immutable caches unnecessarily; concurrency semantics remain proposed in [components.md](components.md).
+
+**Speed-profile boundary (OQ-024):** core output is a geometric path, not a time-stamped trajectory. Each segment must support evaluating full configuration at its canonical `(segmentIndex, lambda)` position; optional model-appropriate first/second derivatives, manifold operations and control-law metadata permit later time scaling. A separate trajectory planner checks wheel/steering/articulation rates, accelerations/jerks, stops at mode transitions and moving obstacles. Model constraints depending on an assumed primitive duration are **not** guaranteed after arbitrary retiming. A speed-aware feasibility estimate inside search remains an open design choice.
 
 ## 7. Piecewise geometric path and refinement
 
