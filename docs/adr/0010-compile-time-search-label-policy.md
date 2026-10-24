@@ -1,7 +1,9 @@
 # ADR-0010: Optional multiple labels with a zero-overhead single-label specialization
 
-**Status:** Accepted (policy architecture; retention details still proposed)  
+**Status:** Superseded by [ADR-0013](0013-single-label-search-baseline.md)  
 **Date:** 2026-10-24
+
+**Historical note (2026-10-24):** The optional multiple-label architecture below was replaced by a simpler one-label-per-discretized-key baseline. Multi-label support is not part of the initial implementation; see ADR-0013 for the accepted decision.
 
 ## Context
 
