@@ -32,6 +32,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | OQ-019 | Motion capabilities | How descriptive capability metadata complements (but never substitutes for) model-defined admissible controls ([ADR-0008](../adr/0008-motion-model-capabilities.md)) |
 | OQ-020 | Mecanum milestone | When to implement the third reference model and whether it must complete end-to-end search for M4 |
 | OQ-021 | Mathematical kinematic contract | Derivative/tangent/state-manifold operations, exact propagation customization, discrete modes and time vs progress conventions ([model spec](kinematic-models.md)) |
+| OQ-022 | Supplied articulated-steering geometry and sign conventions | Confirm whether inputs are reference-speed and articulation rate; what point `(x,y)` represents, which body uses heading `Theta`, sign of `gamma`, physical meaning of `l1`/`l2`, body-frame transforms and valid joint range ([model spec](kinematic-models.md)) |
 
 ## Review checklist for architecture baseline v0.1
 
@@ -43,5 +44,6 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 - [ ] Agree minimal compile-time policy concepts and public result/error types.
 - [ ] Validate ODE/tangent/integrator contracts against differential drive, Ackermann and ideal mecanum (OQ-021).
 - [ ] Ensure search and path interfaces never assume that body heading equals travel tangent.
+- [ ] Confirm the supplied articulated-steering input and body-frame conventions (OQ-022) before implementing collision transforms.
 - [ ] Approve verification categories and first benchmark fixtures.
 - [ ] Record decisions as accepted ADRs before implementation depends on them.

@@ -44,6 +44,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 
 - State-level tests: rectangle, circle, convex polygon, compounds, rotation and articulated transforms.
 - Motion tests: intersecting a thin obstacle between safe endpoints; in-place rotation clipping corners; articulation sweeping without reference-point movement; mecanum sideways rectangular-footprint clearance at fixed yaw.
+- Articulated-steering ODE tests: author-supplied four-state model, denominator guard, finite steering range, nonzero heading change at zero reference-point speed, closed joint-only cycles and frame transforms after conventions are confirmed.
 - Property tests: static obstacle map immutability across plan; collision results invariant under paired global transforms where map transform is exact.
 - Record whether verification is **discrete sampled** or **conservatively continuous**. Never label sampling alone as a formal collision-free guarantee.
 - Independently validate final refined path against original map snapshot and model.
@@ -84,6 +85,7 @@ benchmarks/
 - [ ] Define map/robot fixture serialization independent of ROS.
 - [ ] Implement compile-time model policy checks for **three** reference chassis: differential drive, Ackermann and ideal mecanum.
 - [ ] Independently validate derivatives, tangent/angle-state integration, combined translation/rotation and model-admissible control limits.
+- [ ] Derive and test the supplied articulated-steering system's reference point, sign conventions, pure articulation motion and state-dependent collision geometry.
 - [ ] Run a common search/primitive/path contract test suite with all three models, without drive-specific branches in the search kernel.
 - [ ] Enable optional OMPL tests without adding an OMPL core dependency.
 - [ ] Validate failure results and fallback behavior.

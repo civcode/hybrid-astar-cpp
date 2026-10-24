@@ -9,6 +9,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Review [interfaces](architecture/interfaces.md): state/control types, primitive/domain, indexed labels, path evaluation.
 - [ ] Review [controlled-ODE model specification](architecture/kinematic-models.md) for derivative, tangent, constraints, body transforms and integration semantics.
 - [ ] Review [ADR-0008](adr/0008-motion-model-capabilities.md): model control constraints, ideal mecanum as third reference and holonomic travel semantics.
+- [ ] Confirm supplied four-state articulated-steering ODE input interpretation, joint/body frame conventions and link lengths (OQ-022).
 - [ ] Resolve or explicitly defer high-priority [open questions](architecture/open-questions.md) OQ-001–OQ-008.
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
@@ -37,7 +38,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Define controlled differential-equation/tangent model interface, and separate generic integrator (native RK4) plus exact constant-curvature propagation.
 - [ ] Model-specific control enumeration, primitive templates and cache invalidation.
 - [ ] Model-aware state indexing / dominance labels according to accepted OQ-001.
-- [ ] Geometry frame transforms from hypothetical state; articulated extension test model or fixture.
+- [ ] Geometry frame transforms from hypothetical state; add a fixture for the supplied four-state articulated-steering model after its physical frame conventions are confirmed.
+- [ ] Implement articulated steering derivative with safe denominator checks, articulation state indexing, rate constraints and zero-translation articulation sweep tests (extension milestone, not blocking differential/Ackermann).
 - [ ] Swept-motion broad/narrow phase, explicit validation assurance.
 - [ ] Numerical, collision and maneuver property tests including mecanum lateral/combined motion; baseline microbenchmarks.
 
