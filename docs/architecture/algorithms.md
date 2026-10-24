@@ -39,7 +39,7 @@ sequenceDiagram
 ## Core search pseudocode
 
 ```text
-validate request/map/model/start/goal
+validate request/map/model/start/goal and ensure the same planning frame
 initialize or fetch model-specific primitive catalog and heuristic cache
 check full start and goal collision state
 insert start label: continuous state, key, g=0, parent=none
@@ -74,9 +74,9 @@ return status, path and diagnostics
 
 ## Obstacle-aware heuristic
 
-1. Use immutable static grid and a **goal-rooted, nonnegative-weight reverse graph search** (Dijkstra); do not just run point-to-point A*.
+1. Use immutable static grid and a **goal-rooted, nonnegative-weight reverse graph search** (Dijkstra); do not just run point-to-point A*. World/grid conversion uses inverse SE(2) origin transform and X-fastest row-major memory order as specified in [map-coordinates.md](map-coordinates.md).
 2. Optionally lazy-expand until the queried cell is **settled**; incomplete frontier values cannot be returned as final distances.
-3. Use compact contiguous 2D storage for distances and visited/settled state; permit cache reuse only with matching map version, frame, resolution, goal index, occupancy/unknown policy, and algorithm settings.
+3. Use compact contiguous 2D storage for distances and visited/settled state; permit cache reuse only with matching map version, frame, **origin position/yaw**, resolution, dimensions, goal index, occupancy/unknown policy, and algorithm settings.
 4. Keep obstacle-aware and kinematic lower bounds separate. If both are admissible in cost units, `h=max(h_obstacle,h_kinematic)` is admissible.
 5. **Admissibility caveat:** a grid's 4-/8-connected shortest-path cost is generally an *upper* approximation to shortest unconstrained continuous distance; conservative edge graph definitions/inflation and boundary offsets must be proved safe before claiming an admissible bound. Heuristic mode and guarantee metadata must expose this.
 6. Treat unreachable (infinite) heuristic cells carefully: map-level disconnection can prune safely only if the static relaxed map models traversability conservatively; otherwise retain search freedom.
