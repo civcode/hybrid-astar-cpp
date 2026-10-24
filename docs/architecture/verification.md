@@ -19,16 +19,23 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 
 | IDs | Required evidence |
 | --- | --- |
-| FR-001, FR-003, FR-016 | Model concept compile tests for differential, Ackermann and mecanum; derivative and integrator checks; state-key distinction for identical poses/different steering or articulation; pruning/dominance tests |
+| FR-001, FR-003, FR-016 | Model concept compile tests for differential, Ackermann and mecanum; derivative and integrator checks; state-key distinction for identical poses/different steering or articulation; both compile-time label policies and pruning/dominance tests |
 | FR-002, FR-017 | Primitive propagation against exact solutions, forward/reverse, in-place rotation, sideways mecanum translation with fixed yaw, simultaneous translation/rotation, limits and step-size convergence |
 | FR-004, FR-005 | Compound-body transforms, articulated hinge configurations, self-collision exclusions, swept-geometry cases between sample endpoints |
 | FR-006, FR-007, FR-018 | REP-103/105 frames, rotated origin conversion, cell-center offsets, row-major indexing, unknown/out-of-bounds semantics, Dijkstra known maps, lazy settlement, cache invalidation |
 | FR-008 | Dubins/Reeds–Shepp endpoint, length, segment direction and symmetries; randomized OMPL comparison |
 | FR-009, FR-015 | Stale queue labels, reopen rules, budgets/cancellation and structured diagnostic status |
-| FR-010, FR-012 | Exact primitive reconstruction, analytic tail, cusp and rotation progress, evaluation at segment boundaries |
+| FR-010, FR-012 | Exact primitive reconstruction, analytic tail, cusp and rotation progress; `(segmentIndex, lambda)` evaluations, full state, shared boundary pose and optional one-sided derivatives |
 | FR-011 | Constraint-valid refiner acceptance, invalid spline rejection, untouched feasible fallback |
 | FR-013, FR-014 | YAML/JSON roundtrip/validation in adapters, no ROS dependencies in core |
 | NFR-001..012 | See [quality protocol](quality.md); scenario baselines and metadata stored with results |
+
+## Search-label policy and canonical path contract tests
+
+- Instantiate and test `SingleLabelPolicy` and `MultiLabelPolicy` independently on identical seeded fixtures. Off-mode must have one label ID per discrete key and no multi-label per-key vector/chain or runtime mode branch; record node/key sizes, allocations and time compared to a dedicated single-label baseline.
+- For multiple labels, check retention, eviction, deterministic ordering, stale queue entries, stable ancestry, bound violations and distinct continuous states with the same quantized key. Do **not** claim mathematically exact dominance from smaller accumulated `g` alone.
+- Test path evaluation at `(i,0)`, `(i,1)`, interior lambda, adjacent segment interfaces, cusp/gear changes, pure stationary rotation, articulation-only movement, and holonomic lateral translation. Distinguish one-sided derivative conventions from continuity of configuration.
+- Check length-parametrized translating primitive candidate against time-domain ODE integration under a compatible control-speed mapping, including reverse; ensure no division by zero for stationary motions (OQ-002, still open).
 
 ## Dubins and Reeds–Shepp battle-hardening
 
@@ -98,6 +105,8 @@ benchmarks/
 - [ ] Independently validate derivatives, tangent/angle-state integration, combined translation/rotation and model-admissible control limits.
 - [ ] Derive and test the supplied articulated-steering system's reference point, sign conventions, pure articulation motion and state-dependent collision geometry.
 - [ ] Run a common search/primitive/path contract test suite with all three models, without drive-specific branches in the search kernel.
+- [ ] Compare single-label node/key memory, allocation counts and expansion timing against a specialized baseline; ensure multi-label code is excluded from the single-label hot path.
+- [ ] Verify canonical `(segmentIndex, lambda)` path evaluation across cusps, zero-distance maneuvers and model-specific segment types.
 - [ ] Enable optional OMPL tests without adding an OMPL core dependency.
 - [ ] Validate failure results and fallback behavior.
 - [ ] Add sanitizer runs (ASan/UBSan, optionally TSan) in local developer instructions.
