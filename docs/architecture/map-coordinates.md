@@ -7,7 +7,10 @@
 - Plan in a single named **world-fixed** frame, usually `map`. `odom` is the locally continuous frame; `base_link` is attached to the robot, and is not automatically identical to a model's axle center or rear-chassis reference point.
 - Right-handed coordinates. Body +X forward, +Y left, +Z up. Yaw \(\theta=0\) faces world +X and positive yaw turns counterclockwise (toward +Y).
 - Units: meters, radians, seconds. A 2D point and heading are a pose in **a declared frame**; numeric coordinates without a frame must not silently cross frame boundaries.
-- **ENU** (X east, Y north, Z up) is the ROS convention for local geographic Cartesian coordinates. A map frame for an indoor building may be oriented with building walls; it need not be geographic ENU.
+- **Outdoor planning convention (accepted):** use a **local East–North–Up (ENU)** Cartesian frame for `map`: world +X **east**, +Y **north**, +Z **up**. Plan in metric local tangent-plane coordinates, not latitude/longitude or UTM grid coordinates. Indoor `map` frames may instead be building-aligned.
+- For an outdoor ENU-aligned map, yaw `0` points east and yaw `+pi/2` points north; positive yaw remains counterclockwise. This describes the **world frame**. An occupancy grid may still have a translated or rotated `originInFrame`: its cell axes need not be east/north when origin yaw is nonzero.
+- Specify and preserve the **geodetic reference** for the local ENU tangent plane (latitude, longitude, altitude, and geodetic datum, typically WGS84) as environment/georeferencing metadata when global positioning is used. A numeric `(x,y)` alone cannot be inverted to GPS without that reference.
+- Geodetic (GNSS latitude/longitude/altitude) to local ENU conversion belongs in a **georeferencing/ROS adapter**, not the search hot path. Explicitly configure or obtain the reference origin, earth/map relationship, and datum. Never assume a particular GPS fix, `(0,0)` UTM location, or `map` translation defines an ENU origin automatically.
 - The ROS 2 adapter resolves any `map <- odom <- base_link` and collision-frame transforms before a planning request; the search never queries TF2. A map-frame discontinuity in localization between requests is an adapter concern, not a reason to mutate a live map snapshot.
 
 ## Grid origin and memory layout
@@ -86,6 +89,8 @@ A ROS adapter converts quaternion yaw to planar `originInFrame.yaw` after checki
 
 - [ ] Grid indexing: for width 3, (`0,0`) -> 0, (`1,0`) -> 1, (`0,1`) -> 3.
 - [ ] Map origin translation and nonzero map origin yaw (`pi/2`, other non-cardinal rotations).
+- [ ] Outdoor ENU fixture: yaw zero means east, positive pi/2 means north, with translated or rotated occupancy-grid origin handled independently.
+- [ ] Roundtrip trusted geodetic-to-local-ENU fixtures in the *optional adapter*, using known reference latitude/longitude/altitude/datum; reject missing or mismatched references.
 - [ ] World->grid->cell-center round-trip; define comparison as cell membership, not exact original world point.
 - [ ] Border tests: origin included, upper bounds excluded, negative local coordinates rejected (not truncated to zero).
 - [ ] Identity map (yaw zero) agrees with Nav2 `worldToMap` and `mapToWorld` behavior.
