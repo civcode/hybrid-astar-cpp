@@ -1,12 +1,12 @@
-# Live-map snapshot, cache, and strict-unknown semantics — proposal
+# Live-map snapshot, cache, and strict-unknown semantics — accepted design rationale
 
-**Status:** Proposed, **not accepted**. The known-free occupancy default is accepted in [ADR-0018](../adr/0018-known-free-only-occupancy-threshold.md); per-request unknown-policy choices and the default `Occupied` are accepted in [ADR-0017](../adr/0017-explicit-unknown-occupancy-policy.md). This note addresses the **remaining** OQ-006/OQ-012 ownership, caching and strict-validation semantics.
+**Status:** Accepted architectural direction through [ADR-0019](../adr/0019-live-map-snapshot-cache-and-reject.md), supplementing [ADR-0017](../adr/0017-explicit-unknown-occupancy-policy.md) and [ADR-0018](../adr/0018-known-free-only-occupancy-threshold.md). This note gives implementation rationale and examples, not final public API or a decision on OQ-012 concurrency.
 
 ## Design goal
 
 Support live frontier exploration with frequent SLAM/map updates, without mutating occupancy under an active Hybrid A* search or requiring a lock or allocation on each collision query. Keep the baseline search, map consumer and cache lifecycle simple; optimize copying/incremental updates only when measured.
 
-## Proposed map ownership and publication
+## Accepted map ownership and publication principles
 
 - The map producer builds a complete, validated **new immutable revision**, with a unique `mapIdentity` (distinguishes reset/different source), monotonically increasing `revision` within that identity, grid geometry/frame, and ROS-compatible declared occupancy semantics.
 - Share the revision as a `shared_ptr<const MapData>` or opaque owning `MapSnapshot` handle. A `MapProvider` may publish the latest handle atomically (`std::atomic<std::shared_ptr<const MapData>>` in C++20); each request obtains one handle at initiation. Only the publication handle swaps, **not** the already published `MapData` buffer.
@@ -34,7 +34,7 @@ struct PlanRequest {
 };
 ```
 
-## Proposed cache lifecycle
+## Accepted cache lifecycle principles
 
 Separate immutable **model-dependent** caches (motion primitive catalog, kinematic-effort tables, model-specific templates) from **map-dependent** caches (traversability/inflation, reverse goal-distance field, distance transform).
 
@@ -50,16 +50,16 @@ On a new planning request: reuse a cache only for an *exactly compatible* key; o
 
 **Admissibility reminder:** cache correctness only means the derived field matches its inputs; it does **not** certify that the field is a lower bound on continuous-space cost. [ADR-0015](../adr/0015-admissible-default-heuristics.md) still governs default search heuristic selection.
 
-## Proposed `UnknownCellPolicy::Reject` semantics
+## Accepted `UnknownCellPolicy::Reject` semantics
 
 The policy choice changes behavior:
 - **`Occupied` (accepted default):** unknown space is blocked; prune a motion candidate if the swept footprint intersects unknown space, continue searching.
 - **`Free` (accepted):** unknown space may be traversed for optimistic planning, with provisional/unknown-traversal diagnostics; controller safety remains separate.
-- **`Reject` (strict-mode proposal):** fail the **request at validation time** with a distinct unknown-occupancy error if any cell in the declared *planning domain* is unknown. Do **not** abort just because the search happens to query an unknown cell first, and do **not** make strict validation dependent on heuristic expansion order.
+- **`Reject` (accepted strict mode):** fail the **request at validation time** with a distinct unknown-occupancy error if any cell in the declared *planning domain* is unknown. Do **not** abort just because the search happens to query an unknown cell first, and do **not** make strict validation dependent on heuristic expansion order.
 
 Initially the **planning domain is the entire supplied snapshot grid**. An optional explicit planning ROI could narrow validation in a later iteration, but its scope must be declared and validated (with relevant swept-footprint margin), not inferred from whichever candidates the algorithm explores. A map publisher may attach a validated `hasUnknown` summary, or the planner may compute/cache it per immutable revision, so repeated strict checks do not incur O(N) scanning each time.
 
-This `Reject` behavior is **still proposed**, not accepted, and is not intended for live frontier maps, which naturally contain unknown cells. Unknown outside the provided grid remains a separate out-of-bounds policy and must not silently become free.
+This `Reject` behavior is **accepted by ADR-0019** and is not intended for live frontier maps, which naturally contain unknown cells. Unknown outside the provided grid remains a separate out-of-bounds policy and must not silently become free.
 
 ## Validation plan
 
@@ -71,9 +71,9 @@ This `Reject` behavior is **still proposed**, not accepted, and is not intended 
 6. Old snapshot and cache memory is eventually released; benchmark map publication copy costs, peak memory, latency with frequent revisions and local replan cadence.
 7. Revalidation on a newer map catches an obstacle newly revealed on a previously accepted path. The planner never claims that an old validated path remains safe after environment updates.
 
-## Open decisions
+## Remaining implementation-facing questions
 
-- Accept or revise shared immutable full-grid snapshot as the initial ownership strategy.
-- Accept or revise lazy rebuild plus bounded cache as the initial invalidation strategy.
-- Confirm whether strict `Reject` covers the complete provided snapshot (initial recommendation) or a separately declared planning ROI.
-- Choose concrete native storage, error and provider API names only during implementation-facing interface review.
+- Choose concrete native cell storage, provider/owning-handle type and error API names during interface review (OQ-023).
+- Define exact synchronization/scratch ownership for concurrent planner requests and lazy caches (OQ-012).
+- Introduce an explicitly declared ROI for strict `Reject` only through a separate future decision; baseline checks the entire supplied snapshot.
+- Benchmark publication copy costs, cache memory budget and update cadence before adding tiled snapshots or incremental distance repair.
