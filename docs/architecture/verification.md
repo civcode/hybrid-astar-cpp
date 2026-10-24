@@ -47,6 +47,8 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 - Negative, upper-bound, rotated-grid and non-finite coordinates rejected with mathematically correct floor.
 - Conventional signed occupancy `-1` unknown and `0..100` probability encoding; threshold policy and no raw Nav2 costmap reinterpretation.
 - Reject mismatched map/start/goal frames; optional ROS adapter performs transforms first.
+- Outdoor ENU checks: x increases east, y increases north, yaw 0 points east, and yaw +pi/2 points north; grid origin orientation tested independently.
+- Optional geodetic adapter tests: explicit latitude/longitude/altitude reference and datum, known GNSS-to-ENU fixtures, and missing/mismatched-origin rejection.
 - See [map-coordinate contract tests](map-coordinates.md).
 
 ## Collision verification
