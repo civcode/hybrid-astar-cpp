@@ -53,7 +53,7 @@ Contract:
 ```cpp
 template<class M> struct PrimitiveCandidate {
     typename M::Control control;
-    double extent;          // explicit time/distance domain
+    double extent;          // model-defined domain; OQ-002 not yet decided
     uint32_t primitiveId;
 };
 template<class M> concept PrimitiveProvider = requires(
@@ -72,9 +72,11 @@ template<class M> concept StateIndexer = requires(
 
 Contracts:
 - Candidate trajectories include start, end, and sufficient intermediate state/body motion information for collision validation. Cached local trajectories must still transform against the **continuous** parent state.
+- **Open OQ-002:** consider explicit traveled-distance extents for translating primitives and angular/configuration extents for zero-translation maneuvers; the model's time-domain derivative remains available for integration. A singular `dq/ds` at zero speed must not rule out feasible articulation or rotation. No universal length or time choice has yet been accepted.
 - Search node stores continuous state, accumulated `g`, stable parent reference and the exact action/connector necessary to reconstruct its edge.
 - The state key must include steering/articulation/other dimensions when their values affect reachability or collision. Do not conflate identical poses with different vehicle configurations.
-- A single `g` per discretized key is only valid if the state-abstraction/dominance assumptions are documented. Alternative labels or augmented keys may be required; optimality/completeness is not automatic.
+- **Accepted:** the search supports compile-time `SingleLabelPolicy` (default) and `MultiLabelPolicy` ([ADR-0010](../adr/0010-compile-time-search-label-policy.md)). When single-label is selected, key storage contains exactly one label ID, with no vector/chain, per-key multi-label fields, or per-expansion runtime mode branch. A facade can dispatch once to separately specialized planner types. Multi-label retention, eviction and resource budget are still open.
+- A single `g` per discretized key is only a search approximation unless the state-abstraction/dominance assumptions are documented. Multiple labels likewise do not prove mathematical dominance or full resolution completeness.
 - Precomputation is allowed only if validity assumptions (initial internal state, control limits, etc.) remain true.
 
 ## 4. Geometry and collision
@@ -147,31 +149,33 @@ Contract: no partial/unverified path is reported as `Success`. Failure carries d
 ## 7. Piecewise geometric path and refinement
 
 The path represents a sequence of **model-feasible motions**, not merely a polyline or a spline. Each motion segment has:
-- a monotone **segment-local progress** domain, start/end state and model-appropriate motion semantics (including lateral translation);
+- a **canonical path address** `(segmentIndex, lambda)` with `lambda in [0,1]`, full start/end states and model-appropriate motion semantics (including lateral translation), as accepted in [ADR-0011](../adr/0011-canonical-segment-path-position.md);
 - an evaluable complete model configuration `q(progress)`, including heading and articulation when present;
 - optional derivatives/curvature with an explicit domain of definition and orientation/direction convention;
 - boundary metadata for reverse cusps, rotations in place, and combined translation/rotation; body yaw need not equal spatial tangent and global differentiability is **not** required;
 - a validation record identifying the map/model configuration and guarantee level.
 
 ```cpp
+struct PathPosition { std::size_t segmentIndex; double lambda; };
+
 template<class State> struct PathEvaluation {
     State state;
     // optional: tangent, curvature, control, derivative validity
 };
 template<class State>
 struct GeometricSegment {
-    // progressDomain() -> [0, length] or model-defined progress
-    // evaluate(progress) -> PathEvaluation<State>
+    // evaluate(lambda in [0,1]) -> PathEvaluation<State>
     // motionDirection(), endConditions(), provenance()
 };
 template<class State>
 struct PiecewiseGeometricPath {
-    // segments(); evaluate(globalProgress); totalProgress();
+    // segments(); evaluate(PathPosition{segmentIndex,lambda});
+    // optional translationalArcLength(), cost(), other derived metrics
     // map/config identity, validation metadata
 };
 ```
 
-**Progress is not universally translational arc length.** In-place rotations have zero translation but nonzero maneuver progress. Holonomic models can translate sideways at fixed yaw, so pose heading and spatial tangent need not coincide. For ordinary translations, arc length is preferred. Explicit segment-local parameterization prevents the controller from assuming arbitrary `ds/dt` through a reversing cusp.
+**The canonical path address is not universally translational arc length.** A segment's normalized `lambda` advances even during in-place rotation or articulation-only movement with zero translation. Holonomic models can translate sideways at fixed yaw, so pose heading and spatial tangent need not coincide. Translational arc length is a useful *derived metric*, not the address. Segment endpoints must agree in complete continuous configuration; controls or derivatives may have one-sided/discontinuous limits at cusps. Boundary canonicalization remains an interface detail.
 
 Refinement consumes an already validated raw path and returns either:
 1. a new path with verified model constraints, endpoint conditions and collision status; or
@@ -181,4 +185,4 @@ Curve fitting (B-splines, Hermite, clothoids, arcs) is an internal interchangeab
 
 ## Interface decisions to close
 
-Review the high-priority items in [open-questions.md](open-questions.md): control/integration domains, state and tangent conventions (OQ-021), model capability metadata (OQ-019), exact state-key/dominance semantics, map ownership, cost units/heuristic admissibility, geometric-path parameterization, validation assurance, and type-erasure boundaries.
+Review the remaining details in [open-questions.md](open-questions.md): multi-label retention (OQ-001), primitive integration extent (OQ-002), path boundary canonicalization (OQ-003), state/tangent conventions (OQ-021), capability metadata (OQ-019), map ownership, cost units/heuristic admissibility, validation assurance and type-erasure boundaries.
