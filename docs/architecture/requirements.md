@@ -8,11 +8,11 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | --- | --- | --- |
 | FR-001 | Generic kinematic models | Search compiles against differential-drive and Ackermann model policies, plus an ideal mecanum reference, without drive-type branches |
 | FR-002 | Configurable motion primitives | Admissible controls generate forward/reverse, in-place rotation, lateral and combined motions where supported; full trajectory preserved |
-| FR-003 | Model-aware state indexing | Index includes all state dimensions needed for correct future reachability and dominance |
+| FR-003 | Model-aware state indexing | One retained continuous node per model-specific discretized state key; index relevant configuration dimensions, retain incoming primitive metadata, document lossy merge/reopen semantics and test pruning effects |
 | FR-004 | Collision geometry | Multiple frame-attached rigid 2D bodies; articulated poses derived from hypothetical state |
 | FR-005 | Swept-motion validation | Every accepted transition validated along complete motion, including rotating/articulating bodies |
 | FR-006 | Static occupancy environment | Immutable map snapshot with resolution, frame, origin, version, bounds and unknown-cell policy |
-| FR-007 | Obstacle-aware heuristic | 2D reverse shortest-distance field from goal, with defined cache invalidation and optional lazy evaluation |
+| FR-007 | Obstacle-aware heuristic | 2D reverse shortest-distance field from goal, with defined cache invalidation and optional lazy evaluation; may only be selected as default lower bound when admissibility is proven |
 | FR-008 | Model-specific heuristic/connector | Native Dubins and Reeds–Shepp where model assumptions apply; optional analytic goal connections |
 | FR-009 | Configurable search semantics | Open/closed handling, configurable costs, cancellation and bounded resource use |
 | FR-010 | Exact path reconstruction | Ordered, evaluable motion segments including gear changes and in-place rotations |
@@ -24,6 +24,9 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | FR-016 | Controlled-ODE model contract | Model defines state, control, state derivative, validity constraints and frame transforms; integrator evaluates model and exposes intermediate states |
 | FR-017 | Holonomic-capable motion semantics | Holonomic sideways/combined motion can have heading independent of path tangent; no binary holonomicity dispatch |
 | FR-018 | ROS-compatible map coordinates | Adopt REP-103/105 right-handed frames, map-origin SE(2), lower-left grid origin, x-fastest row-major storage, explicit occupancy values; outdoor maps use local ENU (+X east, +Y north, +Z up) with explicit geodetic reference metadata when GNSS is involved |
+| FR-019 | Pose-tolerant goal acceptance | Default Euclidean XY <= 0.25 m and wrapped yaw <= 10 degrees on continuous endpoint; independent configurable tolerances, optional extra model-state constraints, full motion validity |
+| FR-020 | Fixed-curvature Ackermann baseline | Three-state geometric bicycle with bounded-curvature arcs (straight/left/right and optional intermediate); no implied finite steering-rate feasibility |
+| FR-021 | Certified lower-bound heuristic default | Use certified cost-to-goal-region lower bounds by default; explicit weighted/experimental alternatives; avoid unsupported global optimality/suboptimality claims |
 
 ## Architectural constraints
 
@@ -40,6 +43,8 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | AC-009 | Model's admissible controls are authoritative; optional capability metadata cannot substitute for validity checks |
 | AC-010 | Search and path representations cannot universally equate body heading with velocity direction or require forward/reverse-only motion |
 | AC-011 | All native map/pose coordinates follow ROS-compatible conventions; only adapters access ROS APIs or resolve frame transforms |
+| AC-012 | Initial search uses one retained continuous node per model-defined discretized key; no required multi-label policy/storage; record approximate dominance and history-dependent cost limitations |
+| AC-013 | An admissible heuristic does not by itself establish continuous-space optimality when distinct continuous arrivals share a discretized key |
 
 ## Non-goals (initial milestones)
 
