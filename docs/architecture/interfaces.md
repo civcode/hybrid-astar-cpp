@@ -4,12 +4,12 @@
 
 ## Shared semantics and units
 
-- Positions and collision geometry are 2D in **meters**; headings/steering in **radians**, time in seconds; avoid implicit units conversions.
+- Positions and collision geometry are 2D in **meters**; headings/steering in **radians**, time in seconds; avoid implicit units conversions. Follow REP-103 right-handed body axes (+X forward, +Y left) and counterclockwise-positive yaw about +Z.
 - State includes all variables that influence propagation, collision-body poses, or future reachability. A world pose `Pose2D{x,y,yaw}` is a projection of state, **not** necessarily the full state.
 - An integration domain may be signed travel distance or nonnegative time; they are not interchangeable for stationary rotation.
 - State controls, gear and maneuver events are **model-specific**. Never require all models to expose turning radius, steering angle, or reverse movement.
 - Holonomic chassis motion may translate sideways at constant heading or translate and rotate simultaneously; body yaw and travel tangent are independent. The search cannot infer feasibility from a holonomic/nonholonomic flag.
-- Every path and map has a known coordinate frame and a bounded validity context (map version and model/config identity).
+- Every path and map has a known coordinate frame and a bounded validity context (map version and model/config identity). The default planning frame is `map` under REP-105. Start, goal, snapshot, and output frames must agree; ROS transforms are applied externally.
 - Prefer status/result values at request boundaries over uncaught exceptions in planning hot paths.
 
 ## 1. Configuration and environment
@@ -26,13 +26,13 @@ struct GridGeometry {
 enum class UnknownCellPolicy { Free, Occupied, Reject };
 struct MapSnapshot {
     GridGeometry geometry;
-    std::span<const uint8_t> occupancy; // owning handle specified separately
+    std::span<const int8_t> occupancy;  // candidate ROS occupancy encoding, final internal storage TBD
     uint64_t version;
     UnknownCellPolicy unknownPolicy;
 };
 ```
 
-Contract: snapshot holds its backing storage alive for the whole request (e.g., via an immutable owning handle). Occupancy interpretation and threshold are explicit. World/grid transforms handle rotated origins; out-of-bounds behavior is explicit. Search, heuristic and collision code consume the same snapshot but may apply different **conservative** relaxations for heuristic estimation.
+Contract: snapshot holds its backing storage alive for the whole request (e.g., via an immutable owning handle). Signed `int8_t` above is a candidate wire-compatible representation; alternative typed occupancy storage remains open. Unknown (`-1`) and occupied thresholds must be explicit, and Nav2 uint8 costmaps require conversion rather than raw reinterpretation. Grid indices use `index = j*width+i` (X-fastest); grid origin is the lower-left corner of cell `(0,0)` with a `(+0.5,+0.5)` cell-center offset. World/grid conversions must handle rotated origins through full SE(2), floor negative coordinates correctly, and check bounds. Details: [map-coordinates.md](map-coordinates.md).
 
 Plan configuration is a validated immutable typed structure. YAML/JSON adapters own parsing and versioning, not search.
 
