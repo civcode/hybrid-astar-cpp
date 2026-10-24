@@ -13,9 +13,13 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0007](0007-dependencies-verification.md) | Accepted | Supporting libraries scoped; contract-driven tests |
 | [0008](0008-motion-model-capabilities.md) | Accepted | Admissible-controls-first holonomic/nonholonomic models and mecanum reference |
 | [0009](0009-ros-map-coordinate-conventions.md) | Accepted | ROS coordinate frames and map grids |
-| [0010](0010-compile-time-search-label-policy.md) | Accepted | Optional multi-label search with an overhead-free single-label specialization |
+| [0010](0010-compile-time-search-label-policy.md) | Superseded by 0013 | Previously proposed optional multi-label policy |
 | [0011](0011-canonical-segment-path-position.md) | Accepted | Canonical path addresses use segment index and local normalized parameter |
 | [0012](0012-model-aware-geometric-primitive-extents.md) | Accepted | Geometric length for translation; angular/configuration extent for stationary motions |
+| [0013](0013-single-label-search-baseline.md) | Accepted | Simple single-node-per-discrete-key search; defer multi-label complexity |
+| [0014](0014-fixed-curvature-ackermann-baseline.md) | Accepted | Fixed-curvature 3-state geometric bicycle / Ackermann |
+| [0015](0015-admissible-default-heuristics.md) | Accepted | Certified lower-bound heuristic default; explicit opt-in alternatives |
+| [0016](0016-default-pose-goal-tolerances.md) | Accepted | Continuous-pose goal with XY and wrapped-yaw tolerances |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
