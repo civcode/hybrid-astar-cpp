@@ -11,7 +11,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | OQ-003 | **Resolved — accepted** | Canonical position is `(segmentIndex, lambda)` with `lambda in [0,1]`, evaluating complete model state; distance/time remain optional derived metrics ([ADR-0011](../adr/0011-canonical-segment-path-position.md)). **Interface detail open:** boundary canonicalization. |
 | OQ-004 | What is the planning cost in consistent units? | Candidate: normalized kinematic-control effort plus geometric progress cost. Need a principled conversion between distance and dimensionless effort (e.g. actuator-limit-based equivalent length), explicit stationary-motion costs, nonnegative edges, and compatible heuristic lower bounds. Avoid calling an effort proxy measured energy. |
 | OQ-005 | **Resolved — accepted** | Use certified admissible cost-to-goal-region heuristic by default, with optional explicit weighted/experimental modes ([ADR-0015](../adr/0015-admissible-default-heuristics.md)). Grid reverse Dijkstra must be certified before use as a lower bound; a zero heuristic is valid fallback. Single-label state merging prevents unconditional global optimality/weighted bounds. |
-| OQ-006 | **Partly resolved — unknown policy and threshold accepted** | Preserve `-1` unknown and `0..100` known-cell values. Per-request `UnknownCellPolicy {Occupied, Free, Reject}` defaults to `Occupied` for known-free frontier exploration ([ADR-0017](../adr/0017-explicit-unknown-occupancy-policy.md)). Configurable `maxTraversableOccupancy=0` default: known `c` is traversable iff `c <= max` ([ADR-0018](../adr/0018-known-free-only-occupancy-threshold.md)). **Still proposed:** immutable shared snapshot publication, on-demand revision-keyed cache generation, and deterministic full-map prevalidation for strict `Reject` (see [design proposal](live-map-snapshots-and-cache-proposal.md)); exact owning API and publication cadence open. |
+| OQ-006 | **Resolved — accepted baseline** | ROS occupancy: `-1` unknown and `0..100` known. Per-request unknown `Occupied` (default for frontier), `Free`, `Reject` ([ADR-0017](../adr/0017-explicit-unknown-occupancy-policy.md)); known traversable iff `c <= maxTraversableOccupancy` (default `0`, [ADR-0018](../adr/0018-known-free-only-occupancy-threshold.md)). Immutable versioned full-grid shared snapshots with atomic publication, map-dependent cache reuse only for matching effective-input keys or rebuild on demand with bounded retention, and strict `Reject` prevalidation of **entire supplied map** accepted ([ADR-0019](../adr/0019-live-map-snapshot-cache-and-reject.md)). Exact native storage/ABI remains OQ-023 and shared mutable cache concurrency remains OQ-012. |
 | OQ-007 | **Resolved — accepted** | Three-state geometric bicycle with fixed-curvature straight/left/right forward/reverse primitives, optional intermediate curvatures ([ADR-0014](../adr/0014-fixed-curvature-ackermann-baseline.md)). Raw joins do not guarantee finite steering rate; refiner/trajectory planner must separately validate if required. Four-state steering-rate model remains an optional extension. |
 | OQ-008 | **Resolved — accepted** | Default pose-only goal: Euclidean XY <= 0.25 m, wrapped yaw <= 10 degrees, independent configurable tolerances; test continuous endpoint and full motion validity ([ADR-0016](../adr/0016-default-pose-goal-tolerances.md)). Extra state variables unconstrained unless explicitly required, no snapping; heuristic bounds cost to region. |
 
@@ -22,7 +22,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | OQ-009 | Collision assurance | Adaptive sampling only vs conservative swept bounds; hard guarantee requires more than discrete samples |
 | OQ-010 | Public runtime polymorphism | Static concept-backed model solver + thin type erased facade vs runtime virtual model |
 | OQ-011 | Steering cost/termination | How to cost analytic connectors and when is it safe to stop search? |
-| OQ-012 | Replanning and cache concurrency | One active request per instance? Mutable lazy cache locking/copying? |
+| OQ-012 | Replanning and cache concurrency | Map revisions can be published atomically and read safely by concurrent requests (ADR-0019). Still choose planner-instance concurrency rule, mutable lazy-cache synchronization/per-request scratch ownership, cancellation and safe eviction under load. |
 | OQ-013 | Refinement guarantee | Constraint-enforced spatial spline vs control-parameterized segments, and what `validated` means |
 | OQ-014 | Geometry data and frames | FrameId registry and validation, compound convex bodies, self-collision policy |
 | OQ-015 | Dependency versions and packaging | Eigen, Catch2, cxxopts, nlohmann/json, yaml-cpp, Ceres optional; vendoring vs package manager |
@@ -47,7 +47,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 - [x] Accept OQ-005 certified-admissible heuristic mode as default (ADR-0015); relaxations explicit.
 - [x] Accept OQ-007 fixed-curvature 3-state Ackermann baseline (ADR-0014).
 - [x] Accept OQ-008 pose-only goal region with default XY/yaw tolerances (ADR-0016).
-- [ ] Resolve OQ-004 effort-cost objective and remaining OQ-006 snapshot ownership/strict Reject scope/cache semantics. Unknown policy/frontier default and threshold zero are accepted (ADRs 0017–0018); [snapshot/cache/Reject concepts](live-map-snapshots-and-cache-proposal.md) await review.
+- [ ] Resolve OQ-004 kinematic effort-cost objective; OQ-006 baseline map ownership/cache/Reject decisions are accepted (ADRs 0017–0019). Final native cell/frame/handle ABI remains OQ-023; mutable cache and planner concurrency remain OQ-012.
 - [ ] Confirm primitive and path parameter units, reversing cusp and rotation semantics.
 - [ ] Confirm how heuristic certification and completeness/optimality claims are worded.
 - [ ] Agree minimal compile-time policy concepts and public result/error types.
@@ -56,6 +56,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 - [ ] Confirm the supplied articulated-steering input and body-frame conventions (OQ-022) before implementing collision transforms.
 - [x] Accept per-request unknown-cell policy with conservative `Occupied` frontier default (ADR-0017).
 - [x] Accept default known-free-only occupancy threshold `0` with explicit boundary comparison (ADR-0018).
-- [ ] Confirm ROS-compatible map/grid Catch2 contracts (ADR-0009), select native occupancy storage (OQ-023), and define precise Reject behavior (OQ-006).
+- [x] Accept immutable shared full-grid snapshots with atomic publishing, revision-keyed lazy cache building and bounded retention, and full-map deterministic `Reject` validation (ADR-0019).
+- [ ] Confirm ROS-compatible map/grid Catch2 contracts (ADR-0009), select native occupancy storage and final frame/handle ABI (OQ-023), and refine concurrent planner-cache synchronization (OQ-012).
 - [ ] Approve verification categories and first benchmark fixtures.
 - [ ] Record decisions as accepted ADRs before implementation depends on them.
