@@ -31,7 +31,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 | FR-019 | XY <= 0.25 m and wrapped yaw <= 10 degrees defaults, independent threshold equality, zero-tolerance mode, model-specific optional state constraints, continuous endpoint check and valid swept motion |
 | FR-020 | Fixed-curvature three-state Ackermann exact arcs and reversals; steering rate discontinuity explicitly reported, and optional refiner tested for valid smooth connector rather than assumed valid |
 | FR-021 | Certified lower bounds for goal region/edge cost, explicitly relaxed heuristic modes, and no unproven optimality guarantee from quantized-key Hybrid A* |
-| FR-022 | Three explicit per-request unknown policies over identical immutable occupancy snapshots; default `Occupied`, optimistic `Free` diagnostics, explicit `Reject` error, and complete-footprint frontier traversability |
+| FR-022 | Three per-request unknown policies over identical immutable snapshots; default `Occupied`, optimistic `Free` diagnostics, explicit `Reject` status, full-footprint frontier traversability; known-cell threshold `c <= max`, default max `0`, boundary tests |
 | NFR-001..012 | See [quality protocol](quality.md); scenario baselines and metadata stored with results |
 
 ## Single-label search and canonical path contract tests
@@ -57,7 +57,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 - Index fixture: `(0,0)` maps to 0, `(1,0)` to 1, `(0,1)` to `width`, with no Y-axis image flip.
 - Full SE(2) origin transform (zero and nonzero yaw), lower-left cell origin and half-cell center offset.
 - Negative, upper-bound, rotated-grid and non-finite coordinates rejected with mathematically correct floor.
-- Conventional signed occupancy `-1` unknown and `0..100` probability encoding; threshold policy and no raw Nav2 costmap reinterpretation.
+- Conventional signed occupancy `-1` unknown and `0..100` probability encoding; **accepted default threshold `maxTraversableOccupancy = 0`**: `0` free, `1..100` blocked; compare as `c <= max`, including equality at `max=20` and blocked `21`. Unknown `-1` bypasses comparison. Validate malformed values, out-of-bounds and no raw Nav2 costmap reinterpretation.
 - Under default `UnknownCellPolicy::Occupied`, reject candidate swept motions touching unknown space, including footprint corners outside known-free cells; allow reachable goal points near the known-free frontier. `Free` permits unknown traversal but must report optimistic environmental assurance; `Reject` emits an explicit status when invoked by an unknown-dependent query (exact scope remains OQ-006). Switching options must not mutate the snapshot.
 - Reject mismatched map/start/goal frames; optional ROS adapter performs transforms first.
 - Outdoor ENU checks: x increases east, y increases north, yaw 0 points east, and yaw +pi/2 points north; grid origin orientation tested independently.
@@ -76,7 +76,8 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 ## Heuristic correctness and guarantees
 
 - Tiny hand-computed maps for Dijkstra values, lazy vs eager equivalence, unreachable goals and unknown-cell policies.
-- Verify heuristic cache invalidates on map version, goal, inflation/unknown policy and grid geometry, including changed origin yaw or frame ID. A policy-only change must not reuse policy-dependent cached traversability/heuristic data. A snapshot revision stays fixed during a request even if a new revision becomes available.
+- Verify heuristic cache invalidates on map identity/revision, goal *region*, inflation/threshold/unknown policy and grid geometry, including changed origin yaw or frame ID. A policy-only change must not reuse policy-dependent cached traversability/heuristic data. A snapshot revision stays fixed during a request even if a new revision becomes available.
+- **Proposed live-map contract tests (not accepted yet):** publish R+1 while a request is reading R; old occupancy and metadata remain unchanged; model caches survive map publication, map-derived cache reuses only exact-compatible keys; bounded cache eviction releases memory; lazy rebuild after revision change; strict `Reject` fails during deterministic map-domain prevalidation independent of search/heuristic order. See [live-map proposal](live-map-snapshots-and-cache-proposal.md).
 - For any declared *admissible* heuristic mode, compare `h` to a proven lower bound or analytically solvable case. Do not infer admissibility solely because reverse Dijkstra runs.
 - Test consistency only for modes where consistency is claimed; otherwise ensure reopen behavior handles inconsistent heuristics.
 - Compare obstacle-aware heuristic on/off for performance **and** solution quality; no artificial optimality claims.
