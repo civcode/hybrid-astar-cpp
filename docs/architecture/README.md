@@ -8,6 +8,7 @@ This is a lightweight, reviewable specification rather than a full arc42 documen
 | [Components](components.md) | Ownership, dependency direction, data flow |
 | [Interfaces](interfaces.md) | C++20-oriented API sketches and semantic contracts |
 | [Kinematic models](kinematic-models.md) | Controlled differential equations, constraints and planar chassis examples |
+| [Map coordinates](map-coordinates.md) | ROS-compatible map frames, grid indices and occupancy semantics |
 | [Algorithms](algorithms.md) | Search, obstacle heuristic, collision and reconstruction |
 | [Quality](quality.md) | Nonfunctional requirements, measurement protocol |
 | [Verification](verification.md) | Contract-driven test and benchmark strategy |
@@ -23,7 +24,7 @@ This is a lightweight, reviewable specification rather than a full arc42 documen
 4. **Feasible primitives and connections:** each accepted transition is validated against model constraints and the complete configuration-dependent collision geometry.
 5. **Exact path reconstruction:** preserve primitive trajectories, direction changes, and model state. Refinement is optional and cannot replace an accepted path without validating the result.
 6. **Representation-independent path output:** piecewise, continuously evaluable segments; motion direction, in-place rotation, sideways translation, combined motion and articulation are explicit. Body heading need not equal travel tangent; global differentiability is not assumed.
-7. **ROS 2 only at edges:** adapters handle TF, messages, lifecycle, and ROS parameters. No ROS types in core public headers.
+7. **ROS 2 conventions natively; ROS APIs only at edges:** use REP-103/105 axes and frames, and OccupancyGrid layout ([ADR-0009](../adr/0009-ros-map-coordinate-conventions.md)). Adapters handle TF, messages and ROS parameters; no ROS headers in core.
 8. **Supporting libraries are scoped:** configuration, testing, optimization and visualization must not leak into hot-path search dependencies.
 
 ## Status rules
