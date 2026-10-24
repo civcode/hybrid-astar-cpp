@@ -23,7 +23,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | FR-015 | Deterministic diagnostics | Failure reason, map/config versions, counters, timings, and reproducible test inputs |
 | FR-016 | Controlled-ODE model contract | Model defines state, control, state derivative, validity constraints and frame transforms; integrator evaluates model and exposes intermediate states |
 | FR-017 | Holonomic-capable motion semantics | Holonomic sideways/combined motion can have heading independent of path tangent; no binary holonomicity dispatch |
-| FR-018 | ROS-compatible map coordinates | Adopt REP-103/105 right-handed frames, map-origin SE(2), lower-left grid origin, x-fastest row-major storage, explicit occupancy values |
+| FR-018 | ROS-compatible map coordinates | Adopt REP-103/105 right-handed frames, map-origin SE(2), lower-left grid origin, x-fastest row-major storage, explicit occupancy values; outdoor maps use local ENU (+X east, +Y north, +Z up) with explicit geodetic reference metadata when GNSS is involved |
 
 ## Architectural constraints
 
