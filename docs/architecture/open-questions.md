@@ -11,7 +11,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | OQ-003 | **Resolved — accepted** | Canonical position is `(segmentIndex, lambda)` with `lambda in [0,1]`, evaluating complete model state; distance/time remain optional derived metrics ([ADR-0011](../adr/0011-canonical-segment-path-position.md)). **Interface detail open:** boundary canonicalization. |
 | OQ-004 | What is the planning cost in consistent units? | Candidate: normalized kinematic-control effort plus geometric progress cost. Need a principled conversion between distance and dimensionless effort (e.g. actuator-limit-based equivalent length), explicit stationary-motion costs, nonnegative edges, and compatible heuristic lower bounds. Avoid calling an effort proxy measured energy. |
 | OQ-005 | **Resolved — accepted** | Use certified admissible cost-to-goal-region heuristic by default, with optional explicit weighted/experimental modes ([ADR-0015](../adr/0015-admissible-default-heuristics.md)). Grid reverse Dijkstra must be certified before use as a lower bound; a zero heuristic is valid fallback. Single-label state merging prevents unconditional global optimality/weighted bounds. |
-| OQ-006 | What is map ownership and indexing policy? | Immutable owning snapshot, unknown cells, threshold, rotated origin, map revision; affects collision and caching |
+| OQ-006 | **Partly resolved — accepted unknown policy** | Preserve `-1` unknown and `0..100` occupancy semantics. An **explicit per-request** `UnknownCellPolicy {Occupied, Free, Reject}` defaults to `Occupied`, enabling conservative known-free frontier exploration; frontier selection is external ([ADR-0017](../adr/0017-explicit-unknown-occupancy-policy.md)). **Open:** owning snapshot form, occupancy threshold, Reject encounter scope, map revision publication cadence and cache repair/invalidation. Coordinates/rotated origin already accepted (ADR-0009). |
 | OQ-007 | **Resolved — accepted** | Three-state geometric bicycle with fixed-curvature straight/left/right forward/reverse primitives, optional intermediate curvatures ([ADR-0014](../adr/0014-fixed-curvature-ackermann-baseline.md)). Raw joins do not guarantee finite steering rate; refiner/trajectory planner must separately validate if required. Four-state steering-rate model remains an optional extension. |
 | OQ-008 | **Resolved — accepted** | Default pose-only goal: Euclidean XY <= 0.25 m, wrapped yaw <= 10 degrees, independent configurable tolerances; test continuous endpoint and full motion validity ([ADR-0016](../adr/0016-default-pose-goal-tolerances.md)). Extra state variables unconstrained unless explicitly required, no snapping; heuristic bounds cost to region. |
 
@@ -47,13 +47,14 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 - [x] Accept OQ-005 certified-admissible heuristic mode as default (ADR-0015); relaxations explicit.
 - [x] Accept OQ-007 fixed-curvature 3-state Ackermann baseline (ADR-0014).
 - [x] Accept OQ-008 pose-only goal region with default XY/yaw tolerances (ADR-0016).
-- [ ] Resolve OQ-004 effort-cost objective and OQ-006 environment ownership/unknown semantics.
+- [ ] Resolve OQ-004 effort-cost objective and remaining OQ-006 snapshot ownership/threshold/Reject scope/cache semantics; unknown policy and frontier default are already accepted (ADR-0017).
 - [ ] Confirm primitive and path parameter units, reversing cusp and rotation semantics.
 - [ ] Confirm how heuristic certification and completeness/optimality claims are worded.
 - [ ] Agree minimal compile-time policy concepts and public result/error types.
 - [ ] Validate ODE/tangent/integrator contracts against differential drive, Ackermann and ideal mecanum (OQ-021).
 - [ ] Ensure search and path interfaces never assume that body heading equals travel tangent.
 - [ ] Confirm the supplied articulated-steering input and body-frame conventions (OQ-022) before implementing collision transforms.
-- [ ] Confirm ROS-compatible map/grid Catch2 contracts (ADR-0009) and select native occupancy storage (OQ-023).
+- [x] Accept per-request unknown-cell policy with conservative `Occupied` frontier default (ADR-0017).
+- [ ] Confirm ROS-compatible map/grid Catch2 contracts (ADR-0009), select native occupancy storage and threshold (OQ-023), and define precise Reject behavior (OQ-006).
 - [ ] Approve verification categories and first benchmark fixtures.
 - [ ] Record decisions as accepted ADRs before implementation depends on them.
