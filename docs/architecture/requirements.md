@@ -27,7 +27,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | FR-019 | Pose-tolerant goal acceptance | Default Euclidean XY <= 0.25 m and wrapped yaw <= 10 degrees on continuous endpoint; independent configurable tolerances, optional extra model-state constraints, full motion validity |
 | FR-020 | Fixed-curvature Ackermann baseline | Three-state geometric bicycle with bounded-curvature arcs (straight/left/right and optional intermediate); no implied finite steering-rate feasibility |
 | FR-021 | Certified lower-bound heuristic default | Use certified cost-to-goal-region lower bounds by default; explicit weighted/experimental alternatives; avoid unsupported global optimality/suboptimality claims |
-| FR-022 | Request-level unknown occupancy policy | Expose `Occupied` (default), `Free` (optimistic), `Reject` interpretation for `-1` cells, independent of immutable map storage; frontier exploration plans in known-free area, selection of frontier goals external |
+| FR-022 | Request-level occupancy and unknown policy | Expose `Occupied` (default), `Free` (optimistic), `Reject` for `-1` cells; known cells traverse iff `c <= maxTraversableOccupancy` (configurable `0..100`, default `0`); immutable map stores the original values; external frontier goals target known-free area (ADRs 0017–0018) |
 
 ## Architectural constraints
 
@@ -46,7 +46,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | AC-011 | All native map/pose coordinates follow ROS-compatible conventions; only adapters access ROS APIs or resolve frame transforms |
 | AC-012 | Initial search uses one retained continuous node per model-defined discretized key; no required multi-label policy/storage; record approximate dominance and history-dependent cost limitations |
 | AC-013 | An admissible heuristic does not by itself establish continuous-space optimality when distinct continuous arrivals share a discretized key |
-| AC-014 | Unknown occupancy interpretation is selected per planning request, consistent across collision and heuristic components; caches must distinguish policy/map revisions |
+| AC-014 | Unknown occupancy and known-cell maximum traversable occupancy are independently configurable per planning request and consistent across collision and heuristics; derived caches must distinguish effective policy/map revisions |
 
 ## Non-goals (initial milestones)
 
