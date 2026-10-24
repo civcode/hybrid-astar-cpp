@@ -12,11 +12,14 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Confirm outdoor world frame uses local ENU (+X east, +Y north, +Z up) with explicit geodetic reference when GNSS is used; indoor frame may be building-aligned.
 - [ ] Review [ADR-0008](adr/0008-motion-model-capabilities.md): model control constraints, ideal mecanum as third reference and holonomic travel semantics.
 - [ ] Confirm supplied four-state articulated-steering ODE input interpretation, joint/body frame conventions and link lengths (OQ-022).
-- [x] Accept OQ-001 compile-time optional multi-label policy (ADR-0010); [x] accept OQ-003 canonical `(segmentIndex, lambda)` path position (ADR-0011).
-- [ ] Agree OQ-001 multi-label retention/eviction and per-key budget strategy.
+- [x] Accept OQ-001 **single retained node per model-specific discretized key** (ADR-0013, superseding ADR-0010); [x] accept OQ-003 canonical `(segmentIndex, lambda)` path position (ADR-0011).
+- [ ] Benchmark single-key pruning against feasible-path recovery and post-refinement quality in narrow passages; revisit extra arrival labels only if evidence warrants a separate future decision.
 - [x] Accept OQ-002 geometric length for translation and angular/configuration extent for stationary motion (ADR-0012).
 - [ ] Resolve OQ-002 exact typed extent/control law and OQ-024 downstream speed-profile/feasibility interface; timing/rate limits require explicit treatment.
-- [ ] Resolve or explicitly defer remaining high-priority OQ-004–OQ-008.
+- [x] Accept OQ-005 certified-admissible heuristic default and explicit opt-in relaxed modes (ADR-0015).
+- [x] Accept OQ-007 three-state fixed-curvature Ackermann primitives (ADR-0014).
+- [x] Accept OQ-008 pose-tolerance default of 0.25 m / 10 degrees with optional extra-state goal constraints (ADR-0016).
+- [ ] Resolve OQ-004 planning effort-cost objective and OQ-006 map ownership/unknown semantics.
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
 - [ ] Accept/revise ADRs and mark architecture baseline v0.1 reviewed.
@@ -41,13 +44,13 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 ## M2 — Kinematics, primitives and collision
 
 - [ ] Differential-drive model including in-place rotation; compile-time concept checks.
-- [ ] Geometric bicycle/Ackermann model with stated constraints and reversing capability.
+- [ ] Three-state geometric bicycle/Ackermann model with exact fixed-curvature left/straight/right (optional intermediate) forward/reverse arcs; preserve joins and annotate finite steering-rate assumptions (ADR-0014).
 - [ ] Ideal mecanum reference model: independent chassis body lateral/forward/yaw velocities, admissible bounds, concept tests and analytic propagation fixtures.
 - [ ] Define controlled differential-equation/tangent model interface, and separate generic integrator (native RK4) plus exact constant-curvature propagation.
 - [ ] Model-specific control enumeration, primitive templates and cache invalidation.
 - [ ] Implement OQ-002 length-parametrized translating primitives plus model-aware angular/configuration extents for stationary maneuvers; retain validated time-domain integration fallback and ensure no division by longitudinal speed at zero.
-- [ ] Model-aware state indexing and **compile-time** label policy: specialized zero-overhead single-label default and configurable multi-label per-key storage; independently benchmark allocations, per-key memory and expansion time.
-- [ ] Multi-label retention/eviction, stable parent records and deterministic pruning tests.
+- [ ] Implement **single retained continuous node per model-defined discrete key** with stable parents, incoming primitive metadata, reopen/stale-queue handling and no multi-label storage (ADR-0013).
+- [ ] Deterministic key replacement/pruning tests, including loss of alternative continuous arrivals and history-dependent transition-cost approximation.
 - [ ] Geometry frame transforms from hypothetical state; add a fixture for the supplied four-state articulated-steering model after its physical frame conventions are confirmed.
 - [ ] Implement articulated steering derivative with safe denominator checks, articulation state indexing, rate constraints and zero-translation articulation sweep tests (extension milestone, not blocking differential/Ackermann).
 - [ ] Swept-motion broad/narrow phase, explicit validation assurance.
@@ -62,7 +65,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Segment/direction representation, robust normalization and degenerate handling.
 - [ ] Optional OMPL differential test target (test-only, OFF by default), randomized reproducible corpus.
 - [ ] Reverse-Dijkstra obstacle-distance field with lazy/eager modes and cache versioning.
-- [ ] Define, test and clearly report heuristic admissibility/optimality mode.
+- [ ] Implement certified-admissible lower-bound heuristic as default (zero or goal-region Euclidean fallback until obstacle-field bound proven), explicit weighted/experimental modes, and report lack of global optimality under quantized pruning.
 - [ ] Profile steering distance-only calls and heuristic cache behavior.
 
 **Exit:** native steering passes analytic/oracle tests and obstacle heuristic passes grid fixtures.
@@ -74,7 +77,9 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Edge costs, tie breaks, reopen/dominance and termination semantics.
 - [ ] Cancellation and time/expansion/memory budgets, structured diagnostics.
 - [ ] Exact path reconstruction and validated piecewise path output using canonical `(segmentIndex, lambda)` evaluation; complete state and one-sided cusp semantics.
+- [ ] Evaluate goal conditions on actual continuous endpoints with configurable XY/yaw tolerances and optional additional full-state constraints; verify final swept motion.
 - [ ] Scenario tests (wall/doorway, narrow turns, reverse parking, unreachable goal; mecanum sideways travel and yaw-independent footprint constraints).
+- [ ] Compare geometric raw versus refined path planning outcomes, including paths lost to single-label key pruning, without promising refinability of missing homotopy classes.
 - [ ] Local latency/memory/quality baseline with and without obstacle-aware heuristic.
 
 **Exit:** model-independent, validated baseline paths with measured performance.
