@@ -13,6 +13,8 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0007](0007-dependencies-verification.md) | Accepted | Supporting libraries scoped; contract-driven tests |
 | [0008](0008-motion-model-capabilities.md) | Accepted | Admissible-controls-first holonomic/nonholonomic models and mecanum reference |
 | [0009](0009-ros-map-coordinate-conventions.md) | Accepted | ROS coordinate frames and map grids |
+| [0010](0010-compile-time-search-label-policy.md) | Accepted | Optional multi-label search with an overhead-free single-label specialization |
+| [0011](0011-canonical-segment-path-position.md) | Accepted | Canonical path addresses use segment index and local normalized parameter |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
