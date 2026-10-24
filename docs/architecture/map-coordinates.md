@@ -57,11 +57,13 @@ The `nav_msgs/OccupancyGrid` message uses signed `int8` cells. The common occupa
 | `1..99` | Intermediate occupancy probability |
 | `100` | Occupied |
 
-The ROS message documents application-dependent occupancy values; **the adapter must declare and validate its chosen interpretation**. A policy specifies an occupied threshold (`0..100`), treatment of unknown cells (`Free`, `Occupied` or `Reject`), and invalid value behavior. Nav2 unsigned costmap encoding (`0..255` costs) is **not** an OccupancyGrid probability array and must not be blindly reinterpreted.
+The ROS message documents application-dependent occupancy values; **the adapter must declare and validate its chosen interpretation**. An occupancy interpretation policy specifies an occupied-probability threshold (`0..100`) and invalid value behavior; the **per-planning-request** unknown-cell policy is separate, with options `Occupied` (default), `Free` and `Reject` ([ADR-0017](../adr/0017-explicit-unknown-occupancy-policy.md)). Nav2 unsigned costmap encoding (`0..255` costs) is **not** an OccupancyGrid probability array and must not be blindly reinterpreted.
 
 Internally, choose either signed occupancy values **with explicit validation**, or a typed cell-state/probability representation. Do **not** put raw `uint8_t` occupancy into a public contract while interpreting `-1` as unknown without defining the conversion. Prefer immutable backing storage and immutable map snapshots.
 
 Collision checking and obstacle heuristics must use explicit, mutually consistent map semantics. A deliberately relaxed map may be used for a lower bound only when its validity conditions are documented.
+
+**Frontier exploration default (accepted ADR-0017):** `UnknownCellPolicy::Occupied` treats unknown space as nontraversable for the robot's **full swept footprint**. A separate exploration component chooses a goal in reachable known-free space near a frontier. The alternative `Free` is optimistic and does not certify that unknown terrain is obstacle-free. `Reject` reports unknown occupancy as an error, with precise relevant-query scope to be finalized in OQ-006. The `MapSnapshot` retains its immutable raw/typed occupancy data; a request-level policy changes interpretation only. Map-dependent caches must distinguish policies and relevant map revisions, regardless of the underlying buffer being shared.
 
 ## Suggested native API sketch
 
@@ -76,7 +78,12 @@ struct GridGeometry {
 };
 
 struct GridIndex { int32_t x, y; };
+enum class UnknownCellPolicy { Occupied, Free, Reject };
+struct PlanningOptions {
+    UnknownCellPolicy unknownCells = UnknownCellPolicy::Occupied;
+};
 // Occupancy representation and owning handle remain under review.
+// Unknown handling is a planning-request option, not stored as a map fact.
 // worldToCell(worldPoint, geometry) -> optional<GridIndex>
 // cellCenterToWorld(GridIndex, geometry) -> Point2D
 // linearIndex(i,j,width) -> size_t, after bounds checks
