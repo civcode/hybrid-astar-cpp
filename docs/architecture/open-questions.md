@@ -6,9 +6,9 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 
 | ID | Question | Candidate choices / why it matters |
 | --- | --- | --- |
-| OQ-001 | What is the state/index dominance contract? | Pose bins alone vs model-specific extra bins / multiple labels; impacts reachability and correctness |
-| OQ-002 | What does primitive extent measure? | Signed distance for moving segments, time for rotate-in-place, explicit domain wrapper; affects reconstruction and costs |
-| OQ-003 | What is the path progress contract? | Segment-local normalized progress vs arc length + rotation angle; impacts MPC interpolation and in-place motions |
+| OQ-001 | **Partly resolved — accepted policy architecture** | Multiple labels per discrete key are optional via compile-time policy; default single-label path must have no multi-label runtime/space overhead ([ADR-0010](../adr/0010-compile-time-search-label-policy.md)). **Open:** multi-label candidate retention, cap/eviction and dominance approximations. |
+| OQ-002 | **Open — geometric primitive extent design** | Length-based translating primitives preferred for discussion; pure rotation and articulation-only maneuvers have zero distance, requiring angular/configuration extents or another model-aware domain. Time-based ODE integration stays available; decide parameter-domain representation and rate-constrained feasibility. |
+| OQ-003 | **Resolved — accepted** | Canonical position is `(segmentIndex, lambda)` with `lambda in [0,1]`, evaluating complete model state; distance/time remain optional derived metrics ([ADR-0011](../adr/0011-canonical-segment-path-position.md)). **Interface detail open:** boundary canonicalization. |
 | OQ-004 | What is the planning cost in consistent units? | Length plus maneuver penalties, rotation cost, reversals, clearance; controls safe heuristic scaling |
 | OQ-005 | Which obstacle heuristic mode and guarantees? | Grid reverse Dijkstra often overestimates true continuous distance; choose correction or explicitly nonadmissible mode |
 | OQ-006 | What is map ownership and indexing policy? | Immutable owning snapshot, unknown cells, threshold, rotated origin, map revision; affects collision and caching |
@@ -39,7 +39,10 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 
 - [ ] Cross-check requirements against intended supported vehicles and controller boundary.
 - [ ] Agree which constraints are enforced by raw search and which by optional refinement/MPC.
-- [ ] Choose or explicitly defer OQ-001 through OQ-008 with documented rationale.
+- [ ] Finalize OQ-001 multi-label retention/budget details; compile-time single-label policy and zero-overhead objective accepted.
+- [ ] Resolve OQ-002 geometric primitive extent, stationary motion parameterization and rate-limit implications.
+- [x] Accept OQ-003 canonical path address `(segmentIndex, lambda)` (ADR-0011).
+- [ ] Choose or explicitly defer remaining open items OQ-004 through OQ-008 with documented rationale.
 - [ ] Confirm primitive and path parameter units, reversing cusp and rotation semantics.
 - [ ] Confirm how heuristic certification and completeness/optimality claims are worded.
 - [ ] Agree minimal compile-time policy concepts and public result/error types.
