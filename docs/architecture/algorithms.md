@@ -40,7 +40,8 @@ sequenceDiagram
 
 ```text
 validate request/map/model/start/goal and ensure the same planning frame
-bind one immutable map revision and explicit per-request unknown policy (default: Occupied)
+bind one immutable map revision and explicit per-request occupancy policy
+# default: unknown Occupied; known maxTraversableOccupancy=0
 initialize or fetch model-specific primitive catalog and heuristic cache
 check full start state validity/collision and validate goal-region specification
 # a nominal goal-center pose can collide while valid end configurations exist within tolerance
@@ -84,7 +85,7 @@ Accept only validated **continuous** candidate endpoints satisfying both `hypot(
 
 1. Use immutable static grid and a **goal-rooted, nonnegative-weight reverse graph search** (Dijkstra); do not just run point-to-point A*. World/grid conversion uses inverse SE(2) origin transform and X-fastest row-major memory order as specified in [map-coordinates.md](map-coordinates.md).
 2. Optionally lazy-expand until the queried cell is **settled**; incomplete frontier values cannot be returned as final distances.
-3. Use compact contiguous 2D storage for distances and visited/settled state; permit cache reuse only with matching map version, frame, **origin position/yaw**, resolution, dimensions, goal index, occupancy/unknown policy, and algorithm settings. The unknown policy is **request-level**, not a mutation of `MapSnapshot`; default is `Occupied` for frontier exploration. A new sensor-produced snapshot does not alter a running request's map.
+3. Use compact contiguous 2D storage for distances and visited/settled state; permit cache reuse only with matching map identity/revision, frame, **origin position/yaw**, resolution, dimensions, goal region, occupancy/unknown/threshold policy, and algorithm settings. The occupancy policy is **request-level**, not a mutation of `MapSnapshot`; default is unknown `Occupied` and known occupancy maximum `0` for frontier exploration. A new sensor-produced snapshot does not alter a running request's map. **Proposed:** on-demand rebuilding, bounded retention, no incremental repair initially ([live-map design](live-map-snapshots-and-cache-proposal.md)).
 4. **OQ-005 / ADR-0015:** the default uses certified cost-to-**goal-region** lower bounds only; if both obstacle-aware and kinematic heuristics are certified in the configured cost units, `h=max(h_obstacle,h_kinematic)` is admissible. `h=0` is a valid fallback for nonnegative costs. Optional weighted/experimental search modes must be explicitly requested and report weakened guarantees.
 5. **Admissibility caveat:** a grid's 4-/8-connected shortest-path cost is generally an *upper* approximation to shortest unconstrained continuous distance; conservative edge graph definitions/inflation and boundary offsets must be proved safe before claiming an admissible bound. Heuristic mode and guarantee metadata must expose this.
 6. Treat unreachable (infinite) heuristic cells carefully: map-level disconnection can prune safely only if the static relaxed map models traversability conservatively; otherwise retain search freedom.
@@ -99,8 +100,8 @@ Accept only validated **continuous** candidate endpoints satisfying both `hypot(
 
 ## Unknown occupancy and frontier requests (ADR-0017)
 
-- Preserve `-1` as unknown in the map's declared encoding. Each planning request explicitly chooses `Occupied` (default), `Free` or `Reject`; do not hardcode unknown handling into map data.
-- `Occupied` blocks swept-body traversal of unknown cells, allowing an external frontier explorer to target **known-free** endpoints near observation boundaries. `Free` is provisional optimistic planning, not certified free-space validity. `Reject` reports a relevant unknown-occupancy error; its exact encounter scope remains OQ-006.
+- Preserve `-1` as unknown in the map's declared encoding. Each planning request explicitly chooses `Occupied` (default), `Free` or `Reject`, plus `maxTraversableOccupancy` default `0`; for known `c`, traversability iff `c <= max`. Do not hardcode occupancy interpretation into map data.
+- `Occupied` blocks swept-body traversal of unknown cells, allowing an external frontier explorer to target **known-free** endpoints near observation boundaries. `Free` is provisional optimistic planning, not certified free-space validity. `Reject` reports an unknown-occupancy error; **proposed** semantics are deterministic pre-search validation of the whole supplied map (or future explicit ROI), not search-order-dependent errors; exact acceptance remains OQ-006.
 - Collision, inflation, heuristic and reachability calculations must agree on request-level occupancy interpretation. Cached fields depend on map revision/geometry and unknown policy. Mapping/SLAM and replan triggers remain external.
 
 ## Swept collision checking
