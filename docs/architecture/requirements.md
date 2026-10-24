@@ -6,8 +6,8 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 
 | ID | Requirement | Initial scope / acceptance evidence |
 | --- | --- | --- |
-| FR-001 | Generic kinematic models | Search compiles against differential-drive and Ackermann model policies without model-specific branches |
-| FR-002 | Configurable motion primitives | Forward/reverse where supported, in-place rotation for differential drive; full primitive trajectory preserved |
+| FR-001 | Generic kinematic models | Search compiles against differential-drive and Ackermann model policies, plus an ideal mecanum reference, without drive-type branches |
+| FR-002 | Configurable motion primitives | Admissible controls generate forward/reverse, in-place rotation, lateral and combined motions where supported; full trajectory preserved |
 | FR-003 | Model-aware state indexing | Index includes all state dimensions needed for correct future reachability and dominance |
 | FR-004 | Collision geometry | Multiple frame-attached rigid 2D bodies; articulated poses derived from hypothetical state |
 | FR-005 | Swept-motion validation | Every accepted transition validated along complete motion, including rotating/articulating bodies |
@@ -21,6 +21,8 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | FR-013 | External configuration | Typed native config; optional YAML and JSON adapters with validation; SI units, radians |
 | FR-014 | Optional ROS 2 integration | Isolated adapter(s), including Nav2 option; core does not depend on ROS |
 | FR-015 | Deterministic diagnostics | Failure reason, map/config versions, counters, timings, and reproducible test inputs |
+| FR-016 | Controlled-ODE model contract | Model defines state, control, state derivative, validity constraints and frame transforms; integrator evaluates model and exposes intermediate states |
+| FR-017 | Holonomic-capable motion semantics | Holonomic sideways/combined motion can have heading independent of path tangent; no binary holonomicity dispatch |
 
 ## Architectural constraints
 
@@ -34,6 +36,8 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | AC-006 | No OMPL, civcode demo-repository source, or external motion-planning implementation incorporated into runtime core |
 | AC-007 | Separate dynamic trajectory planning/MPC handles predicted moving obstacles and timing |
 | AC-008 | Any future GitHub Actions workflows are manual-only unless explicitly authorized |
+| AC-009 | Model's admissible controls are authoritative; optional capability metadata cannot substitute for validity checks |
+| AC-010 | Search and path representations cannot universally equate body heading with velocity direction or require forward/reverse-only motion |
 
 ## Non-goals (initial milestones)
 

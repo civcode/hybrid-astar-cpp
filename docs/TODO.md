@@ -7,6 +7,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Review [requirements](architecture/requirements.md): correct scope, vehicle models, non-goals.
 - [ ] Review [components](architecture/components.md): dependency direction, ownership and map snapshots.
 - [ ] Review [interfaces](architecture/interfaces.md): state/control types, primitive/domain, indexed labels, path evaluation.
+- [ ] Review [controlled-ODE model specification](architecture/kinematic-models.md) for derivative, tangent, constraints, body transforms and integration semantics.
+- [ ] Review [ADR-0008](adr/0008-motion-model-capabilities.md): model control constraints, ideal mecanum as third reference and holonomic travel semantics.
 - [ ] Resolve or explicitly defer high-priority [open questions](architecture/open-questions.md) OQ-001–OQ-008.
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
@@ -31,14 +33,15 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 
 - [ ] Differential-drive model including in-place rotation; compile-time concept checks.
 - [ ] Geometric bicycle/Ackermann model with stated constraints and reversing capability.
-- [ ] Generic integrator (native RK4) plus exact constant-curvature propagation.
+- [ ] Ideal mecanum reference model: independent chassis body lateral/forward/yaw velocities, admissible bounds, concept tests and analytic propagation fixtures.
+- [ ] Define controlled differential-equation/tangent model interface, and separate generic integrator (native RK4) plus exact constant-curvature propagation.
 - [ ] Model-specific control enumeration, primitive templates and cache invalidation.
 - [ ] Model-aware state indexing / dominance labels according to accepted OQ-001.
 - [ ] Geometry frame transforms from hypothetical state; articulated extension test model or fixture.
 - [ ] Swept-motion broad/narrow phase, explicit validation assurance.
-- [ ] Numerical, collision and maneuver property tests; baseline microbenchmarks.
+- [ ] Numerical, collision and maneuver property tests including mecanum lateral/combined motion; baseline microbenchmarks.
 
-**Exit:** both models generate repeatable, valid trajectories in fixture maps.
+**Exit:** differential-drive, Ackermann and ideal mecanum reference models generate repeatable, valid trajectories in fixture maps.
 
 ## M3 — Steering and heuristics
 
@@ -59,14 +62,14 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Edge costs, tie breaks, reopen/dominance and termination semantics.
 - [ ] Cancellation and time/expansion/memory budgets, structured diagnostics.
 - [ ] Exact path reconstruction and validated piecewise path output.
-- [ ] Scenario tests (wall/doorway, narrow turns, reverse parking, unreachable goal).
+- [ ] Scenario tests (wall/doorway, narrow turns, reverse parking, unreachable goal; mecanum sideways travel and yaw-independent footprint constraints).
 - [ ] Local latency/memory/quality baseline with and without obstacle-aware heuristic.
 
 **Exit:** model-independent, validated baseline paths with measured performance.
 
 ## M5 — Path representation and optional refinement
 
-- [ ] Segment-level continuous evaluation, derivative availability, progress/cusp/rotation semantics.
+- [ ] Segment-level continuous evaluation, derivative availability, progress/cusp/rotation semantics, and lateral holonomic motion without heading-as-tangent assumptions.
 - [ ] Exact start/end full configurations and map/model provenance.
 - [ ] Native curve math (B-spline / Hermite etc.) without mandating one family in API.
 - [ ] Feasible shortcutting and optional optimization (Ceres isolated behind optional target).
@@ -78,7 +81,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 
 ## M6 — External integration (later)
 
-- [ ] YAML/JSON example configs for differential, Ackermann and articulated geometry.
+- [ ] YAML/JSON example configs for differential, Ackermann, ideal mecanum and articulated geometry.
 - [ ] Standalone examples and CLI traces using cxxopts.
 - [ ] Optional ROS 2 adapter and Nav2 plugin without ROS headers in core.
 - [ ] Rich path output preserving segment metadata beyond `nav_msgs/Path`.

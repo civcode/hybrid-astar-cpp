@@ -5,11 +5,11 @@
 
 ## Context
 
-Initial robot types are differential drive and Ackermann; future targets may include articulated steering and multi-section robots.
+Initial implementation priorities are differential drive and Ackermann. Ideal mecanum is a third reference model; future targets may include articulated steering and multi-section robots. See [ADR-0008](0008-motion-model-capabilities.md).
 
 ## Decision
 
-A single Hybrid A* search engine consumes a model-defined state/control type, propagation contract, capabilities and transforms of named rigid collision-body frames. Primitive generation and state indexing are model-aware. Prefer compile-time concepts/templates in hot paths, allowing a thin type-erased interface at application boundaries. Collision geometry is a configuration-dependent union of frame-attached 2D shapes, not one fixed footprint.
+A single Hybrid A* search engine consumes a model-defined state/control type, controlled differential-equation/derivative and admissibility contract, capabilities and transforms of named rigid collision-body frames. Integration is a separate service, with optional exact model propagation. Primitive generation and state indexing are model-aware. Prefer compile-time concepts/templates in hot paths, allowing a thin type-erased interface at application boundaries. Collision geometry is a configuration-dependent union of frame-attached 2D shapes, not one fixed footprint.
 
 ## Alternatives considered
 

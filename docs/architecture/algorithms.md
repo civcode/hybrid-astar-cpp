@@ -83,9 +83,9 @@ return status, path and diagnostics
 
 ## Kinematic steering and primitive integration
 
-- Primitive providers generate model-specific controls from the complete state; precompute local templates only for state-invariant models.
-- For constant-curvature Ackermann, exact arcs are preferred. Use native RK4 or other validated integration for more complex model equations; RK4 is not embedded in the search kernel.
-- Differential-drive in-place rotations must be modeled and collision-checked for full swept angular motion.
+- Primitive providers generate model-specific **admissible controls** from the complete state; precompute local templates only for state-invariant models. Holonomic/nonholonomic classification metadata never substitutes for model validity checks.
+- The model's controlled differential equation is the source of truth; a separate integration strategy produces full intermediate state trajectories. For constant-curvature Ackermann, exact arcs are preferred. Use native RK4 or other validated integration for more complex equations; RK4 is not embedded in the search kernel.
+- Differential-drive in-place rotations must be modeled and collision-checked for full swept angular motion. Ideal mecanum must also support sideways translation with unchanged yaw and simultaneous translation/rotation without treating yaw as the tangent heading.
 - Native Dubins (forward-only, bounded curvature) and Reeds–Shepp (forward/reverse, bounded curvature) are separate optional connectors. Reversing cusps preserve gear transitions. No steering-rate or articulation assumption is silently inferred.
 - Numeric cost terms (reverse, steering changes, clearance) must remain consistent across normal primitives, analytic expansions and lower-bound heuristics.
 
@@ -99,4 +99,4 @@ Check every robot body `T_i(q) P_i` across the transition. Broad phase may use c
 - Keep exact original motion path, including cusp and rotate-in-place events and its start/end conditions.
 - Optional shortcutting or curve optimization only accepts replacements with verified endpoints, model constraints, collision clearance and cost policy.
 - For clamped spatial curves, endpoint heading can be constrained through endpoint tangents, but curvature, curvature rate and articulated feasibility require extra constraints; a smooth spline is **not** automatically feasible.
-- Output is a piecewise path with monotone progress, independently evaluable segments and full model-state semantics. The separate MPC owns time, speeds, acceleration and moving-obstacle prediction.
+- Output is a piecewise path with monotone progress, independently evaluable segments and full model-state semantics. Holonomic travel direction and body yaw may differ. The separate MPC owns final timing, speeds, acceleration and moving-obstacle prediction; rate-limited path claims must state the timing assumptions on which they rely.

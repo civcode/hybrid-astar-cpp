@@ -19,8 +19,8 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 
 | IDs | Required evidence |
 | --- | --- |
-| FR-001, FR-003 | Model concept compile tests; state-key distinction for identical poses/different steering or articulation; pruning/dominance tests |
-| FR-002 | Primitive propagation against exact solutions, forward/reverse parity, in-place rotation, limits, step-size convergence |
+| FR-001, FR-003, FR-016 | Model concept compile tests for differential, Ackermann and mecanum; derivative and integrator checks; state-key distinction for identical poses/different steering or articulation; pruning/dominance tests |
+| FR-002, FR-017 | Primitive propagation against exact solutions, forward/reverse, in-place rotation, sideways mecanum translation with fixed yaw, simultaneous translation/rotation, limits and step-size convergence |
 | FR-004, FR-005 | Compound-body transforms, articulated hinge configurations, self-collision exclusions, swept-geometry cases between sample endpoints |
 | FR-006, FR-007 | World/grid conversion, unknown/out-of-bounds semantics, reverse-Dijkstra known maps, lazy settlement and cache invalidation |
 | FR-008 | Dubins/Reeds–Shepp endpoint, length, segment direction and symmetries; randomized OMPL comparison |
@@ -43,7 +43,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 ## Collision verification
 
 - State-level tests: rectangle, circle, convex polygon, compounds, rotation and articulated transforms.
-- Motion tests: intersecting a thin obstacle between safe endpoints; in-place rotation clipping corners; articulation sweeping without reference-point movement.
+- Motion tests: intersecting a thin obstacle between safe endpoints; in-place rotation clipping corners; articulation sweeping without reference-point movement; mecanum sideways rectangular-footprint clearance at fixed yaw.
 - Property tests: static obstacle map immutability across plan; collision results invariant under paired global transforms where map transform is exact.
 - Record whether verification is **discrete sampled** or **conservatively continuous**. Never label sampling alone as a formal collision-free guarantee.
 - Independently validate final refined path against original map snapshot and model.
@@ -82,7 +82,9 @@ benchmarks/
 - [ ] Define tolerances and numerical precision policy; include NaN/Inf rejection.
 - [ ] Define model-state/controls property generators and reproducible seeds.
 - [ ] Define map/robot fixture serialization independent of ROS.
-- [ ] Implement compile-time model policy checks and a second model proving genericity.
+- [ ] Implement compile-time model policy checks for **three** reference chassis: differential drive, Ackermann and ideal mecanum.
+- [ ] Independently validate derivatives, tangent/angle-state integration, combined translation/rotation and model-admissible control limits.
+- [ ] Run a common search/primitive/path contract test suite with all three models, without drive-specific branches in the search kernel.
 - [ ] Enable optional OMPL tests without adding an OMPL core dependency.
 - [ ] Validate failure results and fallback behavior.
 - [ ] Add sanitizer runs (ASan/UBSan, optionally TSan) in local developer instructions.

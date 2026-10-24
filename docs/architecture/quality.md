@@ -15,7 +15,7 @@
 | NFR-009 | Modularity | No core dependency on ROS 2/OMPL/Ceres/yaml-cpp/nlohmann-json/Catch2/cxxopts |
 | NFR-010 | Result transparency | Structured status (success, no path, cancelled, budget exceeded, invalid input, internal failure) and metrics |
 | NFR-011 | Path quality | Path length, reverse count, steer variation/curvature, obstacle clearance, refinement success rate |
-| NFR-012 | Maintainability | Compile-time model contract checks, focused modules, contract tests and documented decisions |
+| NFR-012 | Maintainability | Compile-time model contract checks for three reference chassis, focused modules, contract tests and documented decisions |
 
 ## Scenario benchmark matrix (proposed)
 
@@ -27,6 +27,7 @@
 | Parking / multi-point turn | Reeds–Shepp and reverse semantics |
 | Dead end / unreachable goal | Exhaustion, budget behavior and correctness |
 | Rotation-in-place | Differential-drive progress and collision sampling |
+| Omnidirectional lateral and combined motion | Mecanum fixed-heading sideways travel, independent yaw, and orientation-sensitive rectangular collision |
 | Articulated chassis near obstacles | Full state and body-transform collision validity |
 | Replanning same goal on unchanged map | Cache efficiency and lifecycle |
 | Replanning after map version change | Safe cache invalidation |
