@@ -7,7 +7,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | ID | Question | Candidate choices / why it matters |
 | --- | --- | --- |
 | OQ-001 | **Partly resolved — accepted policy architecture** | Multiple labels per discrete key are optional via compile-time policy; default single-label path must have no multi-label runtime/space overhead ([ADR-0010](../adr/0010-compile-time-search-label-policy.md)). **Open:** multi-label candidate retention, cap/eviction and dominance approximations. |
-| OQ-002 | **Open — geometric primitive extent design** | Length-based translating primitives preferred for discussion; pure rotation and articulation-only maneuvers have zero distance, requiring angular/configuration extents or another model-aware domain. Time-based ODE integration stays available; decide parameter-domain representation and rate-constrained feasibility. |
+| OQ-002 | **Resolved — accepted extent principle** | Translating primitives use geometric traveled length; stationary configuration changes use model-specific angular/configuration extent; time-domain ODE integration remains available ([ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md)). **Still open:** exact typed extent/control-law interface, singularities and timing-dependent rate validation. |
 | OQ-003 | **Resolved — accepted** | Canonical position is `(segmentIndex, lambda)` with `lambda in [0,1]`, evaluating complete model state; distance/time remain optional derived metrics ([ADR-0011](../adr/0011-canonical-segment-path-position.md)). **Interface detail open:** boundary canonicalization. |
 | OQ-004 | What is the planning cost in consistent units? | Length plus maneuver penalties, rotation cost, reversals, clearance; controls safe heuristic scaling |
 | OQ-005 | Which obstacle heuristic mode and guarantees? | Grid reverse Dijkstra often overestimates true continuous distance; choose correction or explicitly nonadmissible mode |
@@ -34,13 +34,15 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | OQ-021 | Mathematical kinematic contract | Derivative/tangent/state-manifold operations, exact propagation customization, discrete modes and time vs progress conventions ([model spec](kinematic-models.md)) |
 | OQ-022 | Supplied articulated-steering geometry and sign conventions | **Confirmed:** `(x,y,Theta)` is the rear-chassis reference pose. **Still open:** exact rear-reference-point location, whether inputs are rear-reference speed and articulation rate, positive sign of `gamma`, physical meaning of `l1`/`l2`, front/joint frame transforms and valid joint range ([model spec](kinematic-models.md)) |
 | OQ-023 | Native occupancy/frame representation | REP-103/105 and grid layout are accepted (ADR-0009); still choose signed occupancy vs typed cell classification, application-specific encodings, threshold defaults and frame ID API ([map coordinates](map-coordinates.md)) |
+| OQ-024 | Speed-profile and trajectory boundary | Define geometric path derivatives, speed feasibility feedback, requested start/end velocity and stop conditions, control-rate/acceleration/jerk constraints, and when a speed-aware planner should reject or replan a geometric path. Timing/MPC remain separate by ADR-0006. |
 
 ## Review checklist for architecture baseline v0.1
 
 - [ ] Cross-check requirements against intended supported vehicles and controller boundary.
 - [ ] Agree which constraints are enforced by raw search and which by optional refinement/MPC.
 - [ ] Finalize OQ-001 multi-label retention/budget details; compile-time single-label policy and zero-overhead objective accepted.
-- [ ] Resolve OQ-002 geometric primitive extent, stationary motion parameterization and rate-limit implications.
+- [x] Accept OQ-002 translating-length and stationary angular/configuration extents (ADR-0012).
+- [ ] Detail OQ-002 typed extent/control-law interface and rate-dependent retiming validity; discuss OQ-024 speed-profile boundary.
 - [x] Accept OQ-003 canonical path address `(segmentIndex, lambda)` (ADR-0011).
 - [ ] Choose or explicitly defer remaining open items OQ-004 through OQ-008 with documented rationale.
 - [ ] Confirm primitive and path parameter units, reversing cusp and rotation semantics.
