@@ -23,6 +23,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | FR-015 | Deterministic diagnostics | Failure reason, map/config versions, counters, timings, and reproducible test inputs |
 | FR-016 | Controlled-ODE model contract | Model defines state, control, state derivative, validity constraints and frame transforms; integrator evaluates model and exposes intermediate states |
 | FR-017 | Holonomic-capable motion semantics | Holonomic sideways/combined motion can have heading independent of path tangent; no binary holonomicity dispatch |
+| FR-018 | ROS-compatible map coordinates | Adopt REP-103/105 right-handed frames, map-origin SE(2), lower-left grid origin, x-fastest row-major storage, explicit occupancy values |
 
 ## Architectural constraints
 
@@ -38,6 +39,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | AC-008 | Any future GitHub Actions workflows are manual-only unless explicitly authorized |
 | AC-009 | Model's admissible controls are authoritative; optional capability metadata cannot substitute for validity checks |
 | AC-010 | Search and path representations cannot universally equate body heading with velocity direction or require forward/reverse-only motion |
+| AC-011 | All native map/pose coordinates follow ROS-compatible conventions; only adapters access ROS APIs or resolve frame transforms |
 
 ## Non-goals (initial milestones)
 
