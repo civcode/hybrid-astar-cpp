@@ -35,7 +35,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 - Instantiate and test `SingleLabelPolicy` and `MultiLabelPolicy` independently on identical seeded fixtures. Off-mode must have one label ID per discrete key and no multi-label per-key vector/chain or runtime mode branch; record node/key sizes, allocations and time compared to a dedicated single-label baseline.
 - For multiple labels, check retention, eviction, deterministic ordering, stale queue entries, stable ancestry, bound violations and distinct continuous states with the same quantized key. Do **not** claim mathematically exact dominance from smaller accumulated `g` alone.
 - Test path evaluation at `(i,0)`, `(i,1)`, interior lambda, adjacent segment interfaces, cusp/gear changes, pure stationary rotation, articulation-only movement, and holonomic lateral translation. Distinguish one-sided derivative conventions from continuity of configuration.
-- Check length-parametrized translating primitive candidate against time-domain ODE integration under a compatible control-speed mapping, including reverse; ensure no division by zero for stationary motions (OQ-002, still open).
+- Check accepted length-parametrized translating primitives against time-domain ODE integration under a compatible control-speed mapping, including reverse; ensure no division by zero for stationary angular/configuration motions (OQ-002 accepted by ADR-0012). Test rate-limited retiming separately (OQ-024 remains open).
 
 ## Dubins and Reeds–Shepp battle-hardening
 
