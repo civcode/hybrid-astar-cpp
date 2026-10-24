@@ -32,7 +32,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | OQ-019 | Motion capabilities | How descriptive capability metadata complements (but never substitutes for) model-defined admissible controls ([ADR-0008](../adr/0008-motion-model-capabilities.md)) |
 | OQ-020 | Mecanum milestone | When to implement the third reference model and whether it must complete end-to-end search for M4 |
 | OQ-021 | Mathematical kinematic contract | Derivative/tangent/state-manifold operations, exact propagation customization, discrete modes and time vs progress conventions ([model spec](kinematic-models.md)) |
-| OQ-022 | Supplied articulated-steering geometry and sign conventions | Confirm whether inputs are reference-speed and articulation rate; what point `(x,y)` represents, which body uses heading `Theta`, sign of `gamma`, physical meaning of `l1`/`l2`, body-frame transforms and valid joint range ([model spec](kinematic-models.md)) |
+| OQ-022 | Supplied articulated-steering geometry and sign conventions | **Confirmed:** `(x,y,Theta)` is the rear-chassis reference pose. **Still open:** exact rear-reference-point location, whether inputs are rear-reference speed and articulation rate, positive sign of `gamma`, physical meaning of `l1`/`l2`, front/joint frame transforms and valid joint range ([model spec](kinematic-models.md)) |
 
 ## Review checklist for architecture baseline v0.1
 

@@ -59,9 +59,11 @@ For steering-rate constraints, extend state to \(\mathbf q=(x,y,\theta,\delta)\)
 
 The ideal chassis controls independent forward, lateral and yaw velocities, but wheel-speed saturation may couple input limits. This is a chassis-level holonomic abstraction, not an assertion about detailed roller-contact or slip behavior. Sideways travel at fixed yaw is allowed: **body heading is not travel tangent**.
 
-### Supplied articulated-steering model (provisional interpretation)
+### Supplied articulated-steering model (rear-chassis pose confirmed; other conventions provisional)
 
-This equation was supplied by the project author. The two input columns are **assumed** to correspond to longitudinal reference-point speed `v` and articulation angular rate `u_gamma = d(gamma)/dt`. Reference point, heading/joint angle sign convention, and geometry associated with `l1` and `l2` remain **unverified** (OQ-022). Do not construct collision frame transforms from guessed physical geometry.
+This equation was supplied by the project author. **Confirmed:** `(x,y,Theta)` describes the **rear chassis**: `(x,y)` is the position of a rear-chassis reference point, and `Theta` is the rear-chassis heading. The precise location of that point on the rear chassis (e.g., axle midpoint, chassis center, or joint), the joint angle sign convention, and the geometry represented by `l1` and `l2` remain **unverified** (OQ-022). The input columns are **assumed** to correspond to longitudinal rear-reference-point speed `v` and articulation angular rate `u_gamma = d(gamma)/dt`.
+
+The world transform of the reported rear-chassis reference frame is therefore `T_world_rear_ref = SE2(x,y,Theta)`. This does **not** identify the rear axle center or determine the front-chassis frame. Do not derive front-body or articulation-joint collision transforms from guessed geometry.
 
 Let `q=(x,y,Theta,gamma)`, `u=(v,u_gamma)`, and `D(gamma)=l1 cos(gamma)+l2`.
 
@@ -92,6 +94,7 @@ This is a **driftless control-affine** kinematic model with four continuous stat
 **Consequences**:
 
 - `gamma` belongs in state and the discretization policy; equal `(x,y,Theta)` does not imply equivalent future reachability when articulation differs.
+- The rear reference pose comes directly from `(x,y,Theta)`. The front-chassis heading is related to `Theta` and `gamma` by a **sign-convention-dependent** rotation; joint position and front-body origin require explicit link geometry.
 - At `v=0`, changing the articulation input changes `Theta` while `x,y` are stationary. This is *not* the same as independently commanded, unrestricted differential-drive rotation in place. With `v=0` and a nonsingular `D`, returning to the same `gamma` through articulation-only movements also restores the initial `Theta`.
 - Body collision geometry can sweep at `v=0`; the checker must use all frame transforms at intermediate states, not only reference-point displacement.
 - `D(gamma)` must remain nonzero (preferably bounded away from zero) over the configured joint range; also validate lengths, angle limits, speed and articulation-rate limits.
