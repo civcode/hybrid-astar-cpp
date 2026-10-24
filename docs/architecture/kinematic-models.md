@@ -167,7 +167,19 @@ Time is the canonical derivative variable for these ODEs because it works for in
 \frac{d\mathbf q}{d\sigma}=\Delta t\,f(\mathbf q,\mathbf u).
 \]
 
-Here \(\sigma\) is **primitive-local progress**, not a global execution schedule. A downstream MPC still chooses timing, but any rate-constrained property verified at a specific nominal duration must be rechecked if the motion is retimed. Arc-length parameterization alone is not universal: pure rotation has \(ds/dt=0\), and holonomic yaw is independent of the translational path tangent.
+Here \(\sigma\) is **primitive-local progress**, not a global execution schedule. A downstream MPC still chooses timing, but any rate-constrained property verified at a specific nominal duration must be rechecked if the motion is retimed.
+
+**Open OQ-002: spatial extent versus temporal extent.** Translating primitives can be generated using an explicit traveled length and a spatially parameterized control; a constant nominal speed is not required. For example, bicycle curvature is \(d\theta/ds=\tan\delta/L\) for **signed** traveled distance \(ds/dt=v\). For the supplied articulated model with \(D(\gamma)=l_1\cos\gamma+l_2\), when \(v\ne0\):
+
+\[
+\frac{d\gamma}{ds}=\frac{u_\gamma}{v},\qquad
+\frac{d\Theta}{ds}=\frac{\sin\gamma}{D(\gamma)}
++\frac{l_2}{D(\gamma)}\frac{u_\gamma}{v}.
+\]
+
+The spatial control \(d\gamma/ds\) may be chosen directly for translating primitives; a realizable articulation rate then depends on the eventual longitudinal speed. This division is **singular when \(v=0\)** even though the original time-domain dynamics remain valid. Consequently, zero-translation articulation changes and pure rotations need their own angular/configuration extent (or time-parametrized fallback). Geometric length alone cannot specify execution duration; absent a speed profile there is no unique \(dt\).
+
+**Accepted OQ-003:** the public path's *canonical address* is \((\text{segmentIndex},\lambda)\), \(\lambda\in[0,1]\), not either time or arclength ([ADR-0011](../adr/0011-canonical-segment-path-position.md)). A translating segment may internally use length; a stationary rotation segment may use angle; both evaluate using the same normalized local \(\lambda\).
 
 The output path retains full model state, segmented progress, maneuver semantics, optional derivatives, and the map/model validity context; no universal forward/reverse-only label or curvature-by-arc-length requirement is imposed.
 
