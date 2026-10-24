@@ -6,14 +6,14 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 
 | ID | Question | Candidate choices / why it matters |
 | --- | --- | --- |
-| OQ-001 | **Partly resolved — accepted policy architecture** | Multiple labels per discrete key are optional via compile-time policy; default single-label path must have no multi-label runtime/space overhead ([ADR-0010](../adr/0010-compile-time-search-label-policy.md)). **Open:** multi-label candidate retention, cap/eviction and dominance approximations. |
+| OQ-001 | **Resolved for baseline — accepted** | **One retained continuous node per model-defined discrete key**, retaining incoming primitive on node; no multi-label implementation in initial scope ([ADR-0013](../adr/0013-single-label-search-baseline.md), superseding ADR-0010). This deliberately sacrifices possible alternative arrivals; refine and benchmark end-to-end quality, without claiming optimality. |
 | OQ-002 | **Resolved — accepted extent principle** | Translating primitives use geometric traveled length; stationary configuration changes use model-specific angular/configuration extent; time-domain ODE integration remains available ([ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md)). **Still open:** exact typed extent/control-law interface, singularities and timing-dependent rate validation. |
 | OQ-003 | **Resolved — accepted** | Canonical position is `(segmentIndex, lambda)` with `lambda in [0,1]`, evaluating complete model state; distance/time remain optional derived metrics ([ADR-0011](../adr/0011-canonical-segment-path-position.md)). **Interface detail open:** boundary canonicalization. |
 | OQ-004 | What is the planning cost in consistent units? | Candidate: normalized kinematic-control effort plus geometric progress cost. Need a principled conversion between distance and dimensionless effort (e.g. actuator-limit-based equivalent length), explicit stationary-motion costs, nonnegative edges, and compatible heuristic lower bounds. Avoid calling an effort proxy measured energy. |
-| OQ-005 | Which obstacle heuristic mode and guarantees? | **Proposed:** admissible-default A* mode using proven cost-to-*goal-region* lower bounds; optional weighted/experimental modes clearly report their different guarantees. Reverse 2D grid Dijkstra may overestimate continuous cost; must certify or correct before declaring admissible. Even certified `h` does not prove global optimality under approximate state merging. |
+| OQ-005 | **Resolved — accepted** | Use certified admissible cost-to-goal-region heuristic by default, with optional explicit weighted/experimental modes ([ADR-0015](../adr/0015-admissible-default-heuristics.md)). Grid reverse Dijkstra must be certified before use as a lower bound; a zero heuristic is valid fallback. Single-label state merging prevents unconditional global optimality/weighted bounds. |
 | OQ-006 | What is map ownership and indexing policy? | Immutable owning snapshot, unknown cells, threshold, rotated origin, map revision; affects collision and caching |
-| OQ-007 | What are actual initial Ackermann constraints? | **Preferred direction, pending acceptance:** three-state geometric bicycle with fixed-curvature straight/left/right (optional intermediate) primitives, respecting maximum curvature. Finite steering-rate / continuous steering across joins not guaranteed; requires explicit connector or validated downstream refinement, and raw result must be marked accordingly. Four-state steering-rate model remains optional extension. |
-| OQ-008 | How are endpoints specified and checked? | **Proposed default for review:** pose-only goal region with Euclidean XY error <= 0.25 m and wrapped yaw error <= 10 degrees, both configurable; evaluate the continuous model-defined reference pose, not quantized key. Full final state and incoming motion must be valid/collision-checked. Additional state coordinates (e.g. articulation) unconstrained unless explicitly requested; no silent snapping. Heuristic must lower-bound cost to *goal region*. |
+| OQ-007 | **Resolved — accepted** | Three-state geometric bicycle with fixed-curvature straight/left/right forward/reverse primitives, optional intermediate curvatures ([ADR-0014](../adr/0014-fixed-curvature-ackermann-baseline.md)). Raw joins do not guarantee finite steering rate; refiner/trajectory planner must separately validate if required. Four-state steering-rate model remains an optional extension. |
+| OQ-008 | **Resolved — accepted** | Default pose-only goal: Euclidean XY <= 0.25 m, wrapped yaw <= 10 degrees, independent configurable tolerances; test continuous endpoint and full motion validity ([ADR-0016](../adr/0016-default-pose-goal-tolerances.md)). Extra state variables unconstrained unless explicitly required, no snapping; heuristic bounds cost to region. |
 
 ## Next priority — resolve with implementation milestones
 
@@ -40,11 +40,14 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 
 - [ ] Cross-check requirements against intended supported vehicles and controller boundary.
 - [ ] Agree which constraints are enforced by raw search and which by optional refinement/MPC.
-- [ ] Finalize OQ-001 multi-label retention/budget details; compile-time single-label policy and zero-overhead objective accepted.
+- [x] Adopt OQ-001 one-node-per-model-specific-discrete-key baseline (ADR-0013); multi-label feature deferred rather than implemented.
 - [x] Accept OQ-002 translating-length and stationary angular/configuration extents (ADR-0012).
 - [ ] Detail OQ-002 typed extent/control-law interface and rate-dependent retiming validity; discuss OQ-024 speed-profile boundary.
 - [x] Accept OQ-003 canonical path address `(segmentIndex, lambda)` (ADR-0011).
-- [ ] Choose or explicitly defer remaining open items OQ-004 through OQ-008 with documented rationale.
+- [x] Accept OQ-005 certified-admissible heuristic mode as default (ADR-0015); relaxations explicit.
+- [x] Accept OQ-007 fixed-curvature 3-state Ackermann baseline (ADR-0014).
+- [x] Accept OQ-008 pose-only goal region with default XY/yaw tolerances (ADR-0016).
+- [ ] Resolve OQ-004 effort-cost objective and OQ-006 environment ownership/unknown semantics.
 - [ ] Confirm primitive and path parameter units, reversing cusp and rotation semantics.
 - [ ] Confirm how heuristic certification and completeness/optimality claims are worded.
 - [ ] Agree minimal compile-time policy concepts and public result/error types.
