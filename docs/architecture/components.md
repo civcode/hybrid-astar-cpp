@@ -76,7 +76,7 @@ Arrows mean *uses*. Diagram is logical; no requirement that every box maps to a 
 - `math` and foundational value types depend only on standard C++ (Eigen may be used behind an explicit target boundary).
 - `kinematics` depends on shared types and math; never on search or ROS.
 - `motion` depends on kinematics/math; model derivative and separate integrator are explicit contracts, and primitive caches are scoped to model configuration.
-- `collision` depends on environment snapshots, geometry and model frame transforms; must never query TF2 during search.
+- `collision` depends on environment snapshots, geometry and model frame transforms; must never query TF2 during search. A ROS adapter resolves `map`, `odom` and `base_link` transforms before invoking the planner; mismatched frames are invalid.
 - `heuristics` depends on environment and optional steering adapters, not on path refinement.
 - `search` depends on model/primitive/index/heuristic/collision/connector *contracts*.
 - `path` and `refinement` depend on shared model/geometry/validation; Ceres is a private, optional refinement dependency.
@@ -84,7 +84,7 @@ Arrows mean *uses*. Diagram is logical; no requirement that every box maps to a 
 
 ## Lifetime, mutability, and concurrency
 
-- `MapSnapshot` is immutable and versioned during a planning request. The producer may concurrently publish a *different* snapshot.
+- `MapSnapshot` is immutable and versioned during a planning request. Its frame, origin SE(2), X-fastest row-major layout and occupancy policy use the [ROS-compatible map convention](map-coordinates.md). The producer may concurrently publish a *different* snapshot.
 - Model configuration, collision shape definitions, primitive catalogs, and steering solver parameters are immutable within a request. Capability metadata does not supersede model-specific state-dependent admissible control checks.
 - The simplest initial policy is **one active `plan()` per planner instance**; this is proposed, not yet accepted. Concurrent requests can use distinct instances sharing immutable resources.
 - Scratch pools and open/closed state belong to an individual request/instance; neither are shared unsafely.
