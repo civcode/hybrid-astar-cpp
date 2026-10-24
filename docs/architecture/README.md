@@ -26,6 +26,7 @@ This is a lightweight, reviewable specification rather than a full arc42 documen
 6. **Representation-independent path output:** piecewise, continuously evaluable segments; motion direction, in-place rotation, sideways translation, combined motion and articulation are explicit. Body heading need not equal travel tangent; global differentiability is not assumed. The default goal checks the continuous pose within independently configurable XY/yaw tolerances ([ADR-0016](../adr/0016-default-pose-goal-tolerances.md)).
 7. **ROS 2 conventions natively; ROS APIs only at edges:** use REP-103/105 axes and frames, and OccupancyGrid layout ([ADR-0009](../adr/0009-ros-map-coordinate-conventions.md)). Adapters handle TF, messages and ROS parameters; no ROS headers in core.
 8. **Supporting libraries are scoped:** configuration, testing, optimization and visualization must not leak into hot-path search dependencies.
+9. **MVP: rigorous contracts, simple mechanisms:** deliver a small, testable end-to-end search/path slice early. Postpone speculative optimizations or generalized plumbing until reproducible real-world scenarios demonstrate a benefit; do not relax validity, collision assurance reporting or failure diagnostics to achieve simplicity ([ADR-0020](../adr/0020-evidence-driven-mvp-simplicity.md)).
 
 ## Status rules
 
@@ -36,4 +37,4 @@ This is a lightweight, reviewable specification rather than a full arc42 documen
 
 ## Review process
 
-Review requirements and architecture first, then interface semantics, algorithm guarantees, quality thresholds and verification. Close or explicitly defer every high-impact open question before implementing the corresponding module. Make significant changes via small ADRs; keep interfaces, tests, and checklists synchronized.
+Review requirements and architecture first, then interface semantics, algorithm guarantees, quality thresholds and verification. Close or explicitly defer every high-impact open question before implementing the corresponding module. **Don't require closure of all optional future architecture choices before building the first verified vertical slice.** Make significant changes via small ADRs; keep interfaces, tests, and checklists synchronized.
