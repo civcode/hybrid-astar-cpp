@@ -23,16 +23,22 @@ struct GridGeometry {
     std::string frameId; // public-side metadata, not per-cell
 };
 
-enum class UnknownCellPolicy { Free, Occupied, Reject };
+enum class UnknownCellPolicy { Occupied, Free, Reject };
+struct PlanningOptions {
+    UnknownCellPolicy unknownCells = UnknownCellPolicy::Occupied;
+    // Occupancy threshold and other policies: separate settings, TBD.
+};
 struct MapSnapshot {
     GridGeometry geometry;
     std::span<const int8_t> occupancy;  // candidate ROS occupancy encoding, final internal storage TBD
     uint64_t version;
-    UnknownCellPolicy unknownPolicy;
+    // Original occupancy values remain independent of planning policy.
 };
 ```
 
-Contract: snapshot holds its backing storage alive for the whole request (e.g., via an immutable owning handle). Signed `int8_t` above is a candidate wire-compatible representation; alternative typed occupancy storage remains open. Unknown (`-1`) and occupied thresholds must be explicit, and Nav2 uint8 costmaps require conversion rather than raw reinterpretation. Grid indices use `index = j*width+i` (X-fastest); grid origin is the lower-left corner of cell `(0,0)` with a `(+0.5,+0.5)` cell-center offset. World/grid conversions must handle rotated origins through full SE(2), floor negative coordinates correctly, and check bounds. Details: [map-coordinates.md](map-coordinates.md).
+**Accepted OQ-006 unknown-policy subset (ADR-0017):** the immutable snapshot preserves original cell semantics (`-1` unknown, `0` known free, `1..99` intermediate occupancy, `100` occupied). Each request explicitly selects `Occupied` (the default for frontier exploration), `Free` (optimistic, with provisional map-validity status), or `Reject` (error on relevant unknown occupancy; exact encounter scope remains under review). The policy belongs to planning options, **not the map snapshot**, and must agree across collision/traversability and heuristic interpretation. It never rewrites or duplicates the occupancy data merely to select a policy.
+
+Contract: snapshot holds its backing storage alive for the whole request (e.g., via an immutable owning handle). Signed `int8_t` above is a candidate wire-compatible representation; alternative typed occupancy storage remains open. Occupied-probability threshold and invalid-encoding behavior must be explicit, and Nav2 uint8 costmaps require conversion rather than raw reinterpretation. Grid indices use `index = j*width+i` (X-fastest); grid origin is the lower-left corner of cell `(0,0)` with a `(+0.5,+0.5)` cell-center offset. World/grid conversions must handle rotated origins through full SE(2), floor negative coordinates correctly, and check bounds. Details: [map-coordinates.md](map-coordinates.md).
 
 Plan configuration is a validated immutable typed structure. YAML/JSON adapters own parsing and versioning, not search.
 
@@ -134,6 +140,7 @@ enum class PlanStatus {
 template<class State>
 struct PlanRequest {
     State start;
+    PlanningOptions options{};  // explicit per-request unknown handling
     // Goal specification: world pose + independent XY/yaw tolerances;
     // optional model-specific state constraints, not a mandatory full State goal.
     // immutable map handle, model/config identity, limits,
