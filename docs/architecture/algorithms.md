@@ -40,6 +40,7 @@ sequenceDiagram
 
 ```text
 validate request/map/model/start/goal and ensure the same planning frame
+bind one immutable map revision and explicit per-request unknown policy (default: Occupied)
 initialize or fetch model-specific primitive catalog and heuristic cache
 check full start state validity/collision and validate goal-region specification
 # a nominal goal-center pose can collide while valid end configurations exist within tolerance
@@ -83,7 +84,7 @@ Accept only validated **continuous** candidate endpoints satisfying both `hypot(
 
 1. Use immutable static grid and a **goal-rooted, nonnegative-weight reverse graph search** (Dijkstra); do not just run point-to-point A*. World/grid conversion uses inverse SE(2) origin transform and X-fastest row-major memory order as specified in [map-coordinates.md](map-coordinates.md).
 2. Optionally lazy-expand until the queried cell is **settled**; incomplete frontier values cannot be returned as final distances.
-3. Use compact contiguous 2D storage for distances and visited/settled state; permit cache reuse only with matching map version, frame, **origin position/yaw**, resolution, dimensions, goal index, occupancy/unknown policy, and algorithm settings.
+3. Use compact contiguous 2D storage for distances and visited/settled state; permit cache reuse only with matching map version, frame, **origin position/yaw**, resolution, dimensions, goal index, occupancy/unknown policy, and algorithm settings. The unknown policy is **request-level**, not a mutation of `MapSnapshot`; default is `Occupied` for frontier exploration. A new sensor-produced snapshot does not alter a running request's map.
 4. **OQ-005 / ADR-0015:** the default uses certified cost-to-**goal-region** lower bounds only; if both obstacle-aware and kinematic heuristics are certified in the configured cost units, `h=max(h_obstacle,h_kinematic)` is admissible. `h=0` is a valid fallback for nonnegative costs. Optional weighted/experimental search modes must be explicitly requested and report weakened guarantees.
 5. **Admissibility caveat:** a grid's 4-/8-connected shortest-path cost is generally an *upper* approximation to shortest unconstrained continuous distance; conservative edge graph definitions/inflation and boundary offsets must be proved safe before claiming an admissible bound. Heuristic mode and guarantee metadata must expose this.
 6. Treat unreachable (infinite) heuristic cells carefully: map-level disconnection can prune safely only if the static relaxed map models traversability conservatively; otherwise retain search freedom.
@@ -95,6 +96,12 @@ Accept only validated **continuous** candidate endpoints satisfying both `hypot(
 - Differential-drive in-place rotations must be modeled and collision-checked for full swept angular motion. Ideal mecanum must also support sideways translation with unchanged yaw and simultaneous translation/rotation without treating yaw as the tangent heading.
 - Native Dubins (forward-only, bounded curvature) and Reeds–Shepp (forward/reverse, bounded curvature) are separate optional connectors. Reversing cusps preserve gear transitions. No steering-rate or articulation assumption is silently inferred.
 - Numeric cost terms (reverse, kinematic effort, steering changes, clearance) must remain consistent across normal primitives, analytic expansions and lower-bound heuristics. Incoming primitive may affect transition costs without entering the baseline key, an acknowledged approximation rather than a valid exact dominance relation.
+
+## Unknown occupancy and frontier requests (ADR-0017)
+
+- Preserve `-1` as unknown in the map's declared encoding. Each planning request explicitly chooses `Occupied` (default), `Free` or `Reject`; do not hardcode unknown handling into map data.
+- `Occupied` blocks swept-body traversal of unknown cells, allowing an external frontier explorer to target **known-free** endpoints near observation boundaries. `Free` is provisional optimistic planning, not certified free-space validity. `Reject` reports a relevant unknown-occupancy error; its exact encounter scope remains OQ-006.
+- Collision, inflation, heuristic and reachability calculations must agree on request-level occupancy interpretation. Cached fields depend on map revision/geometry and unknown policy. Mapping/SLAM and replan triggers remain external.
 
 ## Swept collision checking
 
