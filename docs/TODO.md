@@ -12,7 +12,10 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Confirm outdoor world frame uses local ENU (+X east, +Y north, +Z up) with explicit geodetic reference when GNSS is used; indoor frame may be building-aligned.
 - [ ] Review [ADR-0008](adr/0008-motion-model-capabilities.md): model control constraints, ideal mecanum as third reference and holonomic travel semantics.
 - [ ] Confirm supplied four-state articulated-steering ODE input interpretation, joint/body frame conventions and link lengths (OQ-022).
-- [ ] Resolve or explicitly defer high-priority [open questions](architecture/open-questions.md) OQ-001–OQ-008.
+- [x] Accept OQ-001 compile-time optional multi-label policy (ADR-0010); [x] accept OQ-003 canonical `(segmentIndex, lambda)` path position (ADR-0011).
+- [ ] Agree OQ-001 multi-label retention/eviction and per-key budget strategy.
+- [ ] Decide OQ-002 primitive extent design: geometric travel distance for translation, angular/configuration extent for zero-translation, and timing/rate constraints.
+- [ ] Resolve or explicitly defer remaining high-priority OQ-004–OQ-008.
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
 - [ ] Accept/revise ADRs and mark architecture baseline v0.1 reviewed.
@@ -41,7 +44,9 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Ideal mecanum reference model: independent chassis body lateral/forward/yaw velocities, admissible bounds, concept tests and analytic propagation fixtures.
 - [ ] Define controlled differential-equation/tangent model interface, and separate generic integrator (native RK4) plus exact constant-curvature propagation.
 - [ ] Model-specific control enumeration, primitive templates and cache invalidation.
-- [ ] Model-aware state indexing / dominance labels according to accepted OQ-001.
+- [ ] Evaluate OQ-002 length-parametrized translating primitives vs time-parametrized integration; add zero-travel articulated and in-place rotation primitives with valid geometric extent.
+- [ ] Model-aware state indexing and **compile-time** label policy: specialized zero-overhead single-label default and configurable multi-label per-key storage; independently benchmark allocations, per-key memory and expansion time.
+- [ ] Multi-label retention/eviction, stable parent records and deterministic pruning tests.
 - [ ] Geometry frame transforms from hypothetical state; add a fixture for the supplied four-state articulated-steering model after its physical frame conventions are confirmed.
 - [ ] Implement articulated steering derivative with safe denominator checks, articulation state indexing, rate constraints and zero-translation articulation sweep tests (extension milestone, not blocking differential/Ackermann).
 - [ ] Swept-motion broad/narrow phase, explicit validation assurance.
@@ -67,7 +72,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Model-generic search loop with primitive and optional analytic expansion.
 - [ ] Edge costs, tie breaks, reopen/dominance and termination semantics.
 - [ ] Cancellation and time/expansion/memory budgets, structured diagnostics.
-- [ ] Exact path reconstruction and validated piecewise path output.
+- [ ] Exact path reconstruction and validated piecewise path output using canonical `(segmentIndex, lambda)` evaluation; complete state and one-sided cusp semantics.
 - [ ] Scenario tests (wall/doorway, narrow turns, reverse parking, unreachable goal; mecanum sideways travel and yaw-independent footprint constraints).
 - [ ] Local latency/memory/quality baseline with and without obstacle-aware heuristic.
 
@@ -75,7 +80,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 
 ## M5 — Path representation and optional refinement
 
-- [ ] Segment-level continuous evaluation, derivative availability, progress/cusp/rotation semantics, and lateral holonomic motion without heading-as-tangent assumptions.
+- [ ] Segment-level continuous evaluation using canonical `(segmentIndex, lambda)`, derivative availability, progress/cusp/rotation semantics, and lateral holonomic motion without heading-as-tangent assumptions.
 - [ ] Exact start/end full configurations and map/model provenance.
 - [ ] Native curve math (B-spline / Hermite etc.) without mandating one family in API.
 - [ ] Feasible shortcutting and optional optimization (Ceres isolated behind optional target).
