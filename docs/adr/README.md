@@ -15,6 +15,7 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0009](0009-ros-map-coordinate-conventions.md) | Accepted | ROS coordinate frames and map grids |
 | [0010](0010-compile-time-search-label-policy.md) | Accepted | Optional multi-label search with an overhead-free single-label specialization |
 | [0011](0011-canonical-segment-path-position.md) | Accepted | Canonical path addresses use segment index and local normalized parameter |
+| [0012](0012-model-aware-geometric-primitive-extents.md) | Accepted | Geometric length for translation; angular/configuration extent for stationary motions |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
