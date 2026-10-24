@@ -31,17 +31,19 @@ struct OccupancyPolicy {
 struct PlanningOptions {
     OccupancyPolicy occupancy{};
 };
-struct MapSnapshot {
+struct MapData {
     GridGeometry geometry;
-    std::span<const int8_t> occupancy;  // candidate ROS occupancy encoding, final internal storage TBD
-    uint64_t version;
-    // Original occupancy values remain independent of planning policy.
+    std::vector<int8_t> occupancy;  // candidate representation; OQ-023 still open
+    MapIdentity identity;            // source/reset identity, exact type TBD
+    uint64_t revision;
 };
+using MapSnapshot = std::shared_ptr<const MapData>;
+// A map provider atomically publishes the latest immutable shared handle.
 ```
 
-**Accepted OQ-006 unknown-policy subset (ADRs 0017–0018):** the immutable snapshot preserves original cell semantics (`-1` unknown, `0` known free, `1..99` intermediate occupancy, `100` occupied). Each request explicitly selects `Occupied` (the default for frontier exploration), `Free` (optimistic, with provisional map-validity status), or `Reject` (error on relevant unknown occupancy; exact encounter scope remains under review). The policy belongs to planning options, **not the map snapshot**, and must agree across collision/traversability and heuristic interpretation. It never rewrites or duplicates the occupancy data merely to select a policy. Known cell `c in [0,100]` is traversable iff `c <= maxTraversableOccupancy`; the **configurable default is `0`**, i.e. only known-free `0` cells are traversable. Unknown `-1` never uses the numeric comparison ([ADR-0018](../adr/0018-known-free-only-occupancy-threshold.md)).
+**Accepted OQ-006 occupancy and live-map contract (ADRs 0017–0019):** the immutable snapshot preserves original cell semantics (`-1` unknown, `0` known free, `1..99` intermediate occupancy, `100` occupied). Each request explicitly selects `Occupied` (the default for frontier exploration), `Free` (optimistic, with provisional map-validity status), or `Reject` (dedicated request-validation error when **any cell of the supplied map** is unknown, checked before search). The policy belongs to planning options, **not the map snapshot**, and must agree across collision/traversability and heuristic interpretation. It never rewrites or duplicates the occupancy data merely to select a policy. Known cell `c in [0,100]` is traversable iff `c <= maxTraversableOccupancy`; the **configurable default is `0`**, i.e. only known-free `0` cells are traversable. Unknown `-1` never uses the numeric comparison ([ADR-0018](../adr/0018-known-free-only-occupancy-threshold.md)).
 
-Contract: snapshot holds its backing storage alive for the whole request (e.g., via an immutable owning handle). **Proposed ownership implementation:** publish immutable whole-grid `shared_ptr<const MapData>` snapshots, atomically exchange the latest pointer in the map-provider boundary, and pin one handle per request; map identity plus revision must be unique and valid until all readers release it. Build next revision privately, never mutate the currently published buffer. Begin with a contiguous-grid copy and defer tiled/copy-on-write updates until measured necessary. See [live map proposal](live-map-snapshots-and-cache-proposal.md). Signed `int8_t` above is a candidate wire-compatible representation; alternative typed occupancy storage remains open. Occupied-probability threshold and invalid-encoding behavior must be explicit, and Nav2 uint8 costmaps require conversion rather than raw reinterpretation. Grid indices use `index = j*width+i` (X-fastest); grid origin is the lower-left corner of cell `(0,0)` with a `(+0.5,+0.5)` cell-center offset. World/grid conversions must handle rotated origins through full SE(2), floor negative coordinates correctly, and check bounds. Details: [map-coordinates.md](map-coordinates.md).
+**Accepted ADR-0019:** publish privately built, immutable whole-grid `shared_ptr<const MapData>` snapshots via atomic latest-handle exchange at the map-provider boundary. Pin one revision per request; neither occupancy nor metadata of a published revision may mutate. Map source identity plus revision prevents reset collisions. Begin with a contiguous-grid copy on publication; consider tiled/COW storage only if measured necessary. Model-only caches survive map updates; derived map caches are rebuilt **on demand** unless all effective inputs match, with bounded retention. Strict `Reject` checks the **whole provided map upfront**, not whichever cells happen to be visited during search. See [ADR-0019](../adr/0019-live-map-snapshot-cache-and-reject.md) and [design rationale](live-map-snapshots-and-cache-proposal.md). Signed `int8_t` above is a candidate wire-compatible representation; alternative typed occupancy storage remains open. Occupied-probability threshold and invalid-encoding behavior must be explicit, and Nav2 uint8 costmaps require conversion rather than raw reinterpretation. Grid indices use `index = j*width+i` (X-fastest); grid origin is the lower-left corner of cell `(0,0)` with a `(+0.5,+0.5)` cell-center offset. World/grid conversions must handle rotated origins through full SE(2), floor negative coordinates correctly, and check bounds. Details: [map-coordinates.md](map-coordinates.md).
 
 Plan configuration is a validated immutable typed structure. YAML/JSON adapters own parsing and versioning, not search.
 
@@ -143,10 +145,11 @@ enum class PlanStatus {
 template<class State>
 struct PlanRequest {
     State start;
+    MapSnapshot map;             // holds one immutable revision throughout planning
     PlanningOptions options{};  // explicit per-request occupancy interpretation
     // Goal specification: world pose + independent XY/yaw tolerances;
     // optional model-specific state constraints, not a mandatory full State goal.
-    // immutable map handle, model/config identity, limits,
+    // model/config identity, limits,
     // optional cancellation token
 };
 template<class State>
@@ -202,4 +205,4 @@ Curve fitting (B-splines, Hermite, clothoids, arcs) is an internal interchangeab
 
 ## Interface decisions to close
 
-Review the remaining details in [open-questions.md](open-questions.md): proposed live-map snapshot/cache/Reject semantics ([design note](live-map-snapshots-and-cache-proposal.md)), primitive-extent/control-law ABI (OQ-002), path boundary canonicalization (OQ-003), state/tangent conventions (OQ-021), capability metadata (OQ-019), map ownership (OQ-006), effort-cost objective (OQ-004/OQ-024), collision assurance and type-erasure boundaries. Baseline one-key/one-node search, three-state fixed-curvature Ackermann, admissible-default heuristics and pose-tolerant goals are accepted (ADRs 0013–0016).
+Review the remaining details in [open-questions.md](open-questions.md): implementation-facing native map representation/frame/handle types (OQ-023), concurrent planner-cache synchronization (OQ-012), primitive-extent/control-law ABI (OQ-002), path boundary canonicalization (OQ-003), state/tangent conventions (OQ-021), capability metadata (OQ-019), effort-cost objective (OQ-004/OQ-024), collision assurance and type-erasure boundaries. Immutable map publication, lazy revisioned caches and deterministic strict `Reject` are accepted (ADR-0019). Baseline one-key/one-node search, three-state fixed-curvature Ackermann, admissible-default heuristics and pose-tolerant goals are accepted (ADRs 0013–0016).
