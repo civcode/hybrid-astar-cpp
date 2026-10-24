@@ -21,6 +21,7 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0015](0015-admissible-default-heuristics.md) | Accepted | Certified lower-bound heuristic default; explicit opt-in alternatives |
 | [0016](0016-default-pose-goal-tolerances.md) | Accepted | Continuous-pose goal with XY and wrapped-yaw tolerances |
 | [0017](0017-explicit-unknown-occupancy-policy.md) | Accepted | Per-request unknown-cell policy, conservative frontier default; OQ-006 map details remain open |
+| [0018](0018-known-free-only-occupancy-threshold.md) | Accepted | Configurable maximum traversable known-cell occupancy, default zero |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
