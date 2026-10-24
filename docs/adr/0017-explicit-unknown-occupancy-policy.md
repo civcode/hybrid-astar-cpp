@@ -19,7 +19,7 @@ The accepted ROS-compatible semantics in [ADR-0009](0009-ros-map-coordinate-conv
 
    struct PlanningOptions {
        UnknownCellPolicy unknownCells = UnknownCellPolicy::Occupied;
-       // Occupied probability threshold: independently configurable, final API/default TBD.
+       uint8_t maxTraversableOccupancy = 0; // Accepted in ADR-0018
    };
    ```
 
@@ -29,7 +29,7 @@ The accepted ROS-compatible semantics in [ADR-0009](0009-ros-map-coordinate-conv
 5. The policy is applied consistently across collision checking, inflation/traversability, reachability estimates and heuristic evaluation. If a request changes policy, map-dependent caches derived under another policy cannot be reused without a sound policy-independent derivation. A map snapshot should remain unchanged and usable for multiple policy choices.
 6. A planning request reads **one consistent immutable map revision**, while mapping/SLAM may publish newer revisions. Live-map updates or stale-path handling are orchestrated by an application/replanning layer; the planner does not directly mutate its map mid-search.
 7. Frontier selection, sensor fusion, exploration progress and online map publishing remain **outside the planner core**; no ROS dependency is introduced.
-8. The exact occupied-probability threshold, occupancy-storage and owning-handle representation, snapshot-update granularity, cache-invalidation strategy, and detailed `Reject` semantics remain unresolved OQ-006/OQ-023 matters.
+8. The known-cell threshold is **now accepted** in [ADR-0018](0018-known-free-only-occupancy-threshold.md): `maxTraversableOccupancy=0` by default, and a known cell `c` is traversable iff `c <= max`. Occupancy-storage and owning-handle representation, snapshot-update granularity, cache-invalidation strategy, and detailed `Reject` semantics remain unresolved OQ-006/OQ-023 matters. A concrete [live-map proposal](../architecture/live-map-snapshots-and-cache-proposal.md) records recommendations without declaring them accepted.
 
 ## Consequences and tests
 
