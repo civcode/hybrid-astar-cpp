@@ -22,7 +22,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 | FR-001, FR-003, FR-016 | Model concept compile tests for differential, Ackermann and mecanum; derivative and integrator checks; state-key distinction for identical poses/different steering or articulation; pruning/dominance tests |
 | FR-002, FR-017 | Primitive propagation against exact solutions, forward/reverse, in-place rotation, sideways mecanum translation with fixed yaw, simultaneous translation/rotation, limits and step-size convergence |
 | FR-004, FR-005 | Compound-body transforms, articulated hinge configurations, self-collision exclusions, swept-geometry cases between sample endpoints |
-| FR-006, FR-007 | World/grid conversion, unknown/out-of-bounds semantics, reverse-Dijkstra known maps, lazy settlement and cache invalidation |
+| FR-006, FR-007, FR-018 | REP-103/105 frames, rotated origin conversion, cell-center offsets, row-major indexing, unknown/out-of-bounds semantics, Dijkstra known maps, lazy settlement, cache invalidation |
 | FR-008 | Dubins/Reeds–Shepp endpoint, length, segment direction and symmetries; randomized OMPL comparison |
 | FR-009, FR-015 | Stale queue labels, reopen rules, budgets/cancellation and structured diagnostic status |
 | FR-010, FR-012 | Exact primitive reconstruction, analytic tail, cusp and rotation progress, evaluation at segment boundaries |
@@ -40,6 +40,15 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 - Persist any failure's seed, poses, radius, native/OMPL outputs in a deterministic regression case.
 - Track distance-only evaluation and full path/interpolation separately in benchmarks.
 
+## Map coordinate and frame verification
+
+- Index fixture: `(0,0)` maps to 0, `(1,0)` to 1, `(0,1)` to `width`, with no Y-axis image flip.
+- Full SE(2) origin transform (zero and nonzero yaw), lower-left cell origin and half-cell center offset.
+- Negative, upper-bound, rotated-grid and non-finite coordinates rejected with mathematically correct floor.
+- Conventional signed occupancy `-1` unknown and `0..100` probability encoding; threshold policy and no raw Nav2 costmap reinterpretation.
+- Reject mismatched map/start/goal frames; optional ROS adapter performs transforms first.
+- See [map-coordinate contract tests](map-coordinates.md).
+
 ## Collision verification
 
 - State-level tests: rectangle, circle, convex polygon, compounds, rotation and articulated transforms.
@@ -52,7 +61,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 ## Heuristic correctness and guarantees
 
 - Tiny hand-computed maps for Dijkstra values, lazy vs eager equivalence, unreachable goals and unknown-cell policies.
-- Verify heuristic cache invalidates on map version, goal, inflation/unknown policy and grid geometry.
+- Verify heuristic cache invalidates on map version, goal, inflation/unknown policy and grid geometry, including changed origin yaw or frame ID.
 - For any declared *admissible* heuristic mode, compare `h` to a proven lower bound or analytically solvable case. Do not infer admissibility solely because reverse Dijkstra runs.
 - Test consistency only for modes where consistency is claimed; otherwise ensure reopen behavior handles inconsistent heuristics.
 - Compare obstacle-aware heuristic on/off for performance **and** solution quality; no artificial optimality claims.
@@ -82,7 +91,7 @@ benchmarks/
 
 - [ ] Define tolerances and numerical precision policy; include NaN/Inf rejection.
 - [ ] Define model-state/controls property generators and reproducible seeds.
-- [ ] Define map/robot fixture serialization independent of ROS.
+- [ ] Define map/robot fixture serialization independent of ROS, preserving ROS-compatible origin, yaw, frame ID, row-major storage and signed occupancy unknowns.
 - [ ] Implement compile-time model policy checks for **three** reference chassis: differential drive, Ackermann and ideal mecanum.
 - [ ] Independently validate derivatives, tangent/angle-state integration, combined translation/rotation and model-admissible control limits.
 - [ ] Derive and test the supplied articulated-steering system's reference point, sign conventions, pure articulation motion and state-dependent collision geometry.
