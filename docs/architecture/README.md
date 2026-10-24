@@ -7,6 +7,7 @@ This is a lightweight, reviewable specification rather than a full arc42 documen
 | [Requirements](requirements.md) | Traceable capabilities, constraints, non-goals |
 | [Components](components.md) | Ownership, dependency direction, data flow |
 | [Interfaces](interfaces.md) | C++20-oriented API sketches and semantic contracts |
+| [Kinematic models](kinematic-models.md) | Controlled differential equations, constraints and planar chassis examples |
 | [Algorithms](algorithms.md) | Search, obstacle heuristic, collision and reconstruction |
 | [Quality](quality.md) | Nonfunctional requirements, measurement protocol |
 | [Verification](verification.md) | Contract-driven test and benchmark strategy |
@@ -16,12 +17,12 @@ This is a lightweight, reviewable specification rather than a full arc42 documen
 
 ## Architecture principles
 
-1. **One search engine, many models:** continuous state propagation and frame transforms are provided by model policies. The search does not hardcode steering, wheelbase, or state dimension.
+1. **One search engine, many models:** continuous state propagation and frame transforms are provided by model policies. The search does not hardcode steering, wheelbase, holonomicity, or state dimension. Differential drive and Ackermann lead implementation; ideal mecanum is the third reference model ([ADR-0008](../adr/0008-motion-model-capabilities.md)).
 2. **Static, versioned environment:** search uses an immutable map snapshot; dynamic obstacle tracking, prediction, and MPC are out of scope. Persistent blockages may cause a new planning request.
 3. **Fast obstacle-aware heuristic:** reverse shortest-distance expansion from goal on a 2D static occupancy grid is mandatory; it is independent of robot kinematics and may be computed lazily and cached safely.
 4. **Feasible primitives and connections:** each accepted transition is validated against model constraints and the complete configuration-dependent collision geometry.
 5. **Exact path reconstruction:** preserve primitive trajectories, direction changes, and model state. Refinement is optional and cannot replace an accepted path without validating the result.
-6. **Representation-independent path output:** piecewise, continuously evaluable segments; motion direction, in-place rotations and articulation configuration are explicit. Global differentiability is not assumed.
+6. **Representation-independent path output:** piecewise, continuously evaluable segments; motion direction, in-place rotation, sideways translation, combined motion and articulation are explicit. Body heading need not equal travel tangent; global differentiability is not assumed.
 7. **ROS 2 only at edges:** adapters handle TF, messages, lifecycle, and ROS parameters. No ROS types in core public headers.
 8. **Supporting libraries are scoped:** configuration, testing, optimization and visualization must not leak into hot-path search dependencies.
 

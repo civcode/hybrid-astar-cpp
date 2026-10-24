@@ -8,6 +8,7 @@
 - State includes all variables that influence propagation, collision-body poses, or future reachability. A world pose `Pose2D{x,y,yaw}` is a projection of state, **not** necessarily the full state.
 - An integration domain may be signed travel distance or nonnegative time; they are not interchangeable for stationary rotation.
 - State controls, gear and maneuver events are **model-specific**. Never require all models to expose turning radius, steering angle, or reverse movement.
+- Holonomic chassis motion may translate sideways at constant heading or translate and rotate simultaneously; body yaw and travel tangent are independent. The search cannot infer feasibility from a holonomic/nonholonomic flag.
 - Every path and map has a known coordinate frame and a bounded validity context (map version and model/config identity).
 - Prefer status/result values at request boundaries over uncaught exceptions in planning hot paths.
 
@@ -37,27 +38,15 @@ Plan configuration is a validated immutable typed structure. YAML/JSON adapters 
 
 ## 2. Kinematic model
 
-```cpp
-template<class M>
-concept KinematicModel = requires(
-    const M& m, const typename M::State& q,
-    const typename M::Control& u, double step, FrameId id)
-{
-    typename M::State;
-    typename M::Control;
-    { m.pose(q) } -> std::same_as<Pose2D>;
-    { m.propagate(q, u, step) } -> std::same_as<typename M::State>;
-    { m.frameTransform(q, id) } -> std::same_as<Transform2D>;
-};
-```
+The model is defined primarily by the controlled differential equation `dq/dt = f(q,u;p)`, the valid state/control sets, state-to-pose projection and model-defined collision-frame transforms. A full mathematical definition, C++20 concept sketch, and examples for differential drive, bicycle/Ackermann, ideal mecanum and articulation are in [kinematic-models.md](kinematic-models.md).
 
 Contract:
-- `propagate` uses declared integration domain and deterministic numerical policy; it does not consult the map.
-- Model validates finite parameters/states, control bounds and any model-specific constraints.
-- `frameTransform` evaluates *hypothetical* state for any declared collision-body frame.
-- Capability queries advertise optional reverse, rotate-in-place, analytic connector compatibility and extended state; they must not be inferred from model class names.
-- Exact integration where available; numerical integration through an independently testable generic integrator otherwise.
-- Initial implementations: differential drive and geometric bicycle/Ackermann; articulated state support is a required extension point, **not** a claim of a first-milestone implementation.
+- Model owns state, control, tangent/derivative and validity operations; feasible control bounds can depend on current state.
+- **Integration is separate**: a numerical/analytical propagator evaluates the vector field and yields intermediate states for collision and path reconstruction. Exact propagation may be specialized by a model.
+- The primary ODE uses time; local primitive progress and final geometric path progress are separate representations, not an MPC execution schedule.
+- Capability queries describe possibilities, but do not replace checking admissible controls. In particular do not branch search on `isHolonomic()`.
+- State may live on a manifold (e.g. yaw or joint angles), with model-defined tangent/state-update conventions; discrete modes are not differentiated.
+- Implementation priority: differential drive and geometric bicycle/Ackermann. Ideal mecanum is the third **reference and integration-test model**. Articulated state support remains a design extension, not a claim of implementation.
 
 ## 3. Motion primitive generation and indexing
 
@@ -158,10 +147,10 @@ Contract: no partial/unverified path is reported as `Success`. Failure carries d
 ## 7. Piecewise geometric path and refinement
 
 The path represents a sequence of **model-feasible motions**, not merely a polyline or a spline. Each motion segment has:
-- a monotone **segment-local progress** domain, start/end state and direction/maneuver kind;
+- a monotone **segment-local progress** domain, start/end state and model-appropriate motion semantics (including lateral translation);
 - an evaluable complete model configuration `q(progress)`, including heading and articulation when present;
 - optional derivatives/curvature with an explicit domain of definition and orientation/direction convention;
-- boundary metadata for reverse cusps and rotations in place; global differentiability is **not** required;
+- boundary metadata for reverse cusps, rotations in place, and combined translation/rotation; body yaw need not equal spatial tangent and global differentiability is **not** required;
 - a validation record identifying the map/model configuration and guarantee level.
 
 ```cpp
@@ -182,7 +171,7 @@ struct PiecewiseGeometricPath {
 };
 ```
 
-**Progress is not universally translational arc length.** In-place rotations have zero translation but nonzero maneuver progress. For ordinary translations, arc length is preferred. Explicit segment-local parameterization prevents the controller from assuming arbitrary `ds/dt` through a reversing cusp.
+**Progress is not universally translational arc length.** In-place rotations have zero translation but nonzero maneuver progress. Holonomic models can translate sideways at fixed yaw, so pose heading and spatial tangent need not coincide. For ordinary translations, arc length is preferred. Explicit segment-local parameterization prevents the controller from assuming arbitrary `ds/dt` through a reversing cusp.
 
 Refinement consumes an already validated raw path and returns either:
 1. a new path with verified model constraints, endpoint conditions and collision status; or
@@ -192,4 +181,4 @@ Curve fitting (B-splines, Hermite, clothoids, arcs) is an internal interchangeab
 
 ## Interface decisions to close
 
-Review the high-priority items in [open-questions.md](open-questions.md): control/integration domains, exact state-key/dominance semantics, map ownership, cost units/heuristic admissibility, geometric-path parameterization, validation assurance, and type-erasure boundaries.
+Review the high-priority items in [open-questions.md](open-questions.md): control/integration domains, state and tangent conventions (OQ-021), model capability metadata (OQ-019), exact state-key/dominance semantics, map ownership, cost units/heuristic admissibility, geometric-path parameterization, validation assurance, and type-erasure boundaries.

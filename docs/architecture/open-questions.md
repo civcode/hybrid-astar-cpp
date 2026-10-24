@@ -29,6 +29,9 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | OQ-016 | Exact performance target | Reference CPUs, maps, latency percentiles, memory budgets, allocation constraints |
 | OQ-017 | ROS adapter boundary | Native path-to-message losslessness, metadata and explicit cusp/rotation support |
 | OQ-018 | Thread/cancellation API | Cancellation token granularity, planner scratch ownership and safe shutdown |
+| OQ-019 | Motion capabilities | How descriptive capability metadata complements (but never substitutes for) model-defined admissible controls ([ADR-0008](../adr/0008-motion-model-capabilities.md)) |
+| OQ-020 | Mecanum milestone | When to implement the third reference model and whether it must complete end-to-end search for M4 |
+| OQ-021 | Mathematical kinematic contract | Derivative/tangent/state-manifold operations, exact propagation customization, discrete modes and time vs progress conventions ([model spec](kinematic-models.md)) |
 
 ## Review checklist for architecture baseline v0.1
 
@@ -38,5 +41,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 - [ ] Confirm primitive and path parameter units, reversing cusp and rotation semantics.
 - [ ] Confirm how heuristic certification and completeness/optimality claims are worded.
 - [ ] Agree minimal compile-time policy concepts and public result/error types.
+- [ ] Validate ODE/tangent/integrator contracts against differential drive, Ackermann and ideal mecanum (OQ-021).
+- [ ] Ensure search and path interfaces never assume that body heading equals travel tangent.
 - [ ] Approve verification categories and first benchmark fixtures.
 - [ ] Record decisions as accepted ADRs before implementation depends on them.
