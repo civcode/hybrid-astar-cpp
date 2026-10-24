@@ -14,7 +14,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Confirm supplied four-state articulated-steering ODE input interpretation, joint/body frame conventions and link lengths (OQ-022).
 - [x] Accept OQ-001 compile-time optional multi-label policy (ADR-0010); [x] accept OQ-003 canonical `(segmentIndex, lambda)` path position (ADR-0011).
 - [ ] Agree OQ-001 multi-label retention/eviction and per-key budget strategy.
-- [ ] Decide OQ-002 primitive extent design: geometric travel distance for translation, angular/configuration extent for zero-translation, and timing/rate constraints.
+- [x] Accept OQ-002 geometric length for translation and angular/configuration extent for stationary motion (ADR-0012).
+- [ ] Resolve OQ-002 exact typed extent/control law and OQ-024 downstream speed-profile/feasibility interface; timing/rate limits require explicit treatment.
 - [ ] Resolve or explicitly defer remaining high-priority OQ-004–OQ-008.
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
@@ -44,7 +45,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Ideal mecanum reference model: independent chassis body lateral/forward/yaw velocities, admissible bounds, concept tests and analytic propagation fixtures.
 - [ ] Define controlled differential-equation/tangent model interface, and separate generic integrator (native RK4) plus exact constant-curvature propagation.
 - [ ] Model-specific control enumeration, primitive templates and cache invalidation.
-- [ ] Evaluate OQ-002 length-parametrized translating primitives vs time-parametrized integration; add zero-travel articulated and in-place rotation primitives with valid geometric extent.
+- [ ] Implement OQ-002 length-parametrized translating primitives plus model-aware angular/configuration extents for stationary maneuvers; retain validated time-domain integration fallback and ensure no division by longitudinal speed at zero.
 - [ ] Model-aware state indexing and **compile-time** label policy: specialized zero-overhead single-label default and configurable multi-label per-key storage; independently benchmark allocations, per-key memory and expansion time.
 - [ ] Multi-label retention/eviction, stable parent records and deterministic pruning tests.
 - [ ] Geometry frame transforms from hypothetical state; add a fixture for the supplied four-state articulated-steering model after its physical frame conventions are confirmed.
@@ -81,6 +82,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 ## M5 — Path representation and optional refinement
 
 - [ ] Segment-level continuous evaluation using canonical `(segmentIndex, lambda)`, derivative availability, progress/cusp/rotation semantics, and lateral holonomic motion without heading-as-tangent assumptions.
+- [ ] Define external speed-profile input requirements: segment derivatives, rate/acceleration/jerk limits, start/end speeds and mandatory stop conditions (OQ-024).
+- [ ] Validate final timed trajectory against model actuation limits and moving-obstacle constraints; reject/adjust/replan if a geometric path cannot be executed safely.
 - [ ] Exact start/end full configurations and map/model provenance.
 - [ ] Native curve math (B-spline / Hermite etc.) without mandating one family in API.
 - [ ] Feasible shortcutting and optional optimization (Ceres isolated behind optional target).
