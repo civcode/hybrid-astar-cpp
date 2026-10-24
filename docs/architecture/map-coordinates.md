@@ -57,13 +57,13 @@ The `nav_msgs/OccupancyGrid` message uses signed `int8` cells. The common occupa
 | `1..99` | Intermediate occupancy probability |
 | `100` | Occupied |
 
-The ROS message documents application-dependent occupancy values; **the adapter must declare and validate its chosen interpretation**. An occupancy interpretation policy specifies an occupied-probability threshold (`0..100`) and invalid value behavior; the **per-planning-request** unknown-cell policy is separate, with options `Occupied` (default), `Free` and `Reject` ([ADR-0017](../adr/0017-explicit-unknown-occupancy-policy.md)). Nav2 unsigned costmap encoding (`0..255` costs) is **not** an OccupancyGrid probability array and must not be blindly reinterpreted.
+The ROS message documents application-dependent occupancy values; **the adapter must declare and validate its chosen interpretation**. A **per-request** occupancy policy contains configurable `maxTraversableOccupancy` in `0..100`, **default `0`**, such that known `c in [0,100]` is traversable iff `c <= max`; unknown `-1` is handled separately via `Occupied` (default), `Free` or `Reject` ([ADR-0017](../adr/0017-explicit-unknown-occupancy-policy.md), [ADR-0018](../adr/0018-known-free-only-occupancy-threshold.md)). Nav2 unsigned costmap encoding (`0..255` costs) is **not** an OccupancyGrid probability array and must not be blindly reinterpreted.
 
 Internally, choose either signed occupancy values **with explicit validation**, or a typed cell-state/probability representation. Do **not** put raw `uint8_t` occupancy into a public contract while interpreting `-1` as unknown without defining the conversion. Prefer immutable backing storage and immutable map snapshots.
 
 Collision checking and obstacle heuristics must use explicit, mutually consistent map semantics. A deliberately relaxed map may be used for a lower bound only when its validity conditions are documented.
 
-**Frontier exploration default (accepted ADR-0017):** `UnknownCellPolicy::Occupied` treats unknown space as nontraversable for the robot's **full swept footprint**. A separate exploration component chooses a goal in reachable known-free space near a frontier. The alternative `Free` is optimistic and does not certify that unknown terrain is obstacle-free. `Reject` reports unknown occupancy as an error, with precise relevant-query scope to be finalized in OQ-006. The `MapSnapshot` retains its immutable raw/typed occupancy data; a request-level policy changes interpretation only. Map-dependent caches must distinguish policies and relevant map revisions, regardless of the underlying buffer being shared.
+**Frontier exploration default (accepted ADR-0017):** `UnknownCellPolicy::Occupied` treats unknown space as nontraversable for the robot's **full swept footprint**. A separate exploration component chooses a goal in reachable known-free space near a frontier. The alternative `Free` is optimistic and does not certify that unknown terrain is obstacle-free. `Reject` reports unknown occupancy as an error. **Proposed** strict semantics: validate that the entire supplied planning map (or a future explicitly specified planning ROI) contains no unknown cells **before** search, so outcomes cannot depend on the order of collision/heuristic queries. This is not yet accepted; see [live-map design](live-map-snapshots-and-cache-proposal.md). The `MapSnapshot` retains its immutable raw/typed occupancy data; a request-level policy changes interpretation only. Map-dependent caches must distinguish policies and relevant map revisions, regardless of the underlying buffer being shared.
 
 ## Suggested native API sketch
 
@@ -79,9 +79,11 @@ struct GridGeometry {
 
 struct GridIndex { int32_t x, y; };
 enum class UnknownCellPolicy { Occupied, Free, Reject };
-struct PlanningOptions {
+struct OccupancyPolicy {
+    uint8_t maxTraversableOccupancy = 0;
     UnknownCellPolicy unknownCells = UnknownCellPolicy::Occupied;
 };
+struct PlanningOptions { OccupancyPolicy occupancy{}; };
 // Occupancy representation and owning handle remain under review.
 // Unknown handling is a planning-request option, not stored as a map fact.
 // worldToCell(worldPoint, geometry) -> optional<GridIndex>
@@ -103,7 +105,7 @@ A ROS adapter converts quaternion yaw to planar `originInFrame.yaw` after checki
 - [ ] Identity map (yaw zero) agrees with Nav2 `worldToMap` and `mapToWorld` behavior.
 - [ ] Body-forward and yaw test: `theta=0` points +X; `theta=pi/2` points +Y.
 - [ ] Raster import does not silently flip rows; test distinct corner-cell obstacles.
-- [ ] Conventional `int8` occupancy handling for `-1,0,50,100`, threshold boundary, unknown policy and malformed values.
+- [ ] Conventional `int8` occupancy handling for `-1,0,50,100`, threshold boundary (`c <= max`, default max 0), unknown policy and malformed values.
 - [ ] Separate Nav2 costmap translation: unsigned 8-bit costs aren't occupancy probabilities.
 - [ ] Non-planar origin orientation rejected or handled via explicit adapter policy.
 - [ ] Frame mismatch between start/goal/map rejected; optional ROS adapter transforms to `map` first.
