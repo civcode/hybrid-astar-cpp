@@ -12,6 +12,7 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0006](0006-dynamic-planning-boundary.md) | Accepted | Dynamic obstacle handling and MPC separate |
 | [0007](0007-dependencies-verification.md) | Accepted | Supporting libraries scoped; contract-driven tests |
 | [0008](0008-motion-model-capabilities.md) | Accepted | Admissible-controls-first holonomic/nonholonomic models and mecanum reference |
+| [0009](0009-ros-map-coordinate-conventions.md) | Accepted | ROS coordinate frames and map grids |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
