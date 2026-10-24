@@ -21,7 +21,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [x] Accept OQ-008 pose-tolerance default of 0.25 m / 10 degrees with optional extra-state goal constraints (ADR-0016).
 - [x] Accept OQ-006 unknown-cell semantics/policy and known-free frontier default (ADR-0017); selectable per request, map data unchanged.
 - [x] Accept OQ-006 configurable known-cell max occupancy, default zero (ADR-0018).
-- [ ] Resolve OQ-004 planning effort-cost objective and remaining OQ-006 immutable snapshot ownership, strict `Reject` scope, map update and cache strategy ([design proposal](architecture/live-map-snapshots-and-cache-proposal.md)).
+- [x] Accept OQ-006 immutable full-grid shared snapshots with atomic publication, revision-keyed on-demand bounded caching and strict full-snapshot `Reject` validation (ADR-0019).
+- [ ] Resolve OQ-004 planning effort-cost objective; finish native occupancy/frame/handle ABI (OQ-023) and mutable cache concurrency (OQ-012).
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
 - [ ] Accept/revise ADRs and mark architecture baseline v0.1 reviewed.
@@ -34,12 +35,12 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Format/lint/test/benchmark commands documented for local use.
 - [ ] Common types: poses, transforms, frame ids, angles, units, result/status.
 - [ ] Immutable validated native configuration; YAML (yaml-cpp) and JSON (nlohmann/json) adapters.
-- [ ] Occupancy grid snapshot, REP-103/105 frame metadata, SE(2) origin/world-grid conversions, row-major X-fastest layout, per-request unknown/out-of-bounds policy and version (ADR-0017).
+- [ ] Immutable owning occupancy grid snapshot and atomic publication, REP-103/105 frame metadata, SE(2) origin/world-grid conversions, row-major X-fastest layout, per-request unknown/out-of-bounds policy and source identity/revision (ADRs 0017–0019).
 - [ ] Convert ROS OccupancyGrid signed occupancy cells explicitly and disallow raw Nav2 uint8 costmap reinterpretation.
 - [ ] Robot collision body definitions (circle/rectangle/convex polygon/compound), frame registration.
 - [ ] Catch2 tests for foundational types, serialization and ROS-compatible grid semantics: zero/rotated origins, half-cell offsets, negative/border coordinates, unknown occupancy, frame mismatches and Y-axis direction.
 - [ ] Validate frontier known-free full-footprint traversal, three request-level unknown policies, default max-traversable-known-occupancy `0`, threshold equality, optimistic-path assurance and cache-policy separation.
-- [ ] Review proposed atomic publication of immutable shared map snapshots, per-revision on-demand cache rebuild, bounded eviction, and up-front strict `Reject` validation; do not implement unaccepted variants without review.
+- [ ] Implement accepted atomic publication of privately built immutable shared map snapshots, revision-keyed on-demand cache rebuild with bounded eviction, and up-front full-snapshot strict `Reject` validation (ADR-0019); define exact API types and synchronization at implementation review.
 - [ ] Catch2 outdoor ENU axis/yaw fixtures, with independent rotated-grid origin; optional adapter tests for geodetic datum/reference and GNSS-to-local conversion.
 - [ ] cxxopts-based CLI fixture runner (optional initial example).
 
