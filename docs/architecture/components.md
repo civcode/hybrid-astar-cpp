@@ -84,11 +84,11 @@ Arrows mean *uses*. Diagram is logical; no requirement that every box maps to a 
 
 ## Lifetime, mutability, and concurrency
 
-- `MapSnapshot` is immutable and versioned during a planning request. Its frame, origin SE(2), X-fastest row-major layout and occupancy policy use the [ROS-compatible map convention](map-coordinates.md). The producer may concurrently publish a *different* snapshot.
+- `MapSnapshot` is immutable and versioned during a planning request. Its frame, origin SE(2), X-fastest row-major layout and occupancy **encoding** follow the [ROS-compatible map convention](map-coordinates.md). The **interpretation policy** is request-specific (unknown default `Occupied`, known maximum traversable occupancy default `0`, ADRs 0017–0018). The producer may concurrently publish a *different* snapshot without mutating the one in use. **Proposed initial ownership:** one `shared_ptr<const MapData>` with atomic latest-snapshot handoff; start with whole-grid copy at publication, tile/COW only if measured necessary ([design proposal](live-map-snapshots-and-cache-proposal.md)).
 - Model configuration, collision shape definitions, primitive catalogs, and steering solver parameters are immutable within a request. Capability metadata does not supersede model-specific state-dependent admissible control checks.
 - The simplest initial policy is **one active `plan()` per planner instance**; this is proposed, not yet accepted. Concurrent requests can use distinct instances sharing immutable resources.
 - Scratch pools and open/closed state belong to an individual request/instance; neither are shared unsafely.
-- Obstacle-distance caches are keyed by map identity/version, grid geometry, goal cell and heuristic policy; cache-sharing/synchronization remains open.
+- **Proposed** obstacle-distance cache: key all dependencies, including map identity/revision (and associated grid geometry/frame/encoding), selected occupancy threshold and unknown policy, goal *region* discretization, relevant inflation, and heuristic configuration. Reuse exactly compatible fields; otherwise rebuild **on demand**, retain old entries for active requests, evict idle entries within a memory budget. No incremental repair initially. Cache-sharing/synchronization remains open; settled-distance and heuristic-admissibility rules still apply ([design proposal](live-map-snapshots-and-cache-proposal.md)).
 - Abort/cancel/budget exhaustion produce an explicit result status, not an invalidated successful path.
 
 ## Initial layout (proposed)
