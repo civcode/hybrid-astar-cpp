@@ -33,6 +33,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | OQ-020 | Mecanum milestone | When to implement the third reference model and whether it must complete end-to-end search for M4 |
 | OQ-021 | Mathematical kinematic contract | Derivative/tangent/state-manifold operations, exact propagation customization, discrete modes and time vs progress conventions ([model spec](kinematic-models.md)) |
 | OQ-022 | Supplied articulated-steering geometry and sign conventions | **Confirmed:** `(x,y,Theta)` is the rear-chassis reference pose. **Still open:** exact rear-reference-point location, whether inputs are rear-reference speed and articulation rate, positive sign of `gamma`, physical meaning of `l1`/`l2`, front/joint frame transforms and valid joint range ([model spec](kinematic-models.md)) |
+| OQ-023 | Native occupancy/frame representation | REP-103/105 and grid layout are accepted (ADR-0009); still choose signed occupancy vs typed cell classification, application-specific encodings, threshold defaults and frame ID API ([map coordinates](map-coordinates.md)) |
 
 ## Review checklist for architecture baseline v0.1
 
@@ -45,5 +46,6 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 - [ ] Validate ODE/tangent/integrator contracts against differential drive, Ackermann and ideal mecanum (OQ-021).
 - [ ] Ensure search and path interfaces never assume that body heading equals travel tangent.
 - [ ] Confirm the supplied articulated-steering input and body-frame conventions (OQ-022) before implementing collision transforms.
+- [ ] Confirm ROS-compatible map/grid Catch2 contracts (ADR-0009) and select native occupancy storage (OQ-023).
 - [ ] Approve verification categories and first benchmark fixtures.
 - [ ] Record decisions as accepted ADRs before implementation depends on them.
