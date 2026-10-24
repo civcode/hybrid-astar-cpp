@@ -11,6 +11,7 @@ Start at [Architecture documentation](docs/architecture/README.md), then review:
 - [Requirements and constraints](docs/architecture/requirements.md)
 - [Components and dependencies](docs/architecture/components.md)
 - [Interface contracts](docs/architecture/interfaces.md)
+- [ROS-compatible map coordinates](docs/architecture/map-coordinates.md)
 - [Planning algorithms](docs/architecture/algorithms.md)
 - [Nonfunctional requirements](docs/architecture/quality.md)
 - [Verification plan](docs/architecture/verification.md)
