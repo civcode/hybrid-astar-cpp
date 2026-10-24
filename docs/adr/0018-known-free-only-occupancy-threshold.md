@@ -1,6 +1,6 @@
 # ADR-0018: Maximum traversable occupancy defaults to known-free only
 
-**Status:** Accepted (threshold semantics/default; map snapshot/cache/reject details remain proposed)  
+**Status:** Accepted (threshold semantics/default; map snapshot/cache/strict `Reject` further specified by ADR-0019)  
 **Date:** 2026-10-24
 
 ## Context
@@ -38,4 +38,4 @@ struct OccupancyPolicy {
 
 ## Remaining open questions
 
-OQ-006: snapshot publication/ownership, immutable shared cache lifetime, publication cadence, and `Reject` validation scope; OQ-023: exact native occupancy-storage type and frame identifier API.
+[ADR-0019](0019-live-map-snapshot-cache-and-reject.md) accepts the baseline snapshot publication/ownership, revision-keyed cache lifecycle and strict full-snapshot `Reject` semantics. OQ-023 still covers native occupancy storage and frame/handle API; OQ-012 covers mutable-cache/planner concurrency.
