@@ -1,0 +1,32 @@
+# ADR-0013: Single-label discretized Hybrid A* as the baseline
+
+**Status:** Accepted  
+**Date:** 2026-10-24  
+**Supersedes:** [ADR-0010](0010-compile-time-search-label-policy.md)
+
+## Context
+
+The earlier ADR-0010 accepted compile-time optional multi-label retention. After reviewing conventional Hybrid A* practice and the proposed downstream path-refinement architecture, we prioritize a compact, understandable search kernel. Extra arrival labels may have marginal end-to-end value after refinement and can multiply search memory and computational cost.
+
+## Decision
+
+1. The baseline search retains **one continuous node/arrival per model-defined discretized key**. The key maps to one retained node identifier; no multi-label policy, containers, caps, or eviction logic are required in the initial implementation.
+2. Each retained node preserves its full **continuous model state**, accumulated cost, parent/action, and incoming motion primitive/maneuver metadata. Cost replacement follows the search's documented lower-`g` rule and appropriate heap stale-entry/reopening behavior.
+3. The discrete key is **model-specific**. Three-state Ackermann may use `(x-bin,y-bin,yaw-bin)`; models with articulation or other reachability/collision-relevant configuration variables must index the necessary dimensions. The key is not universally a 3D pose.
+4. Incoming primitive/maneuver metadata is kept **on the node**, not added to the key by default. Consequently, transition-aware effort costs may be history-dependent, and lower-`g` pruning per key is an **approximation**, not proof of true dominance or optimality.
+5. Downstream refinement may improve geometric quality and maneuver smoothness but cannot generally recover a missed homotopy class, unretained arrival, or an intrinsically infeasible discrete transition. Preserve and validate the raw path; report refinement failures.
+6. **Do not implement or design public API complexity for optional multi-label retention in the initial milestones.** Revisit only if reproducible scenario benchmarks demonstrate a substantial failure-rate or end-to-end quality gap. Any future extension needs a separate ADR and explicit performance evidence.
+
+## Alternatives considered
+
+- Compile-time optional multi-label policy (ADR-0010): may retain useful arrivals but adds design/testing surface and potentially substantial runtime costs when selected.
+- Augment every key with incoming primitive ID: restores more of the history needed for transition-aware costs but increases state count, which is not warranted for the baseline.
+- Exact dominance across continuous arrivals: not generally available from a shared quantized cell alone.
+
+## Consequences and verification
+
+Benchmark the baseline planner **together with** its proposed optional refiner, as well as planning memory, latency, successful solution rate, path quality, and whether narrow-passage or arrival-direction alternatives are lost. Test key replacement, stale heap records, reopening, model-dependent key dimensions and deterministic tie-breaking. Do not claim global continuous-space optimality or a weighted-search suboptimality factor solely from a certified admissible heuristic.
+
+## Follow-up
+
+OQ-001 is closed for the baseline. The impact of pruning on successful search and refinement outcomes remains a verification obligation, not a reason to introduce multi-label machinery without evidence.
