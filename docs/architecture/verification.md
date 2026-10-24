@@ -19,7 +19,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 
 | IDs | Required evidence |
 | --- | --- |
-| FR-001, FR-003, FR-016 | Model concept compile tests for differential, Ackermann and mecanum; derivative and integrator checks; state-key distinction for identical poses/different steering or articulation; both compile-time label policies and pruning/dominance tests |
+| FR-001, FR-003, FR-016 | Model concept compile tests for differential, Ackermann and mecanum; derivative and integrator checks; model-aware key distinction for articulation and other relevant dimensions; **single-node-per-key** replacement, reopen/stale-queue and pruning approximation tests |
 | FR-002, FR-017 | Primitive propagation against exact solutions, forward/reverse, in-place rotation, sideways mecanum translation with fixed yaw, simultaneous translation/rotation, limits and step-size convergence |
 | FR-004, FR-005 | Compound-body transforms, articulated hinge configurations, self-collision exclusions, swept-geometry cases between sample endpoints |
 | FR-006, FR-007, FR-018 | REP-103/105 frames, rotated origin conversion, cell-center offsets, row-major indexing, unknown/out-of-bounds semantics, Dijkstra known maps, lazy settlement, cache invalidation |
@@ -28,12 +28,16 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 | FR-010, FR-012 | Exact primitive reconstruction, analytic tail, cusp and rotation progress; `(segmentIndex, lambda)` evaluations, full state, shared boundary pose and optional one-sided derivatives |
 | FR-011 | Constraint-valid refiner acceptance, invalid spline rejection, untouched feasible fallback |
 | FR-013, FR-014 | YAML/JSON roundtrip/validation in adapters, no ROS dependencies in core |
+| FR-019 | XY <= 0.25 m and wrapped yaw <= 10 degrees defaults, independent threshold equality, zero-tolerance mode, model-specific optional state constraints, continuous endpoint check and valid swept motion |
+| FR-020 | Fixed-curvature three-state Ackermann exact arcs and reversals; steering rate discontinuity explicitly reported, and optional refiner tested for valid smooth connector rather than assumed valid |
+| FR-021 | Certified lower bounds for goal region/edge cost, explicitly relaxed heuristic modes, and no unproven optimality guarantee from quantized-key Hybrid A* |
 | NFR-001..012 | See [quality protocol](quality.md); scenario baselines and metadata stored with results |
 
-## Search-label policy and canonical path contract tests
+## Single-label search and canonical path contract tests
 
-- Instantiate and test `SingleLabelPolicy` and `MultiLabelPolicy` independently on identical seeded fixtures. Off-mode must have one label ID per discrete key and no multi-label per-key vector/chain or runtime mode branch; record node/key sizes, allocations and time compared to a dedicated single-label baseline.
-- For multiple labels, check retention, eviction, deterministic ordering, stale queue entries, stable ancestry, bound violations and distinct continuous states with the same quantized key. Do **not** claim mathematically exact dominance from smaller accumulated `g` alone.
+- Verify exactly **one retained continuous node per model-defined discretized key**. Check replacement, stable ancestry, deterministic tie-breaking, heap staleness and reopening; record compact memory and per-expansion allocations (ADR-0013). Multi-label infrastructure is out of scope for the baseline.
+- Test arrivals with different continuous states or incoming primitives that map to the same key. Document lost alternatives and show that cheaper accumulated `g` does **not** establish true dominance when future motion/effort depends on arrival history.
+- Compare raw and optional refined paths in narrow passages and maneuver-heavy fixtures. Refinement may improve an existing path but may not recover a pruned homotopy class.
 - Test path evaluation at `(i,0)`, `(i,1)`, interior lambda, adjacent segment interfaces, cusp/gear changes, pure stationary rotation, articulation-only movement, and holonomic lateral translation. Distinguish one-sided derivative conventions from continuity of configuration.
 - Check accepted length-parametrized translating primitives against time-domain ODE integration under a compatible control-speed mapping, including reverse; ensure no division by zero for stationary angular/configuration motions (OQ-002 accepted by ADR-0012). Test rate-limited retiming separately (OQ-024 remains open).
 
@@ -74,6 +78,8 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 - For any declared *admissible* heuristic mode, compare `h` to a proven lower bound or analytically solvable case. Do not infer admissibility solely because reverse Dijkstra runs.
 - Test consistency only for modes where consistency is claimed; otherwise ensure reopen behavior handles inconsistent heuristics.
 - Compare obstacle-aware heuristic on/off for performance **and** solution quality; no artificial optimality claims.
+- In the default mode, verify only certified goal-region/cost-compatible bounds are enabled; use `h=0` or proven Euclidean-to-tolerance-region fallback when reverse-grid field cannot be certified. Weighted and uncertified modes must report explicit guarantees/limitations.
+- Validate pose-goal tolerance region including angular wrap, tolerance-border equality, optional joint target, and a colliding nominal center with a valid endpoint elsewhere inside the region.
 
 ## Planned test layout
 
@@ -105,8 +111,9 @@ benchmarks/
 - [ ] Independently validate derivatives, tangent/angle-state integration, combined translation/rotation and model-admissible control limits.
 - [ ] Derive and test the supplied articulated-steering system's reference point, sign conventions, pure articulation motion and state-dependent collision geometry.
 - [ ] Run a common search/primitive/path contract test suite with all three models, without drive-specific branches in the search kernel.
-- [ ] Compare single-label node/key memory, allocation counts and expansion timing against a specialized baseline; ensure multi-label code is excluded from the single-label hot path.
+- [ ] Measure compact single-label key/node memory, allocations and expansion timing, and success/refinement quality under coarse versus fine state discretization; do not implement multi-label storage.
 - [ ] Verify canonical `(segmentIndex, lambda)` path evaluation across cusps, zero-distance maneuvers and model-specific segment types.
+- [ ] Exercise fixed-curvature Ackermann primitive families and optional valid steering-continuity refinement, default certified heuristics and continuous pose-tolerant goals.
 - [ ] Enable optional OMPL tests without adding an OMPL core dependency.
 - [ ] Validate failure results and fallback behavior.
 - [ ] Add sanitizer runs (ASan/UBSan, optionally TSan) in local developer instructions.
