@@ -19,7 +19,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [x] Accept OQ-005 certified-admissible heuristic default and explicit opt-in relaxed modes (ADR-0015).
 - [x] Accept OQ-007 three-state fixed-curvature Ackermann primitives (ADR-0014).
 - [x] Accept OQ-008 pose-tolerance default of 0.25 m / 10 degrees with optional extra-state goal constraints (ADR-0016).
-- [ ] Resolve OQ-004 planning effort-cost objective and OQ-006 map ownership/unknown semantics.
+- [x] Accept OQ-006 unknown-cell semantics/policy and known-free frontier default (ADR-0017); selectable per request, map data unchanged.
+- [ ] Resolve OQ-004 planning effort-cost objective and remaining OQ-006 map ownership, occupancy threshold, Reject encounter scope, map update and cache strategy.
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
 - [ ] Accept/revise ADRs and mark architecture baseline v0.1 reviewed.
@@ -32,10 +33,11 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Format/lint/test/benchmark commands documented for local use.
 - [ ] Common types: poses, transforms, frame ids, angles, units, result/status.
 - [ ] Immutable validated native configuration; YAML (yaml-cpp) and JSON (nlohmann/json) adapters.
-- [ ] Occupancy grid snapshot, REP-103/105 frame metadata, SE(2) origin/world-grid conversions, row-major X-fastest layout, unknown/out-of-bounds policy and version.
+- [ ] Occupancy grid snapshot, REP-103/105 frame metadata, SE(2) origin/world-grid conversions, row-major X-fastest layout, per-request unknown/out-of-bounds policy and version (ADR-0017).
 - [ ] Convert ROS OccupancyGrid signed occupancy cells explicitly and disallow raw Nav2 uint8 costmap reinterpretation.
 - [ ] Robot collision body definitions (circle/rectangle/convex polygon/compound), frame registration.
 - [ ] Catch2 tests for foundational types, serialization and ROS-compatible grid semantics: zero/rotated origins, half-cell offsets, negative/border coordinates, unknown occupancy, frame mismatches and Y-axis direction.
+- [ ] Validate frontier known-free full-footprint traversal, three request-level unknown policies, optimistic-path assurance and cache-policy separation.
 - [ ] Catch2 outdoor ENU axis/yaw fixtures, with independent rotated-grid origin; optional adapter tests for geodetic datum/reference and GNSS-to-local conversion.
 - [ ] cxxopts-based CLI fixture runner (optional initial example).
 
