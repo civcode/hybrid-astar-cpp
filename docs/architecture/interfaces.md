@@ -47,6 +47,7 @@ Contract:
 - Capability queries describe possibilities, but do not replace checking admissible controls. In particular do not branch search on `isHolonomic()`.
 - State may live on a manifold (e.g. yaw or joint angles), with model-defined tangent/state-update conventions; discrete modes are not differentiated.
 - Implementation priority: differential drive and geometric bicycle/Ackermann. Ideal mecanum is the third **reference and integration-test model**. Articulated state support remains a design extension, not a claim of implementation.
+- **Accepted OQ-007:** initial Ackermann model is `(x,y,yaw)` with fixed-curvature straight/left/right primitives and optional intermediate curvatures ([ADR-0014](../adr/0014-fixed-curvature-ackermann-baseline.md)). Steering angle is a primitive control, not baseline state. Raw arc concatenations do not guarantee finite steering rate; later refinement or a separate four-state model must validate this requirement.
 
 ## 3. Motion primitive generation and indexing
 
@@ -74,9 +75,9 @@ Contracts:
 - Candidate trajectories include start, end, and sufficient intermediate state/body motion information for collision validation. Cached local trajectories must still transform against the **continuous** parent state.
 - **Accepted OQ-002:** translating primitives use explicit traveled-distance extents; zero-translation rotations/steering/articulation maneuvers use model-specific angular/configuration extents ([ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md)). Kinematic models retain time-domain ODEs and may use time-domain integration; spatial reparameterization must not divide by zero at stationary motions. The exact typed extent/control-law signature is still under review.
 - Search node stores continuous state, accumulated `g`, stable parent reference and the exact action/connector necessary to reconstruct its edge.
-- The state key must include steering/articulation/other dimensions when their values affect reachability or collision. Do not conflate identical poses with different vehicle configurations.
-- **Accepted:** the search supports compile-time `SingleLabelPolicy` (default) and `MultiLabelPolicy` ([ADR-0010](../adr/0010-compile-time-search-label-policy.md)). When single-label is selected, key storage contains exactly one label ID, with no vector/chain, per-key multi-label fields, or per-expansion runtime mode branch. A facade can dispatch once to separately specialized planner types. Multi-label retention, eviction and resource budget are still open.
-- A single `g` per discretized key is only a search approximation unless the state-abstraction/dominance assumptions are documented. Multiple labels likewise do not prove mathematical dominance or full resolution completeness.
+- The **model-specific** discretized key includes configuration dimensions necessary to distinguish reachability and collision geometry (e.g. articulation for a four-state model). The initial three-state Ackermann key may use only quantized `(x,y,yaw)`. Quantization may still merge nonequivalent continuous states.
+- **Accepted OQ-001:** exactly **one retained continuous node per discretized key** in the initial Hybrid A* ([ADR-0013](../adr/0013-single-label-search-baseline.md), superseding ADR-0010). Keep continuous state, `g`, parent and incoming primitive on the node; do not implement multi-label storage, retention policies or runtime selection in the baseline. Relaxation, reopening and stale-queue handling are required. Incoming maneuver is not part of the key by default.
+- One lowest-`g` arrival per discretized key is **approximate pruning** because equal keys do not imply identical future reachability. Incoming-primitive-dependent effort costs also introduce history dependence not represented by the key. We explicitly accept this simplification and make no global optimality or resolution-completeness guarantee. Optional refinement cannot always recover a discarded arrival or alternative homotopy.
 - Precomputation is allowed only if validity assumptions (initial internal state, control limits, etc.) remain true.
 
 ## 4. Geometry and collision
@@ -117,9 +118,9 @@ concept SteeringConnector = requires(const State& a, const State& b)
 ```
 
 Contract:
-- Reverse Dijkstra estimates obstacle-aware distance from **static** map; key/cache includes map version/goal/grid and free-space policy. Lazy distance expansion must settle cells before returning final distance values.
+- **Accepted OQ-005:** default mode evaluates only certified admissible lower bounds for the configured cost and **accepted goal region** ([ADR-0015](../adr/0015-admissible-default-heuristics.md)); optional weighted/experimental modes are explicit and do not inherit unsupported suboptimality claims. A zero heuristic is the safe fallback for nonnegative costs. Reverse Dijkstra estimates obstacle-aware distance from a **static** map; key/cache includes map version/goal/grid and free-space policy. Lazy distance expansion must settle cells before returning final distance values.
 - Heuristics combine as `max(h_obstacle, h_model)` **only when both are proven lower bounds on the configured `g` cost**. Otherwise use a documented nonadmissible search mode; do not claim optimality.
-- Discrete 2D shortest-path distances and obstacle inflation can *overestimate* the continuous robot path distance; construction of admissible bounds needs a separate proof or conservative correction. Mark as an open design question.
+- Discrete 2D shortest-path distances and obstacle inflation can *overestimate* continuous robot path distance; a reverse-Dijkstra field may be computed but **cannot be marked certified** until a suitable conservative bound is proven/corrected. A certified heuristic does not undo quantized-key pruning (ADR-0013).
 - Native Dubins and Reeds–Shepp connectors are valid only for compatible geometric models with constant turning-radius assumptions. Neither inherently enforces steering-rate constraints or articulated dynamics.
 - Analytic paths must be fully collision-checked, model-valid, and costed consistently; multiple equal-optimal path families are acceptable.
 
@@ -132,7 +133,9 @@ enum class PlanStatus {
 };
 template<class State>
 struct PlanRequest {
-    State start, goal;
+    State start;
+    // Goal specification: world pose + independent XY/yaw tolerances;
+    // optional model-specific state constraints, not a mandatory full State goal.
     // immutable map handle, model/config identity, limits,
     // optional cancellation token
 };
@@ -143,6 +146,8 @@ struct PlanResult {
     // model/map version identities
 };
 ```
+
+**Accepted OQ-008:** the default goal accepts the **continuous model-defined reference pose** when XY Euclidean distance to the target is `<= 0.25 m` **and** wrapped yaw error is `<= 10°` (`pi/18 rad`). These tolerances are independently configurable, including zero. Other state components (such as articulation) are unconstrained by default but must remain valid and collision-free; the caller may request explicit additional state/terminal constraints. Validate the incoming swept motion and return the actual reached endpoint, never snap the path to the goal center. Goal-region heuristics must account for tolerance ([ADR-0016](../adr/0016-default-pose-goal-tolerances.md)).
 
 Contract: no partial/unverified path is reported as `Success`. Failure carries diagnostic reason and counters; cancellation is checked at bounded intervals. Planner instances should avoid rebuilding immutable caches unnecessarily; concurrency semantics remain proposed in [components.md](components.md).
 
@@ -187,4 +192,4 @@ Curve fitting (B-splines, Hermite, clothoids, arcs) is an internal interchangeab
 
 ## Interface decisions to close
 
-Review the remaining details in [open-questions.md](open-questions.md): multi-label retention (OQ-001), primitive integration extent (OQ-002), path boundary canonicalization (OQ-003), state/tangent conventions (OQ-021), capability metadata (OQ-019), map ownership, cost units/heuristic admissibility, validation assurance and type-erasure boundaries.
+Review the remaining details in [open-questions.md](open-questions.md): primitive-extent/control-law ABI (OQ-002), path boundary canonicalization (OQ-003), state/tangent conventions (OQ-021), capability metadata (OQ-019), map ownership (OQ-006), effort-cost objective (OQ-004/OQ-024), collision assurance and type-erasure boundaries. Baseline one-key/one-node search, three-state fixed-curvature Ackermann, admissible-default heuristics and pose-tolerant goals are accepted (ADRs 0013–0016).
