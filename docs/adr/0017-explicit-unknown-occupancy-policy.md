@@ -1,6 +1,6 @@
 # ADR-0017: Explicit unknown-occupancy policy with conservative frontier default
 
-**Status:** Accepted (unknown-cell policy/default and API separation; remaining map details in OQ-006/OQ-023)  
+**Status:** Accepted (unknown-cell policy/default; strict `Reject` and snapshot lifecycle further specified by ADR-0019)  
 **Date:** 2026-10-24
 
 ## Context
@@ -25,11 +25,11 @@ The accepted ROS-compatible semantics in [ADR-0009](0009-ros-map-coordinate-conv
 
    These are **illustrative** types, not finalized ABI. `PlanRequest` contains or refers to validated options.
 3. **Default to `Occupied`**, i.e. unknown cells are treated as blocked for collision and traversability decisions. This supports frontier exploration: an external exploration component selects reachable known-free goals near the observed/unobserved boundary; Hybrid A* plans only over confirmed traversable space for the robot's **complete swept collision geometry**.
-4. `Free` treats unknown cells as traversable during planning, explicitly producing an **optimistic/provisional** environmental-validity claim. An unobserved region is never advertised as verified obstacle-free. `Reject` makes unknown occupancy an explicit error instead of implicitly assigning it free/blocked semantics. The exact request-rejection scope (any unknown anywhere vs unknown encountered by a relevant map query) and interactions with global heuristic expansion remain open under OQ-006; avoid aborting frontier exploration on irrelevant unknown cells.
+4. `Free` treats unknown cells as traversable during planning, explicitly producing an **optimistic/provisional** environmental-validity claim. An unobserved region is never advertised as verified obstacle-free. `Reject` makes unknown occupancy an explicit error instead of implicitly assigning it free/blocked semantics. [ADR-0019](0019-live-map-snapshot-cache-and-reject.md) specifies deterministic **pre-search rejection if any `-1` cell exists anywhere in the supplied snapshot**; the conservative frontier default remains `Occupied`, which does not reject the whole request.
 5. The policy is applied consistently across collision checking, inflation/traversability, reachability estimates and heuristic evaluation. If a request changes policy, map-dependent caches derived under another policy cannot be reused without a sound policy-independent derivation. A map snapshot should remain unchanged and usable for multiple policy choices.
 6. A planning request reads **one consistent immutable map revision**, while mapping/SLAM may publish newer revisions. Live-map updates or stale-path handling are orchestrated by an application/replanning layer; the planner does not directly mutate its map mid-search.
 7. Frontier selection, sensor fusion, exploration progress and online map publishing remain **outside the planner core**; no ROS dependency is introduced.
-8. The known-cell threshold is **now accepted** in [ADR-0018](0018-known-free-only-occupancy-threshold.md): `maxTraversableOccupancy=0` by default, and a known cell `c` is traversable iff `c <= max`. Occupancy-storage and owning-handle representation, snapshot-update granularity, cache-invalidation strategy, and detailed `Reject` semantics remain unresolved OQ-006/OQ-023 matters. A concrete [live-map proposal](../architecture/live-map-snapshots-and-cache-proposal.md) records recommendations without declaring them accepted.
+8. The known-cell threshold is **now accepted** in [ADR-0018](0018-known-free-only-occupancy-threshold.md): `maxTraversableOccupancy=0` by default, and a known cell `c` is traversable iff `c <= max`. Snapshot publication, cache invalidation and strict `Reject` semantics are now **accepted** in [ADR-0019](0019-live-map-snapshot-cache-and-reject.md). Exact native cell representation and public frame/handle ABI remain under OQ-023; planner/cached lazy-field concurrency remains OQ-012.
 
 ## Consequences and tests
 
