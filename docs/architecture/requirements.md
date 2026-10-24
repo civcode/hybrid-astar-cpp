@@ -11,7 +11,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | FR-003 | Model-aware state indexing | One retained continuous node per model-specific discretized state key; index relevant configuration dimensions, retain incoming primitive metadata, document lossy merge/reopen semantics and test pruning effects |
 | FR-004 | Collision geometry | Multiple frame-attached rigid 2D bodies; articulated poses derived from hypothetical state |
 | FR-005 | Swept-motion validation | Every accepted transition validated along complete motion, including rotating/articulating bodies |
-| FR-006 | Static occupancy environment | Immutable map snapshot with resolution, frame, origin, version, bounds and unknown-cell policy |
+| FR-006 | Static occupancy environment | Immutable map snapshot with resolution, frame, origin, revision and bounds; occupancy cells preserve unknown separately from request-level interpretation |
 | FR-007 | Obstacle-aware heuristic | 2D reverse shortest-distance field from goal, with defined cache invalidation and optional lazy evaluation; may only be selected as default lower bound when admissibility is proven |
 | FR-008 | Model-specific heuristic/connector | Native Dubins and Reeds–Shepp where model assumptions apply; optional analytic goal connections |
 | FR-009 | Configurable search semantics | Open/closed handling, configurable costs, cancellation and bounded resource use |
@@ -27,6 +27,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | FR-019 | Pose-tolerant goal acceptance | Default Euclidean XY <= 0.25 m and wrapped yaw <= 10 degrees on continuous endpoint; independent configurable tolerances, optional extra model-state constraints, full motion validity |
 | FR-020 | Fixed-curvature Ackermann baseline | Three-state geometric bicycle with bounded-curvature arcs (straight/left/right and optional intermediate); no implied finite steering-rate feasibility |
 | FR-021 | Certified lower-bound heuristic default | Use certified cost-to-goal-region lower bounds by default; explicit weighted/experimental alternatives; avoid unsupported global optimality/suboptimality claims |
+| FR-022 | Request-level unknown occupancy policy | Expose `Occupied` (default), `Free` (optimistic), `Reject` interpretation for `-1` cells, independent of immutable map storage; frontier exploration plans in known-free area, selection of frontier goals external |
 
 ## Architectural constraints
 
@@ -45,6 +46,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | AC-011 | All native map/pose coordinates follow ROS-compatible conventions; only adapters access ROS APIs or resolve frame transforms |
 | AC-012 | Initial search uses one retained continuous node per model-defined discretized key; no required multi-label policy/storage; record approximate dominance and history-dependent cost limitations |
 | AC-013 | An admissible heuristic does not by itself establish continuous-space optimality when distinct continuous arrivals share a discretized key |
+| AC-014 | Unknown occupancy interpretation is selected per planning request, consistent across collision and heuristic components; caches must distinguish policy/map revisions |
 
 ## Non-goals (initial milestones)
 
