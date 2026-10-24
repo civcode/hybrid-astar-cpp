@@ -169,7 +169,7 @@ Time is the canonical derivative variable for these ODEs because it works for in
 
 Here \(\sigma\) is **primitive-local progress**, not a global execution schedule. A downstream MPC still chooses timing, but any rate-constrained property verified at a specific nominal duration must be rechecked if the motion is retimed.
 
-**Open OQ-002: spatial extent versus temporal extent.** Translating primitives can be generated using an explicit traveled length and a spatially parameterized control; a constant nominal speed is not required. For example, bicycle curvature is \(d\theta/ds=\tan\delta/L\) for **signed** traveled distance \(ds/dt=v\). For the supplied articulated model with \(D(\gamma)=l_1\cos\gamma+l_2\), when \(v\ne0\):
+**Accepted OQ-002 (ADR-0012): spatial extent for translation, model-specific configuration extent for stationary maneuvers.** Translating primitives can be generated using an explicit traveled length and a spatially parameterized control; a constant nominal speed is not required. For example, bicycle curvature is \(d\theta/ds=\tan\delta/L\) for **signed** traveled distance \(ds/dt=v\). For the supplied articulated model with \(D(\gamma)=l_1\cos\gamma+l_2\), when \(v\ne0\):
 
 \[
 \frac{d\gamma}{ds}=\frac{u_\gamma}{v},\qquad
@@ -177,7 +177,7 @@ Here \(\sigma\) is **primitive-local progress**, not a global execution schedule
 +\frac{l_2}{D(\gamma)}\frac{u_\gamma}{v}.
 \]
 
-The spatial control \(d\gamma/ds\) may be chosen directly for translating primitives; a realizable articulation rate then depends on the eventual longitudinal speed. This division is **singular when \(v=0\)** even though the original time-domain dynamics remain valid. Consequently, zero-translation articulation changes and pure rotations need their own angular/configuration extent (or time-parametrized fallback). Geometric length alone cannot specify execution duration; absent a speed profile there is no unique \(dt\).
+The spatial control \(d\gamma/ds\) may be chosen directly for translating primitives; a realizable articulation rate then depends on the eventual longitudinal speed. This division is **singular when \(v=0\)** even though the original time-domain dynamics remain valid. Consequently, zero-translation articulation changes and pure rotations use their own angular/configuration extent (with time-domain integration available when appropriate). Geometric length alone cannot specify execution duration; absent a speed profile there is no unique \(dt\). The accepted primitive design is recorded in [ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md).
 
 **Accepted OQ-003:** the public path's *canonical address* is \((\text{segmentIndex},\lambda)\), \(\lambda\in[0,1]\), not either time or arclength ([ADR-0011](../adr/0011-canonical-segment-path-position.md)). A translating segment may internally use length; a stationary rotation segment may use angle; both evaluate using the same normalized local \(\lambda\).
 
@@ -200,4 +200,4 @@ The output path retains full model state, segmented progress, maneuver semantics
 
 ## Unresolved details
 
-OQ-002 (primitive integration extent), OQ-003 (path progress), OQ-004 (cost units), OQ-007 (Ackermann steering state), OQ-019 (capability metadata), OQ-020 (mecanum milestone), OQ-021 (state/tangent integration customization) and OQ-022 (articulated model geometry/control conventions) remain open.
+OQ-002 (exact extent API) is still a design detail, but its **geometric parameterization principle is accepted**; OQ-003 (path address) is accepted. Open issues include OQ-004 (cost units), OQ-007 (Ackermann steering state), OQ-019 (capability metadata), OQ-020 (mecanum milestone), OQ-021 (state/tangent integration customization), OQ-022 (articulated geometry/control conventions), and OQ-024 (speed-profile and retiming boundary).
