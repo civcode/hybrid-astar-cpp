@@ -8,6 +8,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Review [components](architecture/components.md): dependency direction, ownership and map snapshots.
 - [ ] Review [interfaces](architecture/interfaces.md): state/control types, primitive/domain, indexed labels, path evaluation.
 - [ ] Review [controlled-ODE model specification](architecture/kinematic-models.md) for derivative, tangent, constraints, body transforms and integration semantics.
+- [ ] Review [ROS-compatible map coordinate specification](architecture/map-coordinates.md) and [ADR-0009](adr/0009-ros-map-coordinate-conventions.md); settle the native occupancy/frame representation (OQ-023).
 - [ ] Review [ADR-0008](adr/0008-motion-model-capabilities.md): model control constraints, ideal mecanum as third reference and holonomic travel semantics.
 - [ ] Confirm supplied four-state articulated-steering ODE input interpretation, joint/body frame conventions and link lengths (OQ-022).
 - [ ] Resolve or explicitly defer high-priority [open questions](architecture/open-questions.md) OQ-001–OQ-008.
@@ -23,9 +24,10 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Format/lint/test/benchmark commands documented for local use.
 - [ ] Common types: poses, transforms, frame ids, angles, units, result/status.
 - [ ] Immutable validated native configuration; YAML (yaml-cpp) and JSON (nlohmann/json) adapters.
-- [ ] Occupancy grid snapshot, world/grid conversions, unknown/out-of-bounds policy and version.
+- [ ] Occupancy grid snapshot, REP-103/105 frame metadata, SE(2) origin/world-grid conversions, row-major X-fastest layout, unknown/out-of-bounds policy and version.
+- [ ] Convert ROS OccupancyGrid signed occupancy cells explicitly and disallow raw Nav2 uint8 costmap reinterpretation.
 - [ ] Robot collision body definitions (circle/rectangle/convex polygon/compound), frame registration.
-- [ ] Catch2 tests for all foundational types and serialization roundtrips.
+- [ ] Catch2 tests for foundational types, serialization and ROS-compatible grid semantics: zero/rotated origins, half-cell offsets, negative/border coordinates, unknown occupancy, frame mismatches and Y-axis direction.
 - [ ] cxxopts-based CLI fixture runner (optional initial example).
 
 **Exit:** standalone core configure/build/test succeeds locally.
