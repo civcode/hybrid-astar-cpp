@@ -61,9 +61,10 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Differential-drive model including in-place rotation; compile-time concept checks.
 - [ ] Three-state geometric bicycle/Ackermann model with exact fixed-curvature left/straight/right (optional intermediate) forward/reverse arcs; preserve joins and annotate finite steering-rate assumptions (ADR-0014).
 - [ ] Ideal mecanum reference model: independent chassis body lateral/forward/yaw velocities, admissible bounds, concept tests and analytic propagation fixtures.
-- [ ] Define controlled differential-equation/tangent model interface, and separate generic integrator (native RK4) plus exact constant-curvature propagation.
-- [ ] Model-specific control enumeration, primitive templates and cache invalidation.
-- [ ] Implement OQ-002 length-parametrized translating primitives plus model-aware angular/configuration extents for stationary maneuvers; retain validated time-domain integration fallback and ensure no division by longitudinal speed at zero.
+- [x] Accept RK4-based primitive generation to prescribed actual traveled length (terminal iterative refinement when required), retained ordered full-state visualization/debug points, and search-facing instantiation of cached evaluable motions (ADR-0023).
+- [ ] Define the controlled ODE/tangent generator interface and build the native RK4 integration plus accumulated distance, failure/tolerance handling; use analytic constant-curvature formulas as tests and optional later optimized evaluators.
+- [ ] Model-specific control enumeration, primitive templates and cache invalidation; distinguish SE(2)-equivariant reusable catalogs from initial articulation-state-dependent generation.
+- [ ] Implement OQ-002 RK4-generated traveled-length translating primitives plus model-aware angular/configuration extents for stationary maneuvers; keep full control-law numerical evaluation across generated checkpoints, including reverse/stall guards, and ensure no division by longitudinal speed at zero.
 - [ ] Implement **single retained continuous node per model-defined discrete key** with stable parents, incoming primitive metadata, reopen/stale-queue handling and no multi-label storage (ADR-0013).
 - [ ] Deterministic key replacement/pruning tests, including loss of alternative continuous arrivals and history-dependent transition-cost approximation.
 - [ ] Geometry frame transforms from hypothetical state; add a tractor/two-trailer synthetic state-transform fixture without assuming a production ODE; retain the supplied four-state articulated-steering model fixture only after its physical frame conventions are confirmed.
