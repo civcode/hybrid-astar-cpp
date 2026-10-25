@@ -84,7 +84,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 ## M3 — Steering and heuristics
 
 - [ ] Native Dubins shortest-path/distance/interpolation (all families).
-- [ ] Native Reeds–Shepp shortest-path/distance/interpolation (all relevant families).
+- [ ] **Required for first Ackermann end-to-end MVP:** native Reeds–Shepp shortest-path/distance/interpolation (all relevant families), with evaluable signed straight/arc segments and cusp metadata (ADRs 0004,0026).
 - [ ] Segment/direction representation, robust normalization and degenerate handling.
 - [ ] Optional OMPL differential test target (test-only, OFF by default), randomized reproducible corpus.
 - [ ] Reverse-Dijkstra obstacle-distance field with lazy/eager modes and cache versioning.
@@ -96,12 +96,12 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 ## M4 — Hybrid A* baseline
 
 - [ ] Node pool/open heap, stable indices, stale entry strategy, parent/action records.
-- [ ] Model-generic search loop with primitive and optional analytic expansion.
+- [ ] Model-generic search loop with primitive expansion and **required native Reeds–Shepp near-goal analytic expansion for the three-state Ackermann model** (ADR-0026); connector optional for incompatible models.
 - [x] Accept Ackermann **0.25 m XY / 10° yaw + incoming gear** search key, reverse multiplier **1.10**, gear-switch **0.50 m**, clearance weight **0.15** inside **0.40 m**, and goal-region Euclidean heuristic (ADR-0025).
-- [ ] Implement edge costs in equivalent meters: forward/reverse, gear-switch (no charge for first gear), and full-body clearance sampled at stored primitive states; tie breaks, reopen/dominance and termination semantics.
+- [ ] Implement edge costs in equivalent meters: forward/reverse, gear-switch (no charge for first gear), and full-body clearance sampled at stored primitive states; apply the **same weighted costs to Reeds–Shepp sections/cusps including initial switch**. Tie breaks, reopen/dominance and **feasible-first validated analytic termination** (not an optimality guarantee).
 - [ ] Cancellation and time/expansion/memory budgets, structured diagnostics.
 - [ ] Exact path reconstruction and validated piecewise path output using canonical `(segmentIndex, lambda)` evaluation; complete state and one-sided cusp semantics.
-- [ ] Evaluate goal conditions on actual continuous endpoints with configurable XY/yaw tolerances and optional additional full-state constraints; verify final swept motion.
+- [ ] Evaluate goal conditions on actual continuous endpoints with configurable XY/yaw tolerances and optional additional full-state constraints; verify final sampled motion. **Attempt native Reeds–Shepp near-goal connection within configurable XY radius** (provisional 5.0 m, pending review) from popped continuous Ackermann nodes to exact goal; sample each segment at ≤0.10 m including cusps/endpoints, check entire collision footprint/map/goal and discard failures without stopping normal search (ADR-0026).
 - [ ] Scenario tests (wall/doorway, narrow turns, reverse parking, unreachable goal; mecanum sideways travel and yaw-independent footprint constraints).
 - [ ] Compare geometric raw versus **finally validated refined** path planning outcomes and total pipeline latency, including paths lost to single-label key pruning, without promising refinability of missing homotopy classes.
 - [ ] Local latency/memory/quality baseline with and without obstacle-aware heuristic.
