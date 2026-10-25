@@ -52,7 +52,7 @@ Plan configuration is a validated immutable typed structure. YAML/JSON adapters 
 The model is defined primarily by the controlled differential equation `dq/dt = f(q,u;p)`, the valid state/control sets, state-to-pose projection and model-defined collision-frame transforms. A full mathematical definition, C++20 concept sketch, and examples for differential drive, bicycle/Ackermann, ideal mecanum and articulation are in [kinematic-models.md](kinematic-models.md).
 
 Contract:
-- Model owns state, control, tangent/derivative and validity operations; feasible control bounds can depend on current state.
+- **Accepted ADR-0021:** model owns state, control, tangent/derivative, state/control validity, reference pose and transforms of its named rigid-body frames. Feasible control bounds may depend on state. It **does not own collision shapes, collision checking, integration, primitive enumeration or Hybrid A***; these are separate contracts.
 - **Integration is separate**: a numerical/analytical propagator evaluates the vector field and yields intermediate states for collision and path reconstruction. Exact propagation may be specialized by a model.
 - The primary ODE uses time; local primitive progress and final geometric path progress are separate representations, not an MPC execution schedule.
 - Capability queries describe possibilities, but do not replace checking admissible controls. In particular do not branch search on `isHolonomic()`.
@@ -94,10 +94,15 @@ Contracts:
 ## 4. Geometry and collision
 
 ```cpp
+using CollisionShape2D = std::variant<Circle, Rectangle, ConvexPolygon>;
 struct CollisionBody2D {
-    FrameId frame;
-    ConvexShape2D shape;   // circle or convex polygon; compound as list
+    FrameId frame;          // model-defined rigid-body frame
+    Pose2D localOffset;     // frame -> shape transform
+    CollisionShape2D shape;
     double safetyMargin;
+};
+struct RobotGeometry {
+    std::vector<CollisionBody2D> bodies; // immutable throughout a request
 };
 template<class M>
 concept CollisionValidator = requires(
@@ -110,7 +115,7 @@ concept CollisionValidator = requires(
 };
 ```
 
-Contract: collision geometry is declarative, frame-attached, and immutable inside a request. Each sample uses model-derived transforms for all bodies, including articulation. Motion checking validates the **swept robot geometry**, not endpoints alone. Finite sampling is approximate: the checker must report the assurance level/resolution; strict continuous guarantees require conservative motion bounds or continuous collision detection. Self-collision policy and adjacent-body exclusions are separate configuration.
+**Accepted ADR-0021:** collision geometry is an independent immutable collection of model-frame-attached circles, rectangles and convex polygons, with compound or nonconvex bodies represented by multiple shapes. For every body, evaluate `T_world_shape(q) = T_world_frame(q) * T_frame_shape`. This supports arbitrary finite multi-trailer shape configurations **provided the model defines all transforms and joint kinematics**; efficient multi-trailer search is not guaranteed or part of the MVP. Validate frame references at setup. Collision checking evaluates **all** bodies along complete motions, including when the reference point is stationary. Self-collision pair exclusions and continuous swept assurance remain open (OQ-014/OQ-009). Finite sampling is only approximate: the checker must report its assurance/resolution; strict continuous guarantees need conservative bounds or continuous collision detection.
 
 ## 5. Heuristics and analytic steering functions
 
