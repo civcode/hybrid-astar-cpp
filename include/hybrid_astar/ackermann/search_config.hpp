@@ -11,7 +11,6 @@ struct SearchConfig {
   double xyBinMeters = 0.25;
   std::uint32_t yawBins = 72; // 5-degree search bins; goal tolerance remains 10 degrees
   double primitiveLengthMeters = 0.50;
-  double rsTriggerXYMeters = 20.0;
   double forwardCostMultiplier = 1.0;
   double reverseCostMultiplier = 1.10;
   double gearSwitchCostMeters = 0.50;
