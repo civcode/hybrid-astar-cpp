@@ -1,4 +1,6 @@
 #include "hybrid_astar/ackermann/search_config.hpp"
+#include "hybrid_astar/collision/options.hpp"
+#include "hybrid_astar/steering/analytic_expansion.hpp"
 #include <cmath>
 #include <numbers>
 #include <stdexcept>
@@ -22,5 +24,18 @@ int main() {
   if (std::abs(edgeCost(0.5, Gear::Forward, Gear::Reverse, c)-1.0) > 1.e-12) return 9;
   try { edgeCost(-1.0, Gear::Forward, Gear::Forward, c); return 10; }
   catch (const std::invalid_argument&) {}
+  hybrid_astar::collision::CheckOptions opts;
+  if (hybrid_astar::collision::assurance(opts) != hybrid_astar::collision::Assurance::BoundaryOnlyPoseSampled) return 11;
+  opts.checkFootprintInterior = true;
+  if (hybrid_astar::collision::assurance(opts) != hybrid_astar::collision::Assurance::FullFootprintPoseSampled) return 12;
+  hybrid_astar::steering::AnalyticExpansionOptions guards;
+  guards.maxPathLengthMeters = 22.5; // 5 * illustrative radius, not a default
+  using hybrid_astar::steering::AnalyticGate;
+  using hybrid_astar::steering::evaluateAnalyticGuards;
+  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{19,0,1}, 10, 12, guards) != AnalyticGate::AcceptableForFurtherValidation) return 13;
+  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{21,0,0}, 1, 1, guards) != AnalyticGate::OutsideTrigger) return 14;
+  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{1,0,0}, 23, 23, guards) != AnalyticGate::OverLengthLimit) return 15;
+  guards.maxWeightedCostMeters = 15.0;
+  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{1,0,0}, 10, 16, guards) != AnalyticGate::OverCostLimit) return 16;
   return 0;
 }
