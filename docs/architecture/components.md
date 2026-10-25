@@ -58,8 +58,8 @@ Arrows mean *uses*. Diagram is logical; no requirement that every box maps to a 
 | Planner facade | Request validation, setup, cancellation, result and diagnostics | ROS messages, map streaming, MPC |
 | Search engine | Node pool, open queue, g-values, parent links, iteration/budget policy | Vehicle equations, collision geometry, YAML/JSON |
 | Kinematic model | State/control/tangent types, controlled vector field, admissible constraints, world pose and named body-frame transforms | Search bookkeeping, numerical integration algorithm |
-| Integrator | Numerically or analytically propagate the model's ODE, respecting state topology; expose intermediate complete states | Primitive selection, map queries |
-| Primitive generator | Candidate admissible controls, durations/lengths, integrated state trajectories; reusable caches | Global map or cost policy |
+| Integrator | RK4 baseline numerical propagation primarily for primitive *generation*, respecting state topology; accumulated traveled-length termination, validated endpoints and ordered full-state samples (ADR-0023) | Primitive selection, map queries or per-node search bookkeeping |
+| Primitive generator | Candidate admissible controls, geometric extents, generated RK4 trajectories/control-law evaluators and stored samples; cache truly reusable SE(2)-relative templates and regenerate/cache by internal state when required (ADR-0023) | Global map or cost policy |
 | State index policy | Quantized complete state, key hash/equality, dominance scope | Continuous propagation |
 | Steering connector | Analytic feasible connections when assumptions apply | Map obstacle testing, global optimization |
 | Obstacle heuristic | Static map goal-distance cache, lazy reverse graph expansion | Vehicle shape and dynamics |
