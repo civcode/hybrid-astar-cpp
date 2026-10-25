@@ -1,7 +1,9 @@
 # ADR-0004: Native Dubins and Reeds–Shepp
 
-**Status:** Accepted  
+**Status:** Superseded by [ADR-0028](0028-ompl-backed-steering-and-junior-style-refinement.md) for first-implementation steering provider  
 **Date:** 2026-10-24
+
+**Historical decision:** Native Dubins/Reeds–Shepp remains an optional low-priority future replacement; **OMPL is now permitted and used as a scoped runtime steering dependency** (ADR-0028). The requirements below describe the original superseded direction.
 
 ## Context
 
