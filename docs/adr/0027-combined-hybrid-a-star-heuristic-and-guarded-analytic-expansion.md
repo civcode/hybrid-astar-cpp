@@ -1,6 +1,6 @@
 # ADR-0027: Combined Hybrid A* heuristic and guarded near-goal analytic expansion
 
-**Status:** Accepted (architecture; numerical/cache/heuristic guarantee details open)  
+**Status:** Accepted (dual-component performance default; numerical/cache/heuristic guarantee details open)  
 **Date:** 2026-10-25  
 **Updates:** [ADR-0015](0015-admissible-default-heuristics.md), [ADR-0025](0025-approved-ackermann-mvp-settings-and-primitive-sample-collision.md), [ADR-0026](0026-reeds-shepp-near-goal-analytic-expansion.md)
 
