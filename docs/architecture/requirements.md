@@ -16,7 +16,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | FR-008 | Model-specific heuristic/connector | Native Dubins and Reeds–Shepp where model assumptions apply; optional analytic goal connections |
 | FR-009 | Configurable search semantics | Open/closed handling, configurable costs, cancellation and bounded resource use |
 | FR-010 | Exact path reconstruction | Ordered, evaluable motion segments including gear changes and in-place rotations |
-| FR-011 | Optional refinement | Model-aware path improvement; validate and fall back to original feasible path on failure |
+| FR-011 | Optional but obstacle-aware refinement | When implemented/enabled, optimization uses static map obstacles/clearance **during** candidate improvement, not merely final collision rejection. Use the same pinned map snapshot and request occupancy policy, and full frame-attached body geometry including articulation; independently validate final endpoints, model feasibility and complete-body collision. Keep original valid raw path on failure (ADR-0024). |
 | FR-012 | Controller-facing output | Piecewise geometric path; endpoint conditions, progress, directional and configuration information |
 | FR-013 | External configuration | Typed native config; optional YAML and JSON adapters with validation; SI units, radians |
 | FR-014 | Optional ROS 2 integration | Isolated adapter(s), including Nav2 option; core does not depend on ROS |
@@ -37,7 +37,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | AC-002 | Generic search hot path avoids mandatory virtual dispatch, avoidable heap allocations and format parsing |
 | AC-003 | Kinematic state and search key are separate; no universal `(x,y,heading)` key assumption |
 | AC-004 | Collision depends on entire model state, not only current physical robot footprint |
-| AC-005 | Raw feasible path must remain accessible if optional refinement fails |
+| AC-005 | If refinement is enabled it must consider obstacle information **during** optimization, evaluate full robot geometry on the pinned map/policy, and independently validate the proposed result; on failure keep the untouched raw feasible path (ADR-0024) |
 | AC-006 | No OMPL, civcode demo-repository source, or external motion-planning implementation incorporated into runtime core |
 | AC-007 | Separate dynamic trajectory planning/MPC handles predicted moving obstacles and timing |
 | AC-008 | Any future GitHub Actions workflows are manual-only unless explicitly authorized |
