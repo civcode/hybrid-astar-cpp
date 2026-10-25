@@ -4,6 +4,8 @@
 **Date:** 2026-10-25  
 **Related:** [ADR-0013](0013-single-label-search-baseline.md), [ADR-0015](0015-admissible-default-heuristics.md), [ADR-0020](0020-evidence-driven-mvp-simplicity.md), [ADR-0022](0022-opt-in-adaptive-collision-subdivision.md), [ADR-0023](0023-rk4-arc-length-primitives-and-samples.md)
 
+**Updates:** [ADR-0027](0027-combined-hybrid-a-star-heuristic-and-guarded-analytic-expansion.md) replaces the initial Euclidean-only performance heuristic with combined Reeds–Shepp / obstacle-field estimates (strict certified fallback remains); [ADR-0029](0029-conservative-orientation-hull-mask-and-raster-footprint-collision.md) replaces the per-pose polygon–cell intersection algorithm with conservative hull-mask + raster boundary **and interior guard**. The approved numeric primitive, discretization and search cost settings and primitive sampling interval remain unchanged.
+
 ## Context
 
 The user reviewed and accepted twelve concrete primitive/search/cost settings and subsequently approved a simpler collision schedule: **the initial Hybrid A* collision validator checks the complete robot footprint at the already stored RK4 primitive points**. Do not introduce a separate default fixed-sampling scheduler or its own translation/rotation thresholds. These are starting defaults, not claims of universal optimality, safety or final tuning.
