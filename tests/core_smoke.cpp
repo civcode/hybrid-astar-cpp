@@ -43,7 +43,7 @@ int main() {
   AnalyticExpansionOptions options;
   if (options.attemptRatio != 3.5) return 13;
   // One complete RS candidate is scheduled on the first expanded node,
-  // even if the distance exceeds the formerly configured 20m XY radius.
+  // even for a node far from the goal, without any fixed XY cutoff.
   AnalyticExpansionScheduler scheduler(options);
   if (!scheduler.shouldAttempt(100.0, 0.20)) return 14;
   // With 28.5 grid-cell equivalents, floor(28.5/3.5)=8; attempt every 8 pops.
