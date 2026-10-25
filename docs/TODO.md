@@ -16,7 +16,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Benchmark single-key pruning against feasible-path recovery and post-refinement quality in narrow passages; revisit extra arrival labels only if evidence warrants a separate future decision.
 - [x] Accept OQ-002 geometric length for translation and angular/configuration extent for stationary motion (ADR-0012).
 - [ ] Resolve OQ-002 exact typed extent/control law and OQ-024 downstream speed-profile/feasibility interface; timing/rate limits require explicit treatment.
-- [x] Accept OQ-005 certified-admissible heuristic default and explicit opt-in relaxed modes (ADR-0015).
+- [x] Accept initial **combined RS+obstacle-field performance default** (not certified admissible) and separately selectable certified Euclidean/zero fallback, with truthful reporting (ADRs 0015,0027).
 - [x] Accept OQ-007 three-state fixed-curvature Ackermann primitives (ADR-0014).
 - [x] Accept OQ-008 pose-tolerance default of 0.25 m / 10 degrees with optional extra-state goal constraints (ADR-0016).
 - [x] Accept OQ-006 unknown-cell semantics/policy and known-free frontier default (ADR-0017); selectable per request, map data unchanged.
@@ -74,7 +74,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Deterministic key replacement/pruning tests, including loss of alternative continuous arrivals and history-dependent transition-cost approximation.
 - [ ] Geometry frame transforms from hypothetical state; add a tractor/two-trailer synthetic state-transform fixture without assuming a production ODE; retain the supplied four-state articulated-steering model fixture only after its physical frame conventions are confirmed.
 - [ ] Implement articulated steering derivative with safe denominator checks, articulation state indexing, rate constraints and zero-translation articulation sweep tests (extension milestone, not blocking differential/Ackermann).
-- [x] Accept whole-shape-vs-cell collision at the **stored primitive states**, **six 0.10 m-spaced states per initial 0.50 m Ackermann primitive**, no independent default fixed collision scheduler and adaptive subdivision optional/off by default (ADRs 0022,0025).
+- [x] Keep all six stored 0.10 m-spaced collision poses per initial 0.50 m Ackermann primitive and adaptive subdivision disabled by default; narrow-phase geometric overlap implementation **updated to raster boundary + enclosed-cell guard and conservative hull mask** (ADRs 0025,0029).
 - [ ] Implement **conservative supercover rasterized footprint edges plus scanline-fill/interior occupancy guard**, including circle/compound geometry, unknown and map-boundary policies (ADR-0029); no mandatory SAT shape-vs-cell narrow phase.
 - [ ] Precompute orientation-hull **collision-possibility grid** from pinned occupancy map, robot geometry and continuous heading/position bin margins; lookup at **each stored primitive or RS segment pose**. False means provably clear; true triggers boundary + interior raster test. Add separate 0.40 m clearance-influence mask or bounded clearance query, and safe cache invalidation (ADR-0029).
 - [ ] Implement candidate rejection at every **stored full-state primitive sample** using conservative hull lookup and rasterized actual footprint (with interior guard), not a separate collision schedule; optional adaptive additional states only if enabled. Report sampled-only assurance.
@@ -117,7 +117,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Exact start/end full configurations and map/model provenance.
 - [ ] Native curve math (B-spline / Hermite etc.) without mandating one family in API.
 - [ ] Implement **Stanford Junior-style obstacle-aware optimization** (ADR-0028) with independently validated full-body output, preserving raw path fallback. Benchmark against Nav2-inspired simple smoothing in total pipeline latency and final quality; optional Ceres remains private (ADR-0024).
-- [ ] Curvature, steering/articulation, endpoint and swept-collision validator.
+- [ ] Curvature, steering/articulation, endpoint and **pose-sampled collision validator** with explicit non-continuous assurance.
 - [ ] Independently validate model, endpoints and full-body collision of optimizer output under the selected sampled-assurance level; return untouched original path upon failed optimization, exhausted budget or collision (ADR-0024).
 - [ ] Controller-facing evaluation/projection benchmarks.
 
