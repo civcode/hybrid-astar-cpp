@@ -26,7 +26,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 | FR-008 | Dubins/Reeds–Shepp endpoint, length, segment direction and symmetries; randomized OMPL comparison |
 | FR-009, FR-015 | Stale queue labels, reopen rules, budgets/cancellation and structured diagnostic status |
 | FR-010, FR-012 | Exact primitive reconstruction, analytic tail, cusp and rotation progress; `(segmentIndex, lambda)` evaluations, full state, shared boundary pose and optional one-sided derivatives |
-| FR-011 | Constraint-valid refiner acceptance, invalid spline rejection, untouched feasible fallback |
+| FR-011 | Obstacle-aware optimization **during** candidate improvement on same pinned map/policy, full-body clearance for rotated and articulated/trailer bodies, obstacle-cutting shortcut rejection or adjustment, independent final swept collision/model/boundary validation, unchanged raw feasible fallback on failure; distinguish non-certified sampled assurance (ADR-0024) |
 | FR-013, FR-014 | YAML/JSON roundtrip/validation in adapters, no ROS dependencies in core |
 | FR-019 | XY <= 0.25 m and wrapped yaw <= 10 degrees defaults, independent threshold equality, zero-tolerance mode, model-specific optional state constraints, continuous endpoint check and valid swept motion |
 | FR-020 | Fixed-curvature three-state Ackermann exact arcs and reversals; steering rate discontinuity explicitly reported, and optional refiner tested for valid smooth connector rather than assumed valid |
@@ -74,7 +74,8 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 - Articulated-steering ODE tests: author-supplied four-state model, denominator guard, finite steering range, nonzero heading change at zero reference-point speed, closed joint-only cycles and frame transforms after conventions are confirmed.
 - Property tests: static obstacle map immutability across plan; collision results invariant under paired global transforms where map transform is exact.
 - Record whether verification is **fixed sampled**, **adaptive sampled**, or (future) **conservatively continuous**, including configured sample resolution, counts and relevant limits. Neither fixed nor adaptive sampling alone may be labeled formally continuously collision-free (ADR-0022).
-- Independently validate final refined path against original map snapshot and model.
+- For obstacle-aware optimization (ADR-0024), create a path whose naïve smoothing/shortcut crosses a wall or unknown-as-occupied cell. Verify environment information affects optimization-stage candidate selection/constraints, **not just a post-hoc rejection**. Test that reference-point-only clearance cannot admit a colliding rectangle or trailer, and confirm the optimizer pins the same snapshot and unknown/threshold policy despite a concurrently published revision. An infeasible/budget-exhausted refinement must return the **untouched** validated raw path.
+- Independently validate final refined path against original map snapshot, full model geometry and constraints, with the declared fixed/adaptive sampled assurance level. Obstacles/clearance costs alone do not certify safety.
 
 ## Heuristic correctness and guarantees
 
