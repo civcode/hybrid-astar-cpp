@@ -1,6 +1,6 @@
 # ADR-0026: Adaptive Reeds–Shepp analytic expansion in the Ackermann MVP
 
-**Status:** Accepted (adaptive attempt scheduling supersedes earlier fixed 20 m proximity gate)  
+**Status:** Accepted (Nav2-style adaptive attempt scheduling; no proximity gate)  
 **Date:** 2026-10-25  
 **Related:** [ADR-0025](0025-approved-ackermann-mvp-settings-and-primitive-sample-collision.md), [ADR-0027](0027-combined-hybrid-a-star-heuristic-and-guarded-analytic-expansion.md), [ADR-0028](0028-ompl-backed-steering-and-junior-style-refinement.md), [ADR-0029](0029-conservative-orientation-hull-mask-and-raster-footprint-collision.md)
 
