@@ -38,7 +38,7 @@ IDs are stable references for design discussions and tests. **Status: accepted d
 | AC-003 | Kinematic state and search key are separate; no universal `(x,y,heading)` key assumption |
 | AC-004 | Collision depends on entire model state and all collision bodies. Conservative precomputed footprint-envelope lookup may skip collision only when safe is proven for the pinned map/policy and continuous pose; otherwise rasterize footprint edges **and test enclosed blocked cells**, since boundary-only checks are insufficient (ADR-0029). |
 | AC-005 | If refinement is enabled it must consider obstacle information **during** optimization, evaluate full robot geometry on the pinned map/policy, and independently validate the proposed result; on failure keep the untouched raw feasible path (ADR-0024) |
-| AC-006 | No OMPL, civcode demo-repository source, or external motion-planning implementation incorporated into runtime core |
+| AC-006 | OMPL is allowed **only as an isolated runtime Dubins/Reeds–Shepp steering backend** (ADR-0028); do not expose its types in generic search/model/path APIs, link it into unrelated modules or incorporate civcode demo-repository code. |
 | AC-007 | Separate dynamic trajectory planning/MPC handles predicted moving obstacles and timing |
 | AC-008 | Any future GitHub Actions workflows are manual-only unless explicitly authorized |
 | AC-009 | Model's admissible controls are authoritative; optional capability metadata cannot substitute for validity checks |
