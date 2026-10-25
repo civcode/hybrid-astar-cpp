@@ -16,6 +16,8 @@ Fast reverse-grid distance estimates and vehicle-specific steering heuristics ca
 5. **No false optimization guarantees:** one-node-per-quantized-key Hybrid A* discards potentially nonequivalent continuous arrivals (ADR-0013). Thus a certified `h` **does not establish globally optimal continuous paths**, resolution completeness, or ordinary weighted-A* suboptimality bounds without additional abstraction/proof assumptions.
 6. A generated kinematic-effort catalog may have nonnegative transition-dependent edge costs. Certified lower bounds must account for those units and the actual accepted goal region. A model-dependent cost estimate is not automatically an admissible heuristic.
 
+**Update (2026-10-25, ADR-0027):** A combined Reeds–Shepp nonholonomic estimate and 2D obstacle reverse-Dijkstra estimate is **required** for the initial Ackermann implementation. Until corrected/proven for the actual goal *region* and equivalent-meter costs, the two-component combination is an explicitly **non-certified, performance-oriented mode**. A strict certified fallback remains available. The former Euclidean-only initial path is no longer considered enough for the performance-oriented MVP.
+
 ## Consequences
 
 Verify heuristic certification on analytical cases, tiny grid maps and goal-region boundaries. Benchmark speed/solution quality in default certified versus explicitly relaxed modes and disclose approximation/termination limitations. The first implementation may use Euclidean-to-goal-region and/or zero heuristic until the obstacle-distance lower-bound proof is established.
