@@ -76,9 +76,9 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Implement articulated steering derivative with safe denominator checks, articulation state indexing, rate constraints and zero-translation articulation sweep tests (extension milestone, not blocking differential/Ackermann).
 - [x] Keep all six stored 0.10 m-spaced collision poses per initial 0.50 m Ackermann primitive and adaptive subdivision disabled by default; narrow-phase geometric overlap implementation **updated to default raster boundary, **optional** interior guard and conservative hull mask** (ADRs 0025,0029).
 - [ ] Implement **conservative supercover rasterized footprint edges by default** and **optional** scanline-filled interior blocked-cell checks behind `CollisionCheckOptions.checkFootprintInterior=false` default; support circle/compound geometry, unknown and map-boundary policies. Distinguish weaker boundary-only from complete-footprint sampled coverage (ADR-0029).
-- [ ] Precompute orientation-hull **collision-possibility grid** from pinned occupancy map, robot geometry and continuous heading/position bin margins; lookup at **each stored primitive or RS segment pose**. False means provably clear; true triggers default boundary raster checking and optional interior checking; the flag itself **does not** turn boundary-only results into complete-footprint validation. Use the **same nearest-obstacle EDT** to derive a separate 0.40 m clearance-influence mask, and enforce map/policy/geometry cache invalidation (ADR-0029).
+- [ ] Precompute orientation-hull **collision-possibility grid** from pinned occupancy map, robot geometry and continuous heading/position bin margins; lookup at **each stored primitive or RS segment pose**. False means provably clear; true triggers default boundary raster checking and optional interior checking; the flag itself **does not** turn boundary-only results into complete-footprint validation. Use the nearest-obstacle EDT **only for the MVP collision-candidate mask**, enforcing map/policy/geometry cache invalidation; defer 0.40 m clearance-influence flags and EDT path-cost lookup to low priority (ADR-0029).
 - [ ] Implement candidate rejection at every **stored full-state primitive sample** using conservative hull lookup and rasterized actual footprint (with interior only when requested), not a separate collision schedule; optional adaptive additional states only if enabled. Report independent **boundary-only/full-footprint coverage** and sampled-trajectory assurance.
-- [ ] Build one nearest-obstacle 2D EDT per pinned map/policy (not the reverse-Dijkstra-to-goal field); derive both broad-phase collision flags and 0.40 m influence flags from it. Compare boundary-cell EDT min minus `sqrt(2)*r` to geometric oracle and reuse rasterized edges when near obstacles; benchmark EDT build and per-expansion lookups (ADR-0029).
+- [ ] Build a nearest-obstacle 2D EDT per pinned map/policy **for the conservative collision mask only** (not the reverse-Dijkstra-to-goal field). Verify subcell and boundary margins, EDT cache validity and mask performance (ADR-0029).
 - [ ] Numerical, collision and maneuver property tests including mecanum lateral/combined motion; baseline microbenchmarks.
 
 **Exit:** differential-drive, Ackermann and ideal mecanum reference models generate repeatable, valid trajectories in fixture maps.
@@ -99,8 +99,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 
 - [ ] Node pool/open heap, stable indices, stale entry strategy, parent/action records.
 - [ ] Generic search loop with primitive expansion and **required OMPL Reeds–Shepp near-goal analytic expansion** for geometric Ackermann (ADRs 0026–0028).
-- [x] Accept Ackermann **0.25 m XY / 10° yaw + incoming gear** search key, reverse multiplier **1.10**, gear-switch **0.50 m**, clearance weight **0.15** inside **0.40 m**, and goal-region Euclidean heuristic (ADR-0025).
-- [ ] Implement edge costs in equivalent meters: forward/reverse, gear-switch (no charge for first gear), and **EDT-based oriented-footprint boundary clearance** at stored primitive states; reuse the collision EDT and 0.40 m clearance mask (ADR-0029); apply the **same weighted costs to Reeds–Shepp sections/cusps including initial switch**. Tie breaks, reopen/dominance and **feasible-first validated analytic termination** (not an optimality guarantee).
+- [x] Accept Ackermann **0.25 m XY / 10° yaw + incoming gear** search key, reverse multiplier **1.10**, and gear-switch **0.50 m** for MVP edge costs. Defer the previously proposed **0.15/0.40 m EDT-based clearance penalty** to a low-priority opt-in extension (ADRs 0025,0029). Combined RS/2D obstacle heuristic remains required (ADR-0027).
+- [ ] Implement **MVP edge costs only:** equivalent-meter forward length (1.00), reverse length (1.10) and 0.50 m per direction switch (none for first choice). Apply the same active weights to OMPL Reeds–Shepp straight/arc sections and internal/incoming gear switches. Do **not** compute any clearance integral or per-pose nearest-obstacle EDT score. Tie breaks, reopen/dominance, and validated feasible-first analytic termination remain required.
 - [ ] Cancellation and time/expansion/memory budgets, structured diagnostics.
 - [ ] Exact path reconstruction and validated piecewise path output using canonical `(segmentIndex, lambda)` evaluation; complete state and one-sided cusp semantics.
 - [ ] Validate continuous goal tolerance and complete sampled motions. For near-goal **OMPL Reeds–Shepp**, check every arc/cusp at ≤0.10 m, actual path length and weighted cost against configurable guard limits with difficult-maneuver exceptions (ADR-0027); on rejected connector continue ordinary search.
@@ -109,6 +109,11 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Local latency/memory/quality baseline with and without obstacle-aware heuristic.
 
 **Exit:** model-independent, validated baseline paths with measured performance.
+
+## Low-priority backlog — optional search clearance scoring
+
+- [ ] **Only if justified after benchmarking:** add an explicit opt-in EDT-based footprint-boundary clearance edge cost with coefficient **0.15** and influence radius **0.40 m**. Reuse collision-preprocessing EDT, derive an additional influence mask, read actual oriented footprint raster cells, evaluate five trapezoidal intervals for a 0.50 m six-sample primitive, and score RS connectors consistently. This occurs after collision testing and before `g` relaxation, **not during primitive precomputation** (ADRs 0025,0029).
+- [ ] Benchmark resulting total planner/search+refinement latency and final validated path quality against the zero-clearance-cost MVP; retain only if it improves the product.
 
 ## M5 — Path representation and optional refinement
 
