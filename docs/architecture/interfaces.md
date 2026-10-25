@@ -104,18 +104,24 @@ struct CollisionBody2D {
 struct RobotGeometry {
     std::vector<CollisionBody2D> bodies; // immutable throughout a request
 };
+struct CollisionCheckOptions {
+    bool adaptiveSubdivision = false; // accepted default, ADR-0022
+    // Deterministic fixed-sample spacing: configurable, precise API/default TBD.
+    // When adaptive: body-motion threshold and subdivision limits, TBD.
+};
 template<class M>
 concept CollisionValidator = requires(
     const M& model, const typename M::State& state,
     const TrajectoryView<typename M::State>& motion,
-    const MapSnapshot& map)
+    const MapSnapshot& map,
+    const CollisionCheckOptions& options)
 {
     // stateValid(state, map) -> CollisionCheckResult
     // motionValid(motion, map) -> CollisionCheckResult
 };
 ```
 
-**Accepted ADR-0021:** collision geometry is an independent immutable collection of model-frame-attached circles, rectangles and convex polygons, with compound or nonconvex bodies represented by multiple shapes. For every body, evaluate `T_world_shape(q) = T_world_frame(q) * T_frame_shape`. This supports arbitrary finite multi-trailer shape configurations **provided the model defines all transforms and joint kinematics**; efficient multi-trailer search is not guaranteed or part of the MVP. Validate frame references at setup. Collision checking evaluates **all** bodies along complete motions, including when the reference point is stationary. Self-collision pair exclusions and continuous swept assurance remain open (OQ-014/OQ-009). Finite sampling is only approximate: the checker must report its assurance/resolution; strict continuous guarantees need conservative bounds or continuous collision detection.
+**Accepted ADRs 0021–0022:** collision geometry is an independent immutable collection of model-frame-attached circles, rectangles and convex polygons, with compound or nonconvex bodies represented by multiple shapes. For every body, evaluate `T_world_shape(q) = T_world_frame(q) * T_frame_shape`. This supports arbitrary finite multi-trailer shape configurations **provided the model defines all transforms and joint kinematics**; efficient multi-trailer search is not guaranteed or part of the MVP. Validate frame references at setup. Collision checking evaluates **all** bodies along complete motions, including when the reference point is stationary. At each evaluated state, test the **complete shape** against blocking occupancy-cell geometry (rectangle/convex-polygon vs square intersection, circle vs square), not a sample of shape vertices or interior points. The checker uses **fixed non-adaptive trajectory samples by default** (including start, endpoint, and configured intermediates); a request can opt into further body-motion-aware subdivision through `adaptiveSubdivision=true`, default **false**. Fixed sample spacing, adaptive thresholds/budgets and numerical tolerances remain implementation-facing details ([ADR-0022](../adr/0022-opt-in-adaptive-collision-subdivision.md)). Self-collision pair exclusions and future continuous swept certification remain open (OQ-014/OQ-009). Both fixed and adaptive sampling are **approximate swept checks**, so report mode and resolution; do not claim continuous guarantees.
 
 ## 5. Heuristics and analytic steering functions
 
