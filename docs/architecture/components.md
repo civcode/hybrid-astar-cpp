@@ -66,7 +66,7 @@ Arrows mean *uses*. Diagram is logical; no requirement that every box maps to a 
 | Collision checker | State/motion swept-footprint validation against snapshot | State transition selection or global heuristic |
 | Robot geometry | Immutable shapes, local frame attachment and margins | Actual state estimation/TF lookup |
 | Reconstruction | Reverse parent chain; piecewise exact primitives and analytic segments | Curve fitting |
-| Refinement | Shortcut/fitting/optimization, feasibility certification and rollback | Search node ownership |
+| Refinement | **Obstacle-aware** shortcut/fitting/optimization using pinned map/policy, full state-dependent collision bodies, and model constraints; independent final validation and unchanged raw-path fallback (ADR-0024) | Search node ownership, timing or dynamic-obstacle prediction |
 | Geometric path | Evaluating validated ordered segments and progress semantics | Time-parameterized robot commands |
 | Serialization adapters | yaml-cpp / nlohmann/json typed config and result conversion | Hot-path algorithms |
 | Optional ROS adapter | TF2, lifecycle, nav messages and plugin glue | Internal vehicle model propagation |
@@ -79,7 +79,7 @@ Arrows mean *uses*. Diagram is logical; no requirement that every box maps to a 
 - `collision` depends on environment snapshots, geometry and model frame transforms; must never query TF2 during search. A ROS adapter resolves `map`, `odom` and `base_link` transforms before invoking the planner; mismatched frames are invalid.
 - `heuristics` depends on environment and optional steering adapters, not on path refinement.
 - `search` depends on model/primitive/index/heuristic/collision/connector *contracts*.
-- `path` and `refinement` depend on shared model/geometry/validation; Ceres is a private, optional refinement dependency.
+- `path` and `refinement` depend on shared model/geometry/validation **and obstacle information from the same immutable map snapshot and occupancy interpretation as search**; the refiner may use compatible obstacle-clearance data but cannot substitute reference-point-only clearance for full-body validation (ADR-0024). Ceres is a private, optional refinement dependency.
 - `adapters` depend inward on public core APIs, never vice versa.
 
 ## Lifetime, mutability, and concurrency
