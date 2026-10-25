@@ -75,20 +75,21 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Geometry frame transforms from hypothetical state; add a tractor/two-trailer synthetic state-transform fixture without assuming a production ODE; retain the supplied four-state articulated-steering model fixture only after its physical frame conventions are confirmed.
 - [ ] Implement articulated steering derivative with safe denominator checks, articulation state indexing, rate constraints and zero-translation articulation sweep tests (extension milestone, not blocking differential/Ackermann).
 - [x] Accept whole-shape-vs-cell collision at the **stored primitive states**, **six 0.10 m-spaced states per initial 0.50 m Ackermann primitive**, no independent default fixed collision scheduler and adaptive subdivision optional/off by default (ADRs 0022,0025).
-- [ ] Implement complete circle/rectangle/convex-polygon vs blocked grid-cell intersection; no interior or vertex-only point sampling. Validate grid-rotation, containment, boundary touching, and malformed geometry.
-- [ ] Implement candidate rejection at every **stored complete-state primitive sample**, with no independent collision-only default sampling schedule or new intermediate search nodes; optional adaptive additional states only if enabled. Report primitive-sampled/adaptive assurance. For future nontranslating models define angular/configuration generator-sample spacing (OQ-009, ADR-0025).
+- [ ] Implement **conservative supercover rasterized footprint edges plus scanline-fill/interior occupancy guard**, including circle/compound geometry, unknown and map-boundary policies (ADR-0029); no mandatory SAT shape-vs-cell narrow phase.
+- [ ] Precompute orientation-hull **collision-possibility grid** from pinned occupancy map, robot geometry and continuous heading/position bin margins; lookup at **each stored primitive or RS segment pose**. False means provably clear; true triggers boundary + interior raster test. Add separate 0.40 m clearance-influence mask or bounded clearance query, and safe cache invalidation (ADR-0029).
+- [ ] Implement candidate rejection at every **stored full-state primitive sample** using conservative hull lookup and rasterized actual footprint (with interior guard), not a separate collision schedule; optional adaptive additional states only if enabled. Report sampled-only assurance.
 - [ ] Numerical, collision and maneuver property tests including mecanum lateral/combined motion; baseline microbenchmarks.
 
 **Exit:** differential-drive, Ackermann and ideal mecanum reference models generate repeatable, valid trajectories in fixture maps.
 
 ## M3 — Steering and heuristics
 
-- [ ] Native Dubins shortest-path/distance/interpolation (all families).
-- [ ] **Required for first Ackermann end-to-end MVP:** native Reeds–Shepp shortest-path/distance/interpolation (all relevant families), with evaluable signed straight/arc segments and cusp metadata (ADRs 0004,0026).
+- [ ] **OMPL-backed Dubins adapter:** provide distance/interpolation/segments behind native project API; defer full native solver (ADR-0028).
+- [ ] **Required for first Ackermann end-to-end MVP:** OMPL-backed Reeds–Shepp adapter for signed straight/arcs, path length, interpolation and cusps; self-authored solver low priority (ADR-0028).
 - [ ] Segment/direction representation, robust normalization and degenerate handling.
-- [ ] Optional OMPL differential test target (test-only, OFF by default), randomized reproducible corpus.
-- [ ] Reverse-Dijkstra obstacle-distance field with lazy/eager modes and cache versioning.
-- [ ] Implement certified-admissible lower-bound heuristic as default (zero or goal-region Euclidean fallback until obstacle-field bound proven), explicit weighted/experimental modes, and report lack of global optimality under quantized pruning.
+- [ ] Validate OMPL steering adapter against analytic endpoints, invariances, signed segments and cusp/degenerate fixtures; optional independent native solver comparison only if later implemented (ADR-0028).
+- [ ] **Required for first Ackermann performance-oriented search:** reverse-Dijkstra obstacle-aware 2D goal field, map/policy/goal revision caching (ADR-0027).
+- [ ] Combine nonholonomic OMPL Reeds–Shepp distance with holonomic obstacle-grid distance by `max` (ADR-0027); expose unproven-admissibility fast mode and strict certified Euclidean/zero fallback; test nonzero goal tolerance and grid overestimation.
 - [ ] Profile steering distance-only calls and heuristic cache behavior.
 
 **Exit:** native steering passes analytic/oracle tests and obstacle heuristic passes grid fixtures.
@@ -96,12 +97,12 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 ## M4 — Hybrid A* baseline
 
 - [ ] Node pool/open heap, stable indices, stale entry strategy, parent/action records.
-- [ ] Model-generic search loop with primitive expansion and **required native Reeds–Shepp near-goal analytic expansion for the three-state Ackermann model** (ADR-0026); connector optional for incompatible models.
+- [ ] Generic search loop with primitive expansion and **required OMPL Reeds–Shepp near-goal analytic expansion** for geometric Ackermann (ADRs 0026–0028).
 - [x] Accept Ackermann **0.25 m XY / 10° yaw + incoming gear** search key, reverse multiplier **1.10**, gear-switch **0.50 m**, clearance weight **0.15** inside **0.40 m**, and goal-region Euclidean heuristic (ADR-0025).
 - [ ] Implement edge costs in equivalent meters: forward/reverse, gear-switch (no charge for first gear), and full-body clearance sampled at stored primitive states; apply the **same weighted costs to Reeds–Shepp sections/cusps including initial switch**. Tie breaks, reopen/dominance and **feasible-first validated analytic termination** (not an optimality guarantee).
 - [ ] Cancellation and time/expansion/memory budgets, structured diagnostics.
 - [ ] Exact path reconstruction and validated piecewise path output using canonical `(segmentIndex, lambda)` evaluation; complete state and one-sided cusp semantics.
-- [ ] Evaluate goal conditions on actual continuous endpoints with configurable XY/yaw tolerances and optional additional full-state constraints; verify final sampled motion. **Attempt native Reeds–Shepp near-goal connection within configurable XY radius** (provisional 5.0 m, pending review) from popped continuous Ackermann nodes to exact goal; sample each segment at ≤0.10 m including cusps/endpoints, check entire collision footprint/map/goal and discard failures without stopping normal search (ADR-0026).
+- [ ] Validate continuous goal tolerance and complete sampled motions. For near-goal **OMPL Reeds–Shepp**, check every arc/cusp at ≤0.10 m, actual path length and weighted cost against configurable guard limits with difficult-maneuver exceptions (ADR-0027); on rejected connector continue ordinary search.
 - [ ] Scenario tests (wall/doorway, narrow turns, reverse parking, unreachable goal; mecanum sideways travel and yaw-independent footprint constraints).
 - [ ] Compare geometric raw versus **finally validated refined** path planning outcomes and total pipeline latency, including paths lost to single-label key pruning, without promising refinability of missing homotopy classes.
 - [ ] Local latency/memory/quality baseline with and without obstacle-aware heuristic.
@@ -115,7 +116,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Validate final timed trajectory against model actuation limits and moving-obstacle constraints; reject/adjust/replan if a geometric path cannot be executed safely.
 - [ ] Exact start/end full configurations and map/model provenance.
 - [ ] Native curve math (B-spline / Hermite etc.) without mandating one family in API.
-- [ ] Implement obstacle-aware feasible shortcutting/optimization against the same immutable map snapshot and occupancy policy as search, with **full transformed body** clearance/overlap information considered *during* optimization; choose simple numerical method first, optional Ceres isolated behind optional target (ADR-0024).
+- [ ] Implement **Stanford Junior-style obstacle-aware optimization** (ADR-0028) with independently validated full-body output, preserving raw path fallback. Benchmark against Nav2-inspired simple smoothing in total pipeline latency and final quality; optional Ceres remains private (ADR-0024).
 - [ ] Curvature, steering/articulation, endpoint and swept-collision validator.
 - [ ] Independently validate model, endpoints and full-body collision of optimizer output under the selected sampled-assurance level; return untouched original path upon failed optimization, exhausted budget or collision (ADR-0024).
 - [ ] Controller-facing evaluation/projection benchmarks.
