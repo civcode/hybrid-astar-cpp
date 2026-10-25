@@ -8,7 +8,7 @@
 | NFR-002 | Efficient search | Generated / expanded / re-opened nodes, open-set peak, heuristic cache hit ratio |
 | NFR-003 | Bounded memory | Peak resident memory, bytes/node, per-request allocations, cache sizes; budget configurable |
 | NFR-004 | Robust numerical behavior | Endpoint error, turning-radius scaling, finite/NaN checks, extreme radii, degenerate configurations |
-| NFR-005 | Kinematic and collision correctness | Constraint violation count; whole-shape occupancy-cell checks at each propagated sample; fixed-sampling default versus optional adaptive subdivision (off by default); documented resolution/coverage and explicitly **sampled-only** assurance (ADR-0022) |
+| NFR-005 | Kinematic and collision correctness | Whole-shape occupancy-cell checks **at each stored primitive sample during search expansion** (0.10 m initial Ackermann); no independent fixed collision scheduler; adaptive subdivision optional/off by default; document resolution/coverage and **sampled-only** assurance (ADRs 0022,0025) |
 | NFR-006 | Reproducibility | Fixed seeds, inputs, build flags, map/config hash, machine/OS/compiler metadata |
 | NFR-007 | Thread safety / concurrency | Planner-instance ownership, immutable snapshot sharing, cache synchronization; TSAN where possible |
 | NFR-008 | Portability | Standalone Linux C++20 and CMake baseline first; validate additional toolchains by matrix |
@@ -55,7 +55,9 @@
 - [ ] Define reference machines and supported OS/compiler versions.
 - [ ] Set per-scenario planning latency budgets (p95/p99), if needed.
 - [ ] Set memory budgets and maximum grid/state dimensions.
-- [x] Accept sampled-only shape/cell validation for the MVP with fixed sampling default and opt-in adaptive subdivision (ADR-0022); **continuous clearance certification remains unclaimed**.
-- [ ] Set representative fixed-sampling resolution/units and optional adaptive threshold/budget based on test cases; document geometry intersection tolerances.
-- [ ] Define numerical tolerances for pose, arc length and constraint checks.
+- [x] Accept sampled-only shape/cell validation for the MVP **at the stored RK4 primitive samples** (0.10 m spacing for initial Ackermann), with no independent fixed scheduler and adaptive opt-in/off by default (ADRs 0022,0025); **continuous clearance certification remains unclaimed**.
+- [x] Accept initial Ackermann 0.10 m primitive-generator sample spacing for default collision checks (ADR-0025).
+- [ ] Set future stationary-model generation sample extents, optional adaptive threshold/budget and shape intersection numerical tolerances after targeted tests.
+- [x] Accept first Ackermann RK4 arc-length endpoint tolerance **0.0001 m** (ADR-0025).
+- [ ] Define model-independent numerical tolerances for poses, state constraints and collision shape intersection.
 - [ ] Define expected baseline success rate and path-quality comparisons.
