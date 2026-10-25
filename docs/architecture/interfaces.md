@@ -223,11 +223,13 @@ struct PiecewiseGeometricPath {
 
 **The canonical path address is not universally translational arc length.** A segment's normalized `lambda` advances even during in-place rotation or articulation-only movement with zero translation. Holonomic models can translate sideways at fixed yaw, so pose heading and spatial tangent need not coincide. Translational arc length is a useful *derived metric*, not the address. Segment endpoints must agree in complete continuous configuration; controls or derivatives may have one-sided/discontinuous limits at cusps. Boundary canonicalization remains an interface detail.
 
-Refinement consumes an already validated raw path and returns either:
-1. a new path with verified model constraints, endpoint conditions and collision status; or
+**Accepted ADR-0024:** if refinement is enabled, it must be **obstacle-aware during optimization**, not only collision-checked after smoothing. The refiner consumes the validated raw path, the pinned immutable map snapshot and matching occupancy policy, model state/control validity, and the full independent frame-attached robot geometry. Its optimization may use clearance-aware costs, hard feasibility constraints or obstacle-tested local changes; numerical method and clearance representation are not yet fixed. The refiner must account for the entire articulated footprint, not only reference-point distance. Map-derived obstacle-clearance fields are distinct from goal-distance heuristics and have separate policy/map/geometry-compatible cache keys.
+
+Refinement returns either:
+1. a new path with independently verified model constraints, endpoint conditions and complete-body collision status under the same map/policy and declared sampled-assurance level; or
 2. a failure status plus unchanged raw path.
 
-Curve fitting (B-splines, Hermite, clothoids, arcs) is an internal interchangeable strategy, not a public path requirement. Optional Ceres backend does not leak into search or public path types. For articulated models, optimizing controls and integrating the model may be preferable to smoothing only `x,y`.
+An optimization-stage obstacle penalty cannot replace final collision validation. Curve fitting (B-splines, Hermite, clothoids, arcs) is an internal interchangeable strategy, not a public path requirement. Optional Ceres backend does not leak into search or public path types. For articulated models, optimizing controls and integrating the model may be preferable to smoothing only `x,y`. 
 
 ## Interface decisions to close
 
