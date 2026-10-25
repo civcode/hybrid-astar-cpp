@@ -74,6 +74,17 @@ template<class M> struct PrimitiveCandidate {
     typename M::PrimitiveExtent extent;  // geometric; model-defined units
     uint32_t primitiveId;
 };
+template<class State> struct PrimitiveSample {
+    double lambda;                       // ordered progress in [0,1]
+    State state;                         // complete state (template-local or world)
+};
+template<class State> struct GeneratedPrimitive {
+    State endState;                      // evaluate(1), within numeric tolerance
+    double traveledLength;               // nonnegative geometric translation length
+    std::vector<PrimitiveSample<State>> samples; // debug/visualization checkpoints
+    // Retained extent, control law and motion-evaluation data.
+    // evaluate(lambda) -> full State via compatible numerical trajectory.
+};
 template<class M> concept PrimitiveProvider = requires(
     const M& model, const typename M::State& q,
     PrimitiveBuffer<typename M::Control>& controls)
@@ -89,8 +100,11 @@ template<class M> concept StateIndexer = requires(
 ```
 
 Contracts:
-- Candidate trajectories include start, end, and sufficient intermediate state/body motion information for collision validation. Cached local trajectories must still transform against the **continuous** parent state.
-- **Accepted OQ-002:** translating primitives use explicit traveled-distance extents; zero-translation rotations/steering/articulation maneuvers use model-specific angular/configuration extents ([ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md)). Kinematic models retain time-domain ODEs and may use time-domain integration; spatial reparameterization must not divide by zero at stationary motions. The exact typed extent/control-law signature is still under review.
+- **Accepted ADR-0023:** generate translating primitive endpoints using RK4 on the model ODE, accumulating actual traveled arc length; stop at requested length within a configured tolerance, iteratively refining the terminal integration step when needed. Record reverse as motion direction, not negative geometric length. Stationary angular/articulation primitives stop at their model-specific configuration extent (ADR-0012).
+- **Every generated primitive retains complete-state ordered trajectory samples**, including start/end and normalized local progress, for visualization/debugging. Preserve the control law and numerical evaluation representation so `evaluate(lambda)` can reproduce the full state between checkpoints; sampled-point linear interpolation alone is not necessarily model feasible. Instantiated endpoint, stored final sample and `evaluate(1)` must agree within declared numerical tolerances.
+- **Search consumes generated/instantiated evaluable primitives**, rather than invoking a general-purpose RK4 solver at every expansion when a reusable catalog applies. Only cache SE(2)-relative templates for models/configurations where their full-state evolution is truly reusable. State-dependent articulated primitives may need internal-state-keyed caches or generation on demand; cached local trajectories must still transform against the **continuous** parent state.
+- Stored debug samples are not sufficient merely by existing: collision checking independently applies its fixed/adaptive evaluation settings and may request more intermediate states (ADR-0022).
+- **Accepted OQ-002:** translating primitives use explicit traveled-distance extents; zero-translation rotations/steering/articulation maneuvers use model-specific angular/configuration extents ([ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md)). **ADR-0023** selects RK4 primitive generation with a traveled-length termination criterion, stored trajectory samples and full-state numerical evaluation. Kinematic models retain time-domain ODEs; spatial reparameterization must not divide by zero at stationary motions. The exact typed extent/control-law signature and numerical tolerances are still under review.
 - Search node stores continuous state, accumulated `g`, stable parent reference and the exact action/connector necessary to reconstruct its edge.
 - The **model-specific** discretized key includes configuration dimensions necessary to distinguish reachability and collision geometry (e.g. articulation for a four-state model). The initial three-state Ackermann key may use only quantized `(x,y,yaw)`. Quantization may still merge nonequivalent continuous states.
 - **Accepted OQ-001:** exactly **one retained continuous node per discretized key** in the initial Hybrid A* ([ADR-0013](../adr/0013-single-label-search-baseline.md), superseding ADR-0010). Keep continuous state, `g`, parent and incoming primitive on the node; do not implement multi-label storage, retention policies or runtime selection in the baseline. Relaxation, reopening and stale-queue handling are required. Incoming maneuver is not part of the key by default.
