@@ -4,7 +4,9 @@ project(hybrid_astar_cpp VERSION 0.1.0 LANGUAGES CXX)
 option(HYBRID_ASTAR_ENABLE_OMPL "Build OMPL-backed steering adapter" OFF)
 option(HYBRID_ASTAR_BUILD_TESTS "Build standalone smoke tests" ON)
 
-add_library(hybrid_astar_core STATIC src/ackermann/search_config.cpp)
+add_library(hybrid_astar_core STATIC
+  src/ackermann/search_config.cpp
+  src/steering/analytic_expansion.cpp)
 add_library(hybrid_astar::core ALIAS hybrid_astar_core)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
 target_include_directories(hybrid_astar_core PUBLIC
