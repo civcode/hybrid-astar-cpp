@@ -25,6 +25,7 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0019](0019-live-map-snapshot-cache-and-reject.md) | Accepted | Immutable shared map publication, on-demand versioned caches and strict full-map unknown rejection |
 | [0020](0020-evidence-driven-mvp-simplicity.md) | Accepted | Thorough contracts, lean first implementation; add complexity only for measured need |
 | [0021](0021-independent-multibody-collision-geometry.md) | Accepted | Independent frame-attached multibody collision geometry, support for trailer chains without a scene graph |
+| [0022](0022-opt-in-adaptive-collision-subdivision.md) | Accepted | Whole-shape occupancy-cell intersection; fixed sampling default, adaptive subdivision opt-in |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
