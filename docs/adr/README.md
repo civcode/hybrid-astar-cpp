@@ -29,6 +29,7 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0023](0023-rk4-arc-length-primitives-and-samples.md) | Accepted | RK4-generated length-terminated primitives with full-state trajectory checkpoints for debugging/visualization |
 | [0024](0024-obstacle-aware-path-optimization.md) | Accepted | Obstacle awareness during refinement, pinned map/full-body geometry and independent final validation |
 | [0025](0025-approved-ackermann-mvp-settings-and-primitive-sample-collision.md) | Accepted | Approved Ackermann numerical/search/cost settings, primitive-sample collision checks and adaptive-off default |
+| [0026](0026-reeds-shepp-near-goal-analytic-expansion.md) | Accepted | Required native Reeds–Shepp near-goal checks in Ackermann MVP, with full-body collision and consistent costs |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
