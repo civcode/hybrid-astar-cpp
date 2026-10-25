@@ -12,7 +12,7 @@ using namespace hybrid_astar::ackermann;
 int main() {
   SearchConfig c;
   validate(c);
-  if (c.yawBins != 72 || c.rsTriggerXYMeters != 20.0) return 1;
+  if (c.yawBins != 72) return 1;
   if (hybrid_astar::fixtures::minRearAxleTurningRadiusMeters != 4.0 ||
       hybrid_astar::fixtures::wheelbaseMeters != 2.7 ||
       hybrid_astar::fixtures::bodyFrontXMeters - hybrid_astar::fixtures::bodyRearXMeters != 4.6) return 17;
@@ -36,14 +36,50 @@ int main() {
   if (hybrid_astar::collision::assurance(opts) != hybrid_astar::collision::Assurance::BoundaryOnlyPoseSampled) return 11;
   opts.checkFootprintInterior = true;
   if (hybrid_astar::collision::assurance(opts) != hybrid_astar::collision::Assurance::FullFootprintPoseSampled) return 12;
-  hybrid_astar::steering::AnalyticExpansionOptions guards;
-  using hybrid_astar::steering::AnalyticGate;
-  using hybrid_astar::steering::evaluateAnalyticGuards;
-  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{19,0,1}, 12, guards) != AnalyticGate::AcceptableForFurtherValidation) return 13;
-  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{21,0,0}, 1, guards) != AnalyticGate::OutsideTrigger) return 14;
-  // A large valid weighted cost is not rejected without an explicit cost cap.
-  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{1,0,0}, 230.0, guards) != AnalyticGate::AcceptableForFurtherValidation) return 15;
-  guards.maxWeightedCostMeters = 15.0;
-  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{1,0,0}, 16, guards) != AnalyticGate::OverCostLimit) return 16;
+  using hybrid_astar::steering::AnalyticCostGate;
+  using hybrid_astar::steering::AnalyticExpansionOptions;
+  using hybrid_astar::steering::AnalyticExpansionScheduler;
+  using hybrid_astar::steering::evaluateAnalyticCost;
+  AnalyticExpansionOptions options;
+  if (options.attemptRatio != 3.5) return 13;
+  // One complete RS candidate is scheduled on the first expanded node,
+  // even if the distance exceeds the formerly configured 20m XY radius.
+  AnalyticExpansionScheduler scheduler(options);
+  if (!scheduler.shouldAttempt(100.0, 0.20)) return 14;
+  // With 28 map cells to the goal, floor(28/3.5)=8; attempt every 8 pops.
+  scheduler.reset();
+  if (!scheduler.shouldAttempt(5.6, 0.20)) return 15;
+  for (int i = 0; i < 7; ++i) {
+    if (scheduler.shouldAttempt(5.6, 0.20)) return 16;
+  }
+  if (!scheduler.shouldAttempt(5.6, 0.20)) return 19;
+  // Close to the goal, the attempt interval shortens to ceil(3.5)=4.
+  scheduler.reset();
+  if (!scheduler.shouldAttempt(0.4, 0.20)) return 20;
+  for (int i = 0; i < 3; ++i) {
+    if (scheduler.shouldAttempt(0.4, 0.20)) return 21;
+  }
+  if (!scheduler.shouldAttempt(0.4, 0.20)) return 22;
+  // If the distance becomes smaller mid-cycle, the outstanding interval shortens.
+  scheduler.reset();
+  if (!scheduler.shouldAttempt(28.0, 0.20)) return 23;
+  for (int i = 0; i < 3; ++i) {
+    if (scheduler.shouldAttempt(28.0, 0.20)) return 24;
+  }
+  for (int i = 0; i < 3; ++i) {
+    if (scheduler.shouldAttempt(0.2, 0.20)) return 25;
+  }
+  if (!scheduler.shouldAttempt(0.2, 0.20)) return 26;
+  // No path-length gate; expensive valid paths are filtered only by an
+  // explicitly enabled weighted-cost cap, separately from collision checks.
+  if (evaluateAnalyticCost(230.0, options) != AnalyticCostGate::AcceptableForFurtherValidation) return 27;
+  options.maxWeightedCostMeters = 15.0;
+  if (evaluateAnalyticCost(16.0, options) != AnalyticCostGate::OverCostLimit) return 28;
+  try {
+    AnalyticExpansionOptions bad;
+    bad.attemptRatio = 0.0;
+    AnalyticExpansionScheduler rejected(bad);
+    return 29;
+  } catch (const std::invalid_argument&) {}
   return 0;
 }
