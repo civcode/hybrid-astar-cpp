@@ -1,8 +1,10 @@
 # ADR-0026: Reeds–Shepp near-goal analytic expansion in the Ackermann MVP
 
-**Status:** Accepted (include connector in first Ackermann end-to-end implementation; initial trigger radius is provisional/tunable)  
+**Status:** Accepted; runtime solver replaced by OMPL (ADR-0028), length/cost safeguards added (ADR-0027)  
 **Date:** 2026-10-25  
 **Related:** [ADR-0004](0004-native-steering-functions.md), [ADR-0014](0014-fixed-curvature-ackermann-baseline.md), [ADR-0016](0016-default-pose-goal-tolerances.md), [ADR-0022](0022-opt-in-adaptive-collision-subdivision.md), [ADR-0025](0025-approved-ackermann-mvp-settings-and-primitive-sample-collision.md)
+
+**Updates:** [ADR-0028](0028-ompl-backed-steering-and-junior-style-refinement.md) changes the required connector implementation from native to an OMPL-backed adapter. [ADR-0027](0027-combined-hybrid-a-star-heuristic-and-guarded-analytic-expansion.md) adds **configurable path-length and weighted-cost safeguards before feasible-first acceptance**; the 5.0 m XY trigger remains only a provisional candidate. [ADR-0029](0029-conservative-orientation-hull-mask-and-raster-footprint-collision.md) changes the geometric collision narrow phase, but not 0.10 m connector pose sampling.
 
 ## Context
 
