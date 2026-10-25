@@ -19,7 +19,7 @@ sequenceDiagram
   Planner->>Search: initialize start label (g=0)
   loop until valid goal, exhausted, cancelled, or budget reached
     Search->>Search: pop lowest f=g+h, discard stale entry
-    Search->>Connector: Ackermann MVP: near-goal Reeds-Shepp connection attempt
+    Search->>Connector: Ackermann MVP: scheduled adaptive Reeds-Shepp attempt
     Connector-->>Search: possible analytic motion
     Search->>Validator: validate complete analytic motion
     Search->>Search: generate primitive successors
@@ -46,12 +46,13 @@ bind one immutable map revision and explicit per-request occupancy policy
 initialize or fetch model-specific primitive catalog and compatible heuristic cache
 check full start state validity/collision and validate goal-region specification
 # a nominal goal-center pose can collide while valid end configurations exist within tolerance
+# initialize per-request adaptive analytic scheduler before expanding popped nodes
 insert start node: continuous state, model-specific discrete key, g=0, parent=none
 while open not empty:
     if cancellation or budget reached: return explicit failure
     pop best f; skip stale labels
     if goal condition met: record valid candidate / apply termination policy
-    if Ackermann and xyDistance(current continuous pose, goal pose) <= goalConnectionRadius:
+    if Ackermann and analyticScheduler.shouldAttempt(current finite heuristic, map resolution):
         try OMPL-backed Reeds-Shepp path from current state to exact requested goal pose
         sample every segment at <=0.10 m traveled length incl cusps/endpoints
         if model/goal-valid and all sampled footprints map-collision-free:
@@ -89,7 +90,7 @@ Accept only validated **continuous** candidate endpoints satisfying both `hypot(
 - Parent/action records reconstruct the *exact* accepted motion (not straight lines between discretized cell centers).
 - **OQ-001 / ADR-0013, Ackermann refinement ADR-0025:** use one retained continuous node per **complete** discretized key; the initial Ackermann key uses 0.25 m XY bins, **5° yaw bins (72)** and **incoming forward/reverse mode**. Preserve incoming primitive, parent and `g`. Different continuous arrivals or unindexed control histories can still merge, so lowest-`g` replacement remains approximate and may lose feasible or lower-cost continuations. Multi-label machinery is deferred. Correct stale-entry handling and documented reopening/termination remain necessary.
 - A popped node is not automatically globally optimal even with an admissible heuristic, since the quantized key may merge nonequivalent continuous states. Inconsistent/weighted heuristics add separate limitations. Reopening/termination assumptions must be explicit.
-- **ADRs 0026–0028:** the first Ackermann MVP **must** try OMPL-backed Reeds–Shepp analytic expansion at selected search nodes whose XY distance to the requested goal is inside a configurable near-goal radius (**approved/configurable 20.0 m trigger**). A connector to the exact target pose is checked over all analytic arc/straight samples (at most 0.10 m spacing per segment, including each cusp), costed with actual forward/reverse lengths and direction switches (**no clearance integral in the MVP**), and subjected to **finite complete connector geometry plus an optional disabled-by-default weighted-cost cap**, **without a path-length limit** (ADRs 0026–0027). If accepted, append it to the stable parent path and independently revalidate; feasible-first termination carries no optimality guarantee. A failed connector or colliding nominal goal center must **not** prevent ordinary search from finding a valid endpoint within goal tolerances. Never accept analytic expansion without model/goal/map validity.
+- **ADRs 0026–0028:** the first Ackermann MVP **must** use Nav2-style adaptive OMPL Reeds–Shepp attempts. Attempt on the **first expanded non-stale node regardless of XY distance**, then on subsequent selected nodes according to a **per-request countdown**. Convert the closest observed finite nonnegative search heuristic from meters into map-grid-cell equivalents, choose `interval=max(floor(closestCells/analyticExpansionRatio), ceil(analyticExpansionRatio))` with a provisional ratio **3.5**, and shorten an outstanding countdown as the closest heuristic decreases. **No radius/XY trigger is applied.** A connector to the exact target pose is checked over all analytic arc/straight samples (at most 0.10 m spacing per segment, including each cusp), costed with actual forward/reverse lengths and direction switches (**no clearance integral in the MVP**), and subjected to **finite complete connector geometry plus an optional disabled-by-default weighted-cost cap**, **without a path-length limit** (ADRs 0026–0027). If accepted, append it to the stable parent path and independently revalidate; feasible-first termination carries no optimality guarantee. A failed connector or colliding nominal goal center must **not** prevent ordinary search from finding a valid endpoint within goal tolerances. Never accept analytic expansion without model/goal/map validity.
 - The discretized search may lose reachability at finite resolution; report actual guarantees, not idealized continuous-space completeness.
 
 ## Obstacle-aware heuristic
