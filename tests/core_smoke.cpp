@@ -46,13 +46,13 @@ int main() {
   // even if the distance exceeds the formerly configured 20m XY radius.
   AnalyticExpansionScheduler scheduler(options);
   if (!scheduler.shouldAttempt(100.0, 0.20)) return 14;
-  // With 28 map cells to the goal, floor(28/3.5)=8; attempt every 8 pops.
+  // With 28.5 grid-cell equivalents, floor(28.5/3.5)=8; attempt every 8 pops.
   scheduler.reset();
-  if (!scheduler.shouldAttempt(5.6, 0.20)) return 15;
+  if (!scheduler.shouldAttempt(5.7, 0.20)) return 15;
   for (int i = 0; i < 7; ++i) {
-    if (scheduler.shouldAttempt(5.6, 0.20)) return 16;
+    if (scheduler.shouldAttempt(5.7, 0.20)) return 16;
   }
-  if (!scheduler.shouldAttempt(5.6, 0.20)) return 19;
+  if (!scheduler.shouldAttempt(5.7, 0.20)) return 19;
   // Close to the goal, the attempt interval shortens to ceil(3.5)=4.
   scheduler.reset();
   if (!scheduler.shouldAttempt(0.4, 0.20)) return 20;
