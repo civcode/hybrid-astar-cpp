@@ -28,8 +28,14 @@ struct OccupancyPolicy {
     uint8_t maxTraversableOccupancy = 0; // known c traversable iff c <= max
     UnknownCellPolicy unknownCells = UnknownCellPolicy::Occupied;
 };
+struct CollisionCheckOptions {
+    bool adaptiveSubdivision = false; // accepted default, ADR-0022
+    // Deterministic fixed-sample spacing: configurable, precise API/default TBD.
+    // When adaptive: body-motion threshold and subdivision limits, TBD.
+};
 struct PlanningOptions {
     OccupancyPolicy occupancy{};
+    CollisionCheckOptions collision{}; // request-level validation behavior
 };
 struct MapData {
     GridGeometry geometry;
@@ -104,11 +110,6 @@ struct CollisionBody2D {
 struct RobotGeometry {
     std::vector<CollisionBody2D> bodies; // immutable throughout a request
 };
-struct CollisionCheckOptions {
-    bool adaptiveSubdivision = false; // accepted default, ADR-0022
-    // Deterministic fixed-sample spacing: configurable, precise API/default TBD.
-    // When adaptive: body-motion threshold and subdivision limits, TBD.
-};
 template<class M>
 concept CollisionValidator = requires(
     const M& model, const typename M::State& state,
@@ -151,13 +152,13 @@ Contract:
 ```cpp
 enum class PlanStatus {
     Success, NoPath, Cancelled, ResourceLimit,
-    InvalidRequest, MapUnavailable, InternalError
+    ValidationIncomplete, InvalidRequest, MapUnavailable, InternalError
 };
 template<class State>
 struct PlanRequest {
     State start;
     MapSnapshot map;             // holds one immutable revision throughout planning
-    PlanningOptions options{};  // explicit per-request occupancy interpretation
+    PlanningOptions options{};  // per-request occupancy + collision settings
     // Goal specification: world pose + independent XY/yaw tolerances;
     // optional model-specific state constraints, not a mandatory full State goal.
     // model/config identity, limits,
@@ -173,7 +174,7 @@ struct PlanResult {
 
 **Accepted OQ-008:** the default goal accepts the **continuous model-defined reference pose** when XY Euclidean distance to the target is `<= 0.25 m` **and** wrapped yaw error is `<= 10°` (`pi/18 rad`). These tolerances are independently configurable, including zero. Other state components (such as articulation) are unconstrained by default but must remain valid and collision-free; the caller may request explicit additional state/terminal constraints. Validate the incoming swept motion and return the actual reached endpoint, never snap the path to the goal center. Goal-region heuristics must account for tolerance ([ADR-0016](../adr/0016-default-pose-goal-tolerances.md)).
 
-Contract: no partial/unverified path is reported as `Success`. Failure carries diagnostic reason and counters; cancellation is checked at bounded intervals. Planner instances should avoid rebuilding immutable caches unnecessarily; concurrency semantics remain proposed in [components.md](components.md).
+Contract: no partial/unverified path is reported as `Success`. If adaptive collision checking exhausts its bound without verifying its requested sample criterion, return `ValidationIncomplete` with details, not `Success`; both fixed and adaptive sampled modes disclose their non-certified assurance and sampling configuration. Failure carries diagnostic reason and counters; cancellation is checked at bounded intervals. Planner instances should avoid rebuilding immutable caches unnecessarily; concurrency semantics remain proposed in [components.md](components.md).
 
 **Speed-profile boundary (OQ-024):** core output is a geometric path, not a time-stamped trajectory. Each segment must support evaluating full configuration at its canonical `(segmentIndex, lambda)` position; optional model-appropriate first/second derivatives, manifold operations and control-law metadata permit later time scaling. A separate trajectory planner checks wheel/steering/articulation rates, accelerations/jerks, stops at mode transitions and moving obstacles. Model constraints depending on an assumed primitive duration are **not** guaranteed after arbitrary retiming. A speed-aware feasibility estimate inside search remains an open design choice.
 
