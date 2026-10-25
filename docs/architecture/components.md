@@ -61,9 +61,9 @@ Arrows mean *uses*. Diagram is logical; no requirement that every box maps to a 
 | Integrator | RK4 baseline numerical propagation primarily for primitive *generation*, respecting state topology; accumulated traveled-length termination, validated endpoints and ordered full-state samples (ADR-0023) | Primitive selection, map queries or per-node search bookkeeping |
 | Primitive generator | Candidate admissible controls, geometric extents, generated RK4 trajectories/control-law evaluators and stored samples; cache truly reusable SE(2)-relative templates and regenerate/cache by internal state when required (ADR-0023) | Global map or cost policy |
 | State index policy | Quantized complete state, key hash/equality, dominance scope | Continuous propagation |
-| Steering connector | Analytic feasible connections when assumptions apply | Map obstacle testing, global optimization |
-| Obstacle heuristic | Static map goal-distance cache, lazy reverse graph expansion | Vehicle shape and dynamics |
-| Collision checker | State/motion swept-footprint validation against snapshot | State transition selection or global heuristic |
+| Steering connector | **OMPL-backed geometric Dubins/Reeds–Shepp adapter**: distance-only, signed segments/cusps, interpolation and near-goal connection, plus length/cost guard (ADRs 0027,0028) | General Hybrid A* state indexing, map ownership or geometry collision |
+| Obstacle heuristic | Goal-rooted reverse-Dijkstra **2D obstacle-aware field**; combine with nonholonomic RS distance, goal-region guarantee modes and compatible cache (ADR-0027) | Robot footprint collision or optimizer clearance field |
+| Collision checker | **Conservative hull-envelope map lookup** followed, where flagged, by transformed **supercover-rasterized footprint boundary and enclosed-cell guard** at each primitive/connector sampled state; separate 0.40 m clearance influence (ADR-0029) | Search successor decision, heuristic or costmap encoding |
 | Robot geometry | Immutable shapes, local frame attachment and margins | Actual state estimation/TF lookup |
 | Reconstruction | Reverse parent chain; piecewise exact primitives and analytic segments | Curve fitting |
 | Refinement | **Obstacle-aware** shortcut/fitting/optimization using pinned map/policy, full state-dependent collision bodies, and model constraints; independent final validation and unchanged raw-path fallback (ADR-0024) | Search node ownership, timing or dynamic-obstacle prediction |
@@ -76,8 +76,8 @@ Arrows mean *uses*. Diagram is logical; no requirement that every box maps to a 
 - `math` and foundational value types depend only on standard C++ (Eigen may be used behind an explicit target boundary).
 - `kinematics` depends on shared types and math; never on search or ROS.
 - `motion` depends on kinematics/math; model derivative and separate integrator are explicit contracts, and primitive caches are scoped to model configuration.
-- `collision` depends on environment snapshots, geometry and model frame transforms; must never query TF2 during search. A ROS adapter resolves `map`, `odom` and `base_link` transforms before invoking the planner; mismatched frames are invalid.
-- `heuristics` depends on environment and optional steering adapters, not on path refinement.
+- `collision` depends on environment snapshots and model/robot geometry; precomputed conservative map-dependent hull masks are revision/policy/footprint keyed (ADR-0029). `collision` must never query TF2 during search; a ROS adapter resolves frames before planning. 
+- `heuristics` depends on environment **and the scoped steering distance adapter** for the required combined Ackermann performance heuristic (ADR-0027), not on path refinement.
 - `search` depends on model/primitive/index/heuristic/collision/connector *contracts*.
 - `path` and `refinement` depend on shared model/geometry/validation **and obstacle information from the same immutable map snapshot and occupancy interpretation as search**; the refiner may use compatible obstacle-clearance data but cannot substitute reference-point-only clearance for full-body validation (ADR-0024). Ceres is a private, optional refinement dependency.
 - `adapters` depend inward on public core APIs, never vice versa.
