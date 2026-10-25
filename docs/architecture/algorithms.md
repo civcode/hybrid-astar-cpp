@@ -107,7 +107,11 @@ Accept only validated **continuous** candidate endpoints satisfying both `hypot(
 
 ## Swept collision checking
 
-Check every robot body `T_i(q) P_i` across the transition. Broad phase may use conservative bounding circles/AABBs/distance bounds; narrow phase uses transformed convex shapes. Adaptive sampling must consider maximum displacement of **any** body point due to translation, rotation and articulation, not just reference-point distance. Sampled validity is approximate; continuous guarantees require conservative interpolation bounds or continuous collision detection and must be identified separately in results.
+**Accepted sampled baseline (ADR-0022):** At each scheduled state along the **actual propagated trajectory**, transform every rigid collision body and check **complete shape-versus-blocking-cell intersection**, not sampled interior/edge/vertex points. Compute a map-grid-local bounding box to enumerate candidate cells; use rectangle/convex-polygon versus square intersection (e.g., SAT) and circle versus square geometry for narrow phase. Apply occupancy threshold/unknown/out-of-bounds policies consistently. Check contact/boundary cases conservatively and validate numerical robustness.
+
+By default, use a deterministic **nonadaptive fixed sampling schedule**, including start/end and intermediate states according to configurable spacing; its exact numerical default remains an implementation detail. **Only if the per-request option `adaptiveSubdivision=true` (default `false`)**, additionally subdivide scheduled intervals according to motion of the furthest affected point of **any** body from translation, rotation and articulation. Do not infer body-sweep safety from reference-point movement or endpoint differences alone. If enabled adaptive refinement cannot meet its configured criterion within bounded evaluations, report incomplete validation/failure rather than success.
+
+The **shape intersection is geometric at each evaluated state**, but either fixed or adaptive *sampling along a motion* remains an approximate swept test. Result diagnostics must identify the selected mode, sampling resolution and assurance level; **neither mode certifies continuous collision freedom**. Conservative continuous sweeping remains a future OQ-009 option ([ADR-0022](../adr/0022-opt-in-adaptive-collision-subdivision.md)).
 
 ## Reconstruction, refinement and output
 
