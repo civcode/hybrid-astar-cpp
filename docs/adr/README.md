@@ -28,6 +28,7 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0022](0022-opt-in-adaptive-collision-subdivision.md) | Accepted | Whole-shape occupancy-cell intersection; fixed sampling default, adaptive subdivision opt-in |
 | [0023](0023-rk4-arc-length-primitives-and-samples.md) | Accepted | RK4-generated length-terminated primitives with full-state trajectory checkpoints for debugging/visualization |
 | [0024](0024-obstacle-aware-path-optimization.md) | Accepted | Obstacle awareness during refinement, pinned map/full-body geometry and independent final validation |
+| [0025](0025-approved-ackermann-mvp-settings-and-primitive-sample-collision.md) | Accepted | Approved Ackermann numerical/search/cost settings, primitive-sample collision checks and adaptive-off default |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
