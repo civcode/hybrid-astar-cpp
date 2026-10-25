@@ -15,7 +15,7 @@ The mathematical definition is a **controlled system of differential equations**
 - **Parameters** \(\mathbf p\): fixed wheelbase, geometry, limits and model assumptions during a request.
 - **Vector field** \(f\): state derivative/tangent at a valid state/input.
 - **Admissible state and control sets**: state/control constraints including coupled wheel-speed limits or steering bounds.
-- **Geometric projections**: reference pose \(P(\mathbf q)\in SE(2)\) and each body transform \(T_i(\mathbf q)\in SE(2)\) for collision.
+- **Geometric projections**: reference pose \(P(\mathbf q)\in SE(2)\) and each named rigid-body frame transform \(T_i(\mathbf q)\in SE(2)\). **Accepted ADR-0021:** immutable collision shapes and local offsets belong to a separate `RobotGeometry` description, not the ODE model; each world collision shape is placed by `T_world_frame(q) * T_frame_shape`.
 
 State is not necessarily a Euclidean array: yaw and articulation angles have circular topology. Specify tangent and local state-update operations for numerical integration rather than assuming ordinary vector addition always works. If a model has discrete modes such as gear, express mode changes explicitly instead of differentiating an enum.
 
@@ -129,7 +129,7 @@ A physical frame diagram and explicit kinematic sign conventions are required be
 
 ### General articulated extension
 
-The model supplies \(\mathbf q=(x,y,\theta,\phi_1,\ldots,\phi_n,\ldots)\), its coupled ODE and all frame transforms \(T_i(\mathbf q)\). Search, collision and indexing must not assume three-dimensional state or fixed body offsets.
+The model supplies \(\mathbf q=(x,y,\theta,\phi_1,\ldots,\phi_n,\ldots)\), its coupled ODE and all frame transforms \(T_i(\mathbf q)\). Search, collision and indexing must not assume three-dimensional state or fixed body offsets. **ADR-0021 accepts geometric support for tractor and arbitrarily many trailers** by associating immutable independent circles/rectangles/convex polygons with model-defined transforms; it does *not* imply that multi-trailer reversing or search performance is solved.
 
 ## Illustrative C++20 contract (not yet final API)
 
@@ -157,7 +157,7 @@ concept KinematicModel = requires(
 
 *Semantics*: the derivative is deterministic and map-independent; control limits may depend on state. Derivatives should avoid allocation or parsing. A **separate integrator** uses the vector field to propagate complete states and produce intermediate states/dense evaluation for swept collision checking. Exact closed-form propagation can be an optional model specialization. The integrator must respect the state manifold, including angular wrap.
 
-A primitive provider chooses admissible controls and integration extents. It is separate from the ODE. The state indexer uses the complete state required for reachability/dominance. The search engine never branches on `isHolonomic()` to decide what motion is allowed; the model's valid control set is authoritative.
+**Accepted model/geometry separation (ADR-0021):** a model publishes transforms of known rigid-body frames while a separate immutable robot-geometry configuration holds circle, rectangle or convex-polygon collision bodies and their local offsets. A primitive provider chooses admissible controls and integration extents. It is separate from the ODE. The state indexer uses the complete state required for reachability/dominance. The search engine never branches on `isHolonomic()` to decide what motion is allowed; the model's valid control set is authoritative.
 
 ## Time-domain dynamics versus path progress
 
@@ -200,4 +200,4 @@ The output path retains full model state, segmented progress, maneuver semantics
 
 ## Unresolved details
 
-OQ-002 (exact extent API) is still a design detail, but its **geometric parameterization principle is accepted**; OQ-003 (path address) is accepted. Open issues include OQ-004 (cost units), OQ-019 (capability metadata), OQ-020 (mecanum milestone), OQ-021 (state/tangent integration customization), OQ-022 (articulated geometry/control conventions), and OQ-024 (speed-profile and retiming boundary). OQ-007's **three-state fixed-curvature Ackermann baseline is accepted** (ADR-0014); a four-state steering-rate extension remains optional.
+OQ-002 (exact extent API) is still a design detail, but its **geometric parameterization principle is accepted**; OQ-003 (path address) is accepted. The basic kinematic-to-independent-multibody-geometry interface is accepted (ADR-0021), while OQ-021 retains manifold/integrator signatures and OQ-014 retains frame registry/self-collision details. Open issues include OQ-004 (cost units), OQ-019 (capability metadata), OQ-020 (mecanum milestone), OQ-021 (state/tangent integration customization), OQ-022 (articulated geometry/control conventions), and OQ-024 (speed-profile and retiming boundary). OQ-007's **three-state fixed-curvature Ackermann baseline is accepted** (ADR-0014); a four-state steering-rate extension remains optional.
