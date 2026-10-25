@@ -21,7 +21,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 | --- | --- |
 | FR-001, FR-003, FR-016 | Model concept compile tests for differential, Ackermann and mecanum; derivative and integrator checks; model-aware key distinction for articulation and other relevant dimensions; **single-node-per-key** replacement, reopen/stale-queue and pruning approximation tests |
 | FR-002, FR-017 | Primitive propagation against exact solutions, forward/reverse, in-place rotation, sideways mecanum translation with fixed yaw, simultaneous translation/rotation, limits and step-size convergence |
-| FR-004, FR-005 | Independent immutable frame-attached circles, rectangles, convex polygons and compound body sets (ADR-0021); unknown frame ID/invalid geometry rejection; single-body and articulated multi-frame transforms including two trailers and stationary reference-point articulation; explicit self-collision exclusion policy once decided (OQ-014); swept cases between safe sampled endpoints (OQ-009) |
+| FR-004, FR-005 | Independent immutable frame-attached circles/rectangles/convex polygons (ADR-0021); geometric **whole-shape/cell** overlap including obstacle fully enclosed by body; fixed nonadaptive samples by default; opt-in adaptive subdivision `false` until enabled (ADR-0022); multi-trailer and in-place-articulation cases; unknown frame/geometry rejection; sampled-only collision assurance; self-collision pair rules still OQ-014 |
 | FR-006, FR-007, FR-018 | REP-103/105 frames, rotated origin conversion, cell-center offsets, row-major indexing, unknown/out-of-bounds semantics, Dijkstra known maps, lazy settlement, cache invalidation |
 | FR-008 | Dubins/Reeds–Shepp endpoint, length, segment direction and symmetries; randomized OMPL comparison |
 | FR-009, FR-015 | Stale queue labels, reopen rules, budgets/cancellation and structured diagnostic status |
@@ -67,10 +67,12 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 ## Collision verification
 
 - State-level tests: independent immutable circles, rectangles, convex polygons and multi-shape compounds, local offsets, rotation, articulated state-dependent frames, tractor with two trailers, and invalid frame/degenerate polygon rejection (ADR-0021).
+- Whole-shape state tests: occupied cell completely enclosed by polygon with no boundary/vertex contact; polygon-cell corner and edge intersections; rectangle/polygon containment both ways, touching edges, circle-cell tangencies, rotated grid frames, unknown/occupied policies. Do **not** treat vertex-only or perimeter-only occupancy sampling as geometric collision validity.
 - Motion tests: intersecting a thin obstacle between safe endpoints; in-place rotation clipping corners; articulation sweeping without reference-point movement; mecanum sideways rectangular-footprint clearance at fixed yaw.
+- Default sampling mode uses configured fixed **start/end/intermediate** state schedule and no adaptive recursion. With `adaptiveSubdivision=true`, verify added evaluations for rotating long bodies/trailers and for changing articulation at fixed reference point; enforce subdivision budget and return incomplete-validation rather than success on budget exhaustion. Never infer safe motion from matching endpoint transforms alone.
 - Articulated-steering ODE tests: author-supplied four-state model, denominator guard, finite steering range, nonzero heading change at zero reference-point speed, closed joint-only cycles and frame transforms after conventions are confirmed.
 - Property tests: static obstacle map immutability across plan; collision results invariant under paired global transforms where map transform is exact.
-- Record whether verification is **discrete sampled** or **conservatively continuous**. Never label sampling alone as a formal collision-free guarantee.
+- Record whether verification is **fixed sampled**, **adaptive sampled**, or (future) **conservatively continuous**, including configured sample resolution, counts and relevant limits. Neither fixed nor adaptive sampling alone may be labeled formally continuously collision-free (ADR-0022).
 - Independently validate final refined path against original map snapshot and model.
 
 ## Heuristic correctness and guarantees
