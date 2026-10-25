@@ -19,7 +19,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 
 | ID | Question | Candidate choices / why it matters |
 | --- | --- | --- |
-| OQ-009 | Collision assurance | Adaptive sampling only vs conservative swept bounds; hard guarantee requires more than discrete samples |
+| OQ-009 | **Partly resolved — MVP sampled collision baseline accepted** | At each evaluated configuration, exact geometric shape-vs-occupancy-cell intersection (not polygon point sampling) for circles, rectangles and convex polygons. Fixed trajectory sampling **by default**; additional adaptive body-motion subdivision is a **request option default `false`** ([ADR-0022](../adr/0022-opt-in-adaptive-collision-subdivision.md)). Both are approximate swept validation. **Open:** precise fixed-step default/units, optional adaptive thresholds/budgets and future conservative continuous-collision assurance. |
 | OQ-010 | Public runtime polymorphism | Static concept-backed model solver + thin type erased facade vs runtime virtual model |
 | OQ-011 | Steering cost/termination | How to cost analytic connectors and when is it safe to stop search? |
 | OQ-012 | Replanning and cache concurrency | Map revisions can be published atomically and read safely by concurrent requests (ADR-0019). Still choose planner-instance concurrency rule, mutable lazy-cache synchronization/per-request scratch ownership, cancellation and safe eviction under load. |
@@ -52,6 +52,7 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 - [ ] Confirm how heuristic certification and completeness/optimality claims are worded.
 - [ ] Agree minimal compile-time policy concepts and public result/error types.
 - [x] Accept independent frame-attached multibody geometry and minimal model responsibilities, extensible to trailers (ADR-0021).
+- [x] Accept OQ-009 complete-shape vs occupied-cell testing, fixed nonadaptive sampled default and optional adaptive subdivision disabled by default (ADR-0022).
 - [ ] Validate ODE/tangent/integrator contracts against differential drive, Ackermann and ideal mecanum (OQ-021); settle remaining concrete signatures.
 - [ ] Ensure search and path interfaces never assume that body heading equals travel tangent.
 - [ ] Confirm the supplied articulated-steering input and body-frame conventions (OQ-022) before implementing collision transforms.
