@@ -31,7 +31,7 @@ ctest --test-dir build --output-on-failure
 
 When OMPL's CMake package is installed, enable the separate steering adapter and its smoke test with `-DHYBRID_ASTAR_ENABLE_OMPL=ON`. OMPL types are not exposed by the public headers. The default OFF allows a basic core build without OMPL; the complete Ackermann planner will require OMPL when it is implemented. **The OMPL-enabled build is not yet verified in the current environment**, which has no OMPL installation.
 
-The initial Ackermann **search key** uses 0.25 m XY cells, **5-degree yaw bins (72)** and incoming gear. This is distinct from the goal-heading **10-degree tolerance**. The Reeds–Shepp near-goal **XY trigger is 20 m**; the acceptance gate requires a configured finite maximum connector length and optionally a maximum weighted connector cost. Passing these guards is not a substitute for path/collision validity. Collision configuration defaults to `BoundaryOnlyPoseSampled` with optional interior checking; the geometry checker itself is not implemented yet.
+The initial Ackermann **search key** uses 0.25 m XY cells, **5-degree yaw bins (72)** and incoming gear. This is distinct from the goal-heading **10-degree tolerance**. The Reeds–Shepp near-goal **XY trigger is 20 m**; the acceptance gate requires valid finite geometry and sampled collision validation, **not a hard path-length cap**; a weighted-cost cap is optional and disabled by default. Passing these guards is not a substitute for path/collision validity. Collision configuration defaults to `BoundaryOnlyPoseSampled` with optional interior checking; the geometry checker itself is not implemented yet.
 
 ## Conventions
 
