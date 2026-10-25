@@ -60,7 +60,7 @@ phi(d) = max(0, 1 - d / 0.40 m)^2
 
 The entire transformed robot footprint, not only the rear-axle point or shape vertices, determines geometric obstacle clearance. The occupancy threshold and unknown/out-of-bounds policies used for clearance must agree with hard collision testing. `phi` is a nonnegative preference for extra clearance **within** the 0.40 m influence band; it cannot override collision rejection. Integrate/evaluate this soft cost using the same stored primitive samples in the first implementation (e.g. deterministic trapezoidal quadrature over arc length); this is an approximation, and higher-fidelity clearance queries are deferred unless tests justify them. Reuse map data if practical but **do not require a sophisticated cached distance field solely to implement the initial preference**.
 
-These cost weights are approved starting defaults, subject to measurement and tuning, not values claimed to originate from Stanford Junior's paper. Apply compatible costs to any future analytic connector before enabling that feature.
+These cost weights are approved starting defaults, subject to measurement and tuning, not values claimed to originate from Stanford Junior's paper. **ADR-0026 requires a native near-goal Reeds–Shepp connector in the first Ackermann implementation.** Apply the *same* costs to each straight/arc connector section, including incoming-gear and internal cusp switches, and full-body clearance sampled along the connector.
 
 ## Revised collision checking — coupled to primitive expansion
 
@@ -84,4 +84,4 @@ These cost weights are approved starting defaults, subject to measurement and tu
 
 ## Outside approved numeric baseline
 
-No optimizer method, timed execution profile, articulated-mode sample resolution, RK4 root-solver iteration limit, numeric distance-query tolerance, adaptive-refinement depth/threshold, concurrent cache policy, analytic-goal connector or performance guarantee is fixed here. These can be selected when implementation and reproducible tests require them.
+No optimizer method, timed execution profile, articulated-mode sample resolution, RK4 root-solver iteration limit, numeric distance-query tolerance, adaptive-refinement depth/threshold, concurrent cache policy or performance guarantee is fixed here. **Native near-goal Reeds–Shepp is now required (ADR-0026)**; its proposed numeric trigger radius and performance settings remain for implementation review.
