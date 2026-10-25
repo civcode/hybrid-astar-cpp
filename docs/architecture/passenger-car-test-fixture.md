@@ -21,7 +21,7 @@ Manufacturer-published turning circles for ordinary compact cars are approximate
 | Primitive distance / samples | 0.50 m / 0.10 m, six poses |
 | Search key | 0.25 m XY / **5° yaw (72 bins)** / incoming gear |
 | Goal | XY≤0.25 m; yaw≤10° (independent from search bins) |
-| Analytic attempt | OMPL RS on selected nodes within **20.0 m** XY; **no maximum path-length cutoff** |
+| Analytic attempt | OMPL Reeds–Shepp on first popped node, then **adaptive closest-heuristic-based retries** (provisional 3.5 ratio); **no XY distance gate or path-length cap** |
 
 Derived illustrative check: at maximal curvature, a 0.50 m primitive changes yaw by `L/R_min=0.125 rad ≈ 7.16°`, exceeding one 5° bin width. Equivalent max front steering angle in the bicycle convention is `atan(wheelbase/R_min)≈34.0°`. Vehicle physical dimensions/turning performance are only approximate test parameters. The rectangle extends 1.0 m rearward from the rear axle and 3.6 m forward.
 
