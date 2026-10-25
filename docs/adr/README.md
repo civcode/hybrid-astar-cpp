@@ -25,14 +25,14 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0019](0019-live-map-snapshot-cache-and-reject.md) | Accepted | Immutable shared map publication, on-demand versioned caches and strict full-map unknown rejection |
 | [0020](0020-evidence-driven-mvp-simplicity.md) | Accepted | Thorough contracts, lean first implementation; add complexity only for measured need |
 | [0021](0021-independent-multibody-collision-geometry.md) | Accepted | Independent frame-attached multibody collision geometry, support for trailer chains without a scene graph |
-| [0022](0022-opt-in-adaptive-collision-subdivision.md) | Partly superseded | Sampling assurance/adaptive option retained; per-pose SAT replaced by raster+interior guard (ADR-0029) |
+| [0022](0022-opt-in-adaptive-collision-subdivision.md) | Partly superseded | Sampling assurance/adaptive option retained; per-pose SAT replaced by default boundary-only raster and optional filled interior (ADR-0029) |
 | [0023](0023-rk4-arc-length-primitives-and-samples.md) | Accepted | RK4-generated length-terminated primitives with full-state trajectory checkpoints for debugging/visualization |
 | [0024](0024-obstacle-aware-path-optimization.md) | Accepted | Obstacle awareness during refinement, pinned map/full-body geometry and independent final validation |
 | [0025](0025-approved-ackermann-mvp-settings-and-primitive-sample-collision.md) | Accepted | Approved Ackermann numerical/search/cost settings, primitive-sample collision checks and adaptive-off default |
 | [0026](0026-reeds-shepp-near-goal-analytic-expansion.md) | Updated | Mandatory near-goal connector now OMPL-backed with length/cost safeguards (ADRs 0027,0028) |
 | [0027](0027-combined-hybrid-a-star-heuristic-and-guarded-analytic-expansion.md) | Accepted | Dual obstacle-aware/RS heuristic and guarded RS candidate acceptance |
 | [0028](0028-ompl-backed-steering-and-junior-style-refinement.md) | Accepted | OMPL steering runtime, native solver deferred, Junior optimizer and Nav2 smoothing lesson |
-| [0029](0029-conservative-orientation-hull-mask-and-raster-footprint-collision.md) | Accepted direction | Precomputed conservative collision candidate mask, supercover raster boundary plus blocked-cell interior guard |
+| [0029](0029-conservative-orientation-hull-mask-and-raster-footprint-collision.md) | Accepted direction | Conservative all-heading collision-candidate mask, boundary-only raster default and API-optional interior with explicit assurance |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
