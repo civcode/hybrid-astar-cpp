@@ -8,7 +8,7 @@
 | NFR-002 | Efficient search | Generated / expanded / re-opened nodes, open-set peak, heuristic cache hit ratio |
 | NFR-003 | Bounded memory | Peak resident memory, bytes/node, per-request allocations, cache sizes; budget configurable |
 | NFR-004 | Robust numerical behavior | Endpoint error, turning-radius scaling, finite/NaN checks, extreme radii, degenerate configurations |
-| NFR-005 | Sampled collision at stored primitive/connector poses with **sound conservative hull-mask bypass** and rasterized footprint boundary **plus blocked-cell interior guard**; no continuous swept collision certification; benchmark occupancy/mask/raster time (ADR-0029) |
+| NFR-005 | Sampled collision at stored primitive/connector poses with **sound conservative hull-mask bypass** and rasterized footprint boundary **by default** with **optional** filled-interior blocked-cell check (`checkFootprintInterior=true`); no continuous swept collision certification; benchmark occupancy/mask/raster time (ADR-0029) |
 | NFR-006 | Reproducibility | Fixed seeds, inputs, build flags, map/config hash, machine/OS/compiler metadata |
 | NFR-007 | Thread safety / concurrency | Planner-instance ownership, immutable snapshot sharing, cache synchronization; TSAN where possible |
 | NFR-008 | Portability | Standalone Linux C++20 and CMake baseline first; validate additional toolchains by matrix |
@@ -55,7 +55,7 @@
 - [ ] Define reference machines and supported OS/compiler versions.
 - [ ] Set per-scenario planning latency budgets (p95/p99), if needed.
 - [ ] Set memory budgets and maximum grid/state dimensions.
-- [x] Accept sample-pose collision validation using a conservative orientation-hull map lookup and rasterized footprint edges **with an interior guard** (ADR-0029). No continuous swept guarantee; retained RK4 0.10 m sample spacing and optional adaptive subdivision off by default.
+- [x] Accept sample-pose collision validation using a conservative orientation-hull map lookup and **boundary-only rasterized footprint edges by default**, with **interior grid-cell checks optional via API**. Boundary-only validation may miss enclosed obstacles; distinguish assurance explicitly (ADR-0029). No continuous swept guarantee; retained RK4 0.10 m sample spacing and optional adaptive subdivision off by default.
 - [x] Accept initial Ackermann 0.10 m primitive-generator sample spacing for default collision checks (ADR-0025).
 - [ ] Set future stationary-model generation sample extents, optional adaptive threshold/budget and shape intersection numerical tolerances after targeted tests.
 - [x] Accept first Ackermann RK4 arc-length endpoint tolerance **0.0001 m** (ADR-0025).
