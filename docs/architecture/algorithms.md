@@ -19,7 +19,7 @@ sequenceDiagram
   Planner->>Search: initialize start label (g=0)
   loop until valid goal, exhausted, cancelled, or budget reached
     Search->>Search: pop lowest f=g+h, discard stale entry
-    Search->>Connector: optional model-compatible goal connection
+    Search->>Connector: Ackermann MVP: near-goal Reeds-Shepp connection attempt
     Connector-->>Search: possible analytic motion
     Search->>Validator: validate complete analytic motion
     Search->>Search: generate primitive successors
@@ -51,9 +51,13 @@ while open not empty:
     if cancellation or budget reached: return explicit failure
     pop best f; skip stale labels
     if goal condition met: record valid candidate / apply termination policy
-    optionally try analytic connector:
-        if model-valid and entire motion collision-free:
-            evaluate its actual configured cost; record candidate
+    if Ackermann and xyDistance(current continuous pose, goal pose) <= goalConnectionRadius:
+        try native Reeds-Shepp path from current state to exact requested goal pose
+        sample every segment at <=0.10 m traveled length incl cusps/endpoints
+        if model/goal-valid and all complete-body samples map-collision-free:
+            evaluate weighted connector cost incl incoming and internal gear switches
+            reconstruct and revalidate full prefix + connector; return feasible-first Success
+        # any connector failure -> ordinary primitive expansion continues
     for each primitive candidate from current model state:
         instantiate compatible cached local template or generate state-dependent motion
         evaluate complete motion/end state from RK4-built primitive and control law
@@ -82,7 +86,7 @@ Accept only validated **continuous** candidate endpoints satisfying both `hypot(
 - Parent/action records reconstruct the *exact* accepted motion (not straight lines between discretized cell centers).
 - **OQ-001 / ADR-0013, Ackermann refinement ADR-0025:** use one retained continuous node per **complete** discretized key; the initial Ackermann key uses 0.25 m XY bins, 10° yaw bins and **incoming forward/reverse mode**. Preserve incoming primitive, parent and `g`. Different continuous arrivals or unindexed control histories can still merge, so lowest-`g` replacement remains approximate and may lose feasible or lower-cost continuations. Multi-label machinery is deferred. Correct stale-entry handling and documented reopening/termination remain necessary.
 - A popped node is not automatically globally optimal even with an admissible heuristic, since the quantized key may merge nonequivalent continuous states. Inconsistent/weighted heuristics add separate limitations. Reopening/termination assumptions must be explicit.
-- Analytic expansion cannot bypass feasibility or collision checks. First-found analytic connection may be suboptimal; do not assert optimality without a justified termination rule.
+- **Accepted ADR-0026:** the first Ackermann MVP **must** try native Reeds–Shepp analytic expansion at selected search nodes whose XY distance to the requested goal is inside a configurable near-goal radius (**proposed 5.0 m fixture/default for review; not yet approved numeric setting**). A successful connector to the exact target pose is checked over all analytic arc/straight samples (at most 0.10 m spacing per segment, including each cusp), costed with actual reverse/direction switches and complete-body clearance, appended to stable parent segments and independently revalidated; it may terminate **feasible-first** with no optimality claim. A failed connector or colliding nominal goal center must **not** prevent ordinary search from finding a valid endpoint within goal tolerances. Never accept analytic expansion without model/goal/map validity.
 - The discretized search may lose reachability at finite resolution; report actual guarantees, not idealized continuous-space completeness.
 
 ## Obstacle-aware heuristic
@@ -101,8 +105,8 @@ Accept only validated **continuous** candidate endpoints satisfying both `hypot(
 - **Search reuse:** precompute SE(2)-relative local templates only where full-state evolution is equivariant and internal state/configuration matches. Apply a compatible template at the continuous search-node state to obtain end state and intermediate states without repeated RK4. For state-dependent articulated kinematics, use internal-state-keyed generation/caching or regenerate as necessary. Holonomic/nonholonomic classification metadata never substitutes for model validity checks.
 - **OQ-007 / ADRs 0014 and 0023:** the initial Ackermann model uses continuous `(x,y,yaw)` state and straight/constant-curvature left/right (optional intermediate) arcs for forward/reverse motion. The model's controlled differential equation is the source of truth; baseline primitive generation uses **RK4**, with analytically exact arc formulas as correctness oracles and possible later optimized evaluators. Numeric RK4 endpoints are approximations to these mathematical arcs and must meet error tolerances; do not promise exact numerical propagation. Finite steering-rate/continuous steering at arc boundaries is **not** guaranteed by raw geometric propagation and must be checked before asserting it.
 - Differential-drive in-place rotations must be modeled and collision-checked for full swept angular motion. Ideal mecanum must also support sideways translation with unchanged yaw and simultaneous translation/rotation without treating yaw as the tangent heading.
-- Native Dubins (forward-only, bounded curvature) and Reeds–Shepp (forward/reverse, bounded curvature) are separate optional connectors. Reversing cusps preserve gear transitions. No steering-rate or articulation assumption is silently inferred.
-- **Accepted initial Ackermann cost defaults (ADR-0025; Stanford Junior as qualitative reference, not source of numerical weights):** for traveled arc length `L`, use `1.00*L` forward or `1.10*L` reverse, plus `0.50 m` on a **change of travel direction** (no cost for choosing the first direction), plus `0.15 * integral(phi(d_full_footprint(s))) ds`, where `phi(d)=max(0,1-d/0.40m)^2`. Apply hard shape/cell collision rejection independently; approximate the soft clearance integral at the **same stored primitive samples** for the initial implementation. Units are equivalent meters, **not measured execution time**; search steering-change and curvature penalties are zero, leaving them to downstream obstacle-aware refinement. Incoming gear is part of the discrete Ackermann key; one arrival per complete key remains approximate continuous-state pruning (ADR-0013). Use goal-region Euclidean distance as a lower bound; do not assume unproven grid-Dijkstra admissibility (ADR-0015). Future analytic connectors must use consistent edge costs.
+- **Near-goal Reeds–Shepp is required for the initial three-state Ackermann MVP** (ADR-0026), using the native geometric solver from ADR-0004; its exact straight/arc sections are sampled at **no more than 0.10 m** traveled distance **per section**, always including starts, ends and forward/reverse cusps. Normal RK4 primitive generation remains separate. Other Dubins/connector use is optional and model-compatible; no finite steering-rate or articulation guarantee follows from a Reeds–Shepp result.
+- **Accepted initial Ackermann cost defaults (ADR-0025; apply identically to primitive and Reeds–Shepp edges per ADR-0026; Stanford Junior as qualitative reference, not source of numerical weights):** for traveled arc length `L`, use `1.00*L` forward or `1.10*L` reverse, plus `0.50 m` on a **change of travel direction** (no cost for choosing the first direction), plus `0.15 * integral(phi(d_full_footprint(s))) ds`, where `phi(d)=max(0,1-d/0.40m)^2`. Apply hard shape/cell collision rejection independently; approximate the soft clearance integral at the **same stored primitive samples** for the initial implementation. Units are equivalent meters, **not measured execution time**; search steering-change and curvature penalties are zero, leaving them to downstream obstacle-aware refinement. Incoming gear is part of the discrete Ackermann key; one arrival per complete key remains approximate continuous-state pruning (ADR-0013). Use goal-region Euclidean distance as a lower bound; do not assume unproven grid-Dijkstra admissibility (ADR-0015). The required near-goal Reeds–Shepp connector uses the same cost with internal gear changes, plus any incoming-gear-to-first-section change (ADR-0026).
 
 ## Unknown occupancy and frontier requests (ADR-0017)
 
