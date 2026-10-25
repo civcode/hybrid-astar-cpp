@@ -18,7 +18,7 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0012](0012-model-aware-geometric-primitive-extents.md) | Accepted | Geometric length for translation; angular/configuration extent for stationary motions |
 | [0013](0013-single-label-search-baseline.md) | Accepted | Simple single-node-per-discrete-key search; defer multi-label complexity |
 | [0014](0014-fixed-curvature-ackermann-baseline.md) | Accepted | Fixed-curvature 3-state geometric bicycle / Ackermann |
-| [0015](0015-admissible-default-heuristics.md) | Accepted | Certified lower-bound heuristic default; explicit opt-in alternatives |
+| [0015](0015-admissible-default-heuristics.md) | Partly superseded | Certified heuristic rules retained; initial performance default combines RS and grid (ADR-0027) |
 | [0016](0016-default-pose-goal-tolerances.md) | Accepted | Continuous-pose goal with XY and wrapped-yaw tolerances |
 | [0017](0017-explicit-unknown-occupancy-policy.md) | Accepted | Per-request unknown-cell policy, conservative frontier default; OQ-006 map details remain open |
 | [0018](0018-known-free-only-occupancy-threshold.md) | Accepted | Configurable maximum traversable known-cell occupancy, default zero |
