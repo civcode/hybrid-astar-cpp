@@ -1,6 +1,6 @@
 # ADR-0015: Certified admissible heuristics by default
 
-**Status:** Accepted  
+**Status:** Partly superseded for initial Ackermann performance default by [ADR-0027](0027-combined-hybrid-a-star-heuristic-and-guarded-analytic-expansion.md); certified-mode rules preserved  
 **Date:** 2026-10-24
 
 ## Context
