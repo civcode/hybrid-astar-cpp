@@ -11,11 +11,11 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Review [ROS-compatible map coordinate specification](architecture/map-coordinates.md) and [ADR-0009](adr/0009-ros-map-coordinate-conventions.md); settle the native occupancy/frame representation (OQ-023).
 - [ ] Confirm outdoor world frame uses local ENU (+X east, +Y north, +Z up) with explicit geodetic reference when GNSS is used; indoor frame may be building-aligned.
 - [ ] Review [ADR-0008](adr/0008-motion-model-capabilities.md): model control constraints, ideal mecanum as third reference and holonomic travel semantics.
-- [ ] Confirm supplied four-state articulated-steering ODE input interpretation, joint/body frame conventions and link lengths (OQ-022).
+- [ ] **Later model milestone:** confirm supplied four-state articulated-steering ODE input interpretation, joint/body frames and link lengths (OQ-022); this is **not** a first Ackermann MVP prerequisite.
 - [x] Accept OQ-001 **single retained node per model-specific discretized key** (ADR-0013, superseding ADR-0010); [x] accept OQ-003 canonical `(segmentIndex, lambda)` path position (ADR-0011).
 - [ ] Benchmark single-key pruning against feasible-path recovery and post-refinement quality in narrow passages; revisit extra arrival labels only if evidence warrants a separate future decision.
 - [x] Accept OQ-002 geometric length for translation and angular/configuration extent for stationary motion (ADR-0012).
-- [ ] Resolve OQ-002 exact typed extent/control law and OQ-024 downstream speed-profile/feasibility interface; timing/rate limits require explicit treatment.
+- [ ] Define only the initial Ackermann fixed-control primitive extent and RK4 execution contract needed for the first vertical slice (OQ-002). Defer generalized typed extent APIs and OQ-024 downstream speed-profile feasibility/retiming unless a concrete test reveals a blocker.
 - [x] Accept initial **combined RS+obstacle-field performance default** (not certified admissible) and separately selectable certified Euclidean/zero fallback, with truthful reporting (ADRs 0015,0027).
 - [x] Accept OQ-007 three-state fixed-curvature Ackermann primitives (ADR-0014).
 - [x] Accept OQ-008 pose-tolerance default of 0.25 m / 10 degrees with optional extra-state goal constraints (ADR-0016).
@@ -64,7 +64,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 
 - [ ] Differential-drive model including in-place rotation; compile-time concept checks.
 - [ ] Three-state geometric bicycle/Ackermann model with exact fixed-curvature left/straight/right (optional intermediate) forward/reverse arcs; preserve joins and annotate finite steering-rate assumptions (ADR-0014).
-- [ ] Ideal mecanum reference model: independent chassis body lateral/forward/yaw velocities, admissible bounds, concept tests and analytic propagation fixtures.
+- [ ] **Later generic-model milestone:** ideal mecanum reference model: independent chassis body lateral/forward/yaw velocities, admissible bounds, concept tests and analytic propagation fixtures; **not a gate** for first Ackermann search.
 - [x] Accept RK4-based primitive generation to prescribed actual traveled length (terminal iterative refinement when required), retained ordered full-state visualization/debug points, and search-facing instantiation of cached evaluable motions (ADR-0023).
 - [x] Accept **0.50 m** primitive length, **0.05 s RK4** at reference **1 m/s**, **0.0001 m** arc-length tolerance, **0.10 m** stored-sample spacing, and six forward/reverse left/straight/right controls for Ackermann (ADR-0025).
 - [ ] Define the controlled ODE/tangent generator interface and build the native RK4 integration plus accumulated distance, failure/tolerance handling; use analytic constant-curvature formulas as tests and optional later optimized evaluators.
@@ -81,7 +81,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Build a nearest-obstacle 2D EDT per pinned map/policy **for the conservative collision mask only** (not the reverse-Dijkstra-to-goal field). Verify subcell and boundary margins, EDT cache validity and mask performance (ADR-0029).
 - [ ] Numerical, collision and maneuver property tests including mecanum lateral/combined motion; baseline microbenchmarks.
 
-**Exit:** differential-drive, Ackermann and ideal mecanum reference models generate repeatable, valid trajectories in fixture maps.
+**First Ackermann vertical-slice exit:** the 3-state Ackermann model generates six tested primitives and poses; sampled collision works on fixture grids. Differential-drive, mecanum and articulated model reference tests remain generalization work **after** this first end-to-end planner (ADR-0020).
 
 ## M3 — Steering and heuristics
 
@@ -104,7 +104,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Cancellation and time/expansion/memory budgets, structured diagnostics.
 - [ ] Exact path reconstruction and validated piecewise path output using canonical `(segmentIndex, lambda)` evaluation; complete state and one-sided cusp semantics.
 - [ ] Validate continuous goal tolerance and complete sampled motions. **Set configurable near-goal RS XY trigger to 20.0 m**, require a finite configurable connector length cap and optional weighted-cost guard, with deterministic attempted/rejected/accepted diagnostics. For near-goal **OMPL Reeds–Shepp**, check every arc/cusp at ≤0.10 m, actual path length and weighted cost against configurable guard limits with difficult-maneuver exceptions (ADR-0027); on rejected connector continue ordinary search.
-- [ ] Scenario tests (wall/doorway, narrow turns, reverse parking, unreachable goal; mecanum sideways travel and yaw-independent footprint constraints).
+- [ ] **First Ackermann scenario tests:** open field, wall/doorway, narrow turns, reverse parking, blocked exact goal with a usable tolerance-region goal and unreachable goal. Add mecanum sideways travel and other model-specific fixtures in later generic-model milestones.
 - [ ] Compare geometric raw versus **finally validated refined** path planning outcomes and total pipeline latency, including paths lost to single-label key pruning, without promising refinability of missing homotopy classes.
 - [ ] Local latency/memory/quality baseline with and without obstacle-aware heuristic.
 
