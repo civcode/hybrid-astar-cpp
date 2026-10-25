@@ -4,7 +4,7 @@
 **Date:** 2026-10-25  
 **Related:** [ADR-0021](0021-independent-multibody-collision-geometry.md), [ADR-0017](0017-explicit-unknown-occupancy-policy.md), [ADR-0018](0018-known-free-only-occupancy-threshold.md), [ADR-0020](0020-evidence-driven-mvp-simplicity.md)
 
-**Updated narrow phase:** The first implementation replaces per-occupied-cell polygon–square SAT with conservative rasterized boundary checks **and an enclosed-cell interior guard** after a precomputed hull/envelope collision-candidate lookup (ADR-0029). Statements below demanding SAT at every occupied cell are historical. Stored RK4 sample poses, opt-in adaptive subdivision and sampled-only motion assurance still apply.
+**Updated narrow phase:** The first implementation replaces per-occupied-cell polygon–square SAT with **boundary-only raster checks by default**, plus a per-request optional enclosed-cell interior guard (`checkFootprintInterior=true`), after a conservative hull/envelope collision-candidate lookup (ADR-0029). **Default boundary-only cannot establish complete-footprint collision validity.** Statements below demanding SAT at every occupied cell are historical. Stored RK4 sample poses, opt-in adaptive subdivision and sampled-only motion assurance still apply.
 
 ## Context
 
@@ -23,6 +23,7 @@ The planner checks circles, rectangles and convex polygons associated with indep
 
 ```cpp
 struct CollisionCheckOptions {
+    bool checkFootprintInterior = false; // boundary raster only by default; ADR-0029
     bool adaptiveSubdivision = false; // accepted default
     // Default checks each stored primitive sample; no separate fixed step.
     // If adaptive: body-point movement criterion/budget/depth, TBD.
@@ -33,7 +34,7 @@ For the initial Ackermann slice, the generator's **approved 0.10 m stored-sample
 
 ## Tests
 
-- Complete-shape collision with an occupied cell fully *inside* a rectangle or convex polygon, with no vertex or edge intersection; polygon-cell edge crossing, containment in both directions and boundary tangencies.
+- Interior-overlap regression: with `checkFootprintInterior=true`, detect an occupied cell fully inside a rectangle/polygon with no boundary intersection; with default boundary-only mode, document possible miss and weaker assurance. Also test polygon edge crossing, containment and boundary tangency.
 - Rotated occupancy-grid origin, circles, rectangles, convex polygons and compound multi-frame bodies, including unknown policy, out-of-map treatment and threshold behavior.
 - Fixed default `adaptiveSubdivision=false`: use the generated primitive's stored start/end/intermediate complete-state points, with **no independent fixed collision sampling scheduler**; no additional recursive subdivision.
 - Enabled adaptive mode: more evaluations for high angular sweep of distant trailer corners, zero-reference-translation rotation/articulation, and intervals with large body movement; avoid inferring zero movement from coinciding endpoint transforms.
