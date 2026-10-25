@@ -29,7 +29,7 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0023](0023-rk4-arc-length-primitives-and-samples.md) | Accepted | RK4-generated length-terminated primitives with full-state trajectory checkpoints for debugging/visualization |
 | [0024](0024-obstacle-aware-path-optimization.md) | Accepted | Obstacle awareness during refinement, pinned map/full-body geometry and independent final validation |
 | [0025](0025-approved-ackermann-mvp-settings-and-primitive-sample-collision.md) | Accepted | Approved Ackermann numerical/search/cost settings, primitive-sample collision checks and adaptive-off default |
-| [0026](0026-reeds-shepp-near-goal-analytic-expansion.md) | Updated | Mandatory near-goal connector now OMPL-backed with length/cost safeguards (ADRs 0027,0028) |
+| [0026](0026-reeds-shepp-near-goal-analytic-expansion.md) | Updated | OMPL RS connection, unconditional first-node attempt and Nav2-style adaptive retry schedule; no XY gate/length cap |
 | [0027](0027-combined-hybrid-a-star-heuristic-and-guarded-analytic-expansion.md) | Accepted | Dual obstacle-aware/RS heuristic and guarded RS candidate acceptance |
 | [0028](0028-ompl-backed-steering-and-junior-style-refinement.md) | Accepted | OMPL steering runtime, native solver deferred, Junior optimizer and Nav2 smoothing lesson |
 | [0029](0029-conservative-orientation-hull-mask-and-raster-footprint-collision.md) | Accepted direction | Conservative all-heading collision-candidate mask, boundary-only raster default and API-optional interior with explicit assurance |
