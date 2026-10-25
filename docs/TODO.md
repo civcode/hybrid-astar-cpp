@@ -25,7 +25,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [x] Accept **lean MVP and evidence-driven complexity**: rigorous contracts/tests, early working vertical slice, defer speculative modules (ADR-0020).
 - [x] Clarify intended **search → downstream path optimization** boundary: search is a collision-checked, model-feasible path initializer; evaluate quality after refinement rather than overengineering raw search, with independently validated optimized output and raw-path fallback (ADR-0020).
 - [x] Accept **obstacle-aware optimization whenever refinement is enabled**: use map obstacles/clearance during optimization, pinned snapshot and occupancy policy, full transformed collision bodies and independent final validation (ADR-0024).
-- [ ] Resolve OQ-004 planning effort-cost objective; finish native occupancy/frame/handle ABI (OQ-023) and mutable cache concurrency (OQ-012).
+- [x] Accept initial Ackermann search cost weights, resolution/gear key, RK4 primitive and collision sample defaults (ADR-0025); further model-generalized effort costs remain OQ-004/OQ-024.
+- [ ] Finish native occupancy/frame/handle ABI (OQ-023) and mutable cache concurrency (OQ-012) only to the extent necessary for first runnable MVP.
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
 - [ ] Accept/revise ADRs and mark architecture baseline v0.1 reviewed.
@@ -65,6 +66,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Three-state geometric bicycle/Ackermann model with exact fixed-curvature left/straight/right (optional intermediate) forward/reverse arcs; preserve joins and annotate finite steering-rate assumptions (ADR-0014).
 - [ ] Ideal mecanum reference model: independent chassis body lateral/forward/yaw velocities, admissible bounds, concept tests and analytic propagation fixtures.
 - [x] Accept RK4-based primitive generation to prescribed actual traveled length (terminal iterative refinement when required), retained ordered full-state visualization/debug points, and search-facing instantiation of cached evaluable motions (ADR-0023).
+- [x] Accept **0.50 m** primitive length, **0.05 s RK4** at reference **1 m/s**, **0.0001 m** arc-length tolerance, **0.10 m** stored-sample spacing, and six forward/reverse left/straight/right controls for Ackermann (ADR-0025).
 - [ ] Define the controlled ODE/tangent generator interface and build the native RK4 integration plus accumulated distance, failure/tolerance handling; use analytic constant-curvature formulas as tests and optional later optimized evaluators.
 - [ ] Model-specific control enumeration, primitive templates and cache invalidation; distinguish SE(2)-equivariant reusable catalogs from initial articulation-state-dependent generation.
 - [ ] Implement OQ-002 RK4-generated traveled-length translating primitives plus model-aware angular/configuration extents for stationary maneuvers; keep full control-law numerical evaluation across generated checkpoints, including reverse/stall guards, and ensure no division by longitudinal speed at zero.
@@ -72,9 +74,9 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Deterministic key replacement/pruning tests, including loss of alternative continuous arrivals and history-dependent transition-cost approximation.
 - [ ] Geometry frame transforms from hypothetical state; add a tractor/two-trailer synthetic state-transform fixture without assuming a production ODE; retain the supplied four-state articulated-steering model fixture only after its physical frame conventions are confirmed.
 - [ ] Implement articulated steering derivative with safe denominator checks, articulation state indexing, rate constraints and zero-translation articulation sweep tests (extension milestone, not blocking differential/Ackermann).
-- [x] Accept shape-vs-grid-cell intersection at sampled states, **fixed nonadaptive sampling as default** and adaptive subdivision as a disabled-by-default per-request option (ADR-0022).
+- [x] Accept whole-shape-vs-cell collision at the **stored primitive states**, **six 0.10 m-spaced states per initial 0.50 m Ackermann primitive**, no independent default fixed collision scheduler and adaptive subdivision optional/off by default (ADRs 0022,0025).
 - [ ] Implement complete circle/rectangle/convex-polygon vs blocked grid-cell intersection; no interior or vertex-only point sampling. Validate grid-rotation, containment, boundary touching, and malformed geometry.
-- [ ] Implement fixed trajectory start/end + configured intermediate checks as default; opt-in adaptive body-motion subdivision with explicit threshold/budget, distinguish fixed/adaptive sampled assurance and fail incomplete refinement safely. Exact step/threshold defaults still need implementation review (OQ-009).
+- [ ] Implement candidate rejection at every **stored complete-state primitive sample**, with no independent collision-only default sampling schedule or new intermediate search nodes; optional adaptive additional states only if enabled. Report primitive-sampled/adaptive assurance. For future nontranslating models define angular/configuration generator-sample spacing (OQ-009, ADR-0025).
 - [ ] Numerical, collision and maneuver property tests including mecanum lateral/combined motion; baseline microbenchmarks.
 
 **Exit:** differential-drive, Ackermann and ideal mecanum reference models generate repeatable, valid trajectories in fixture maps.
@@ -95,7 +97,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 
 - [ ] Node pool/open heap, stable indices, stale entry strategy, parent/action records.
 - [ ] Model-generic search loop with primitive and optional analytic expansion.
-- [ ] Edge costs, tie breaks, reopen/dominance and termination semantics.
+- [x] Accept Ackermann **0.25 m XY / 10° yaw + incoming gear** search key, reverse multiplier **1.10**, gear-switch **0.50 m**, clearance weight **0.15** inside **0.40 m**, and goal-region Euclidean heuristic (ADR-0025).
+- [ ] Implement edge costs in equivalent meters: forward/reverse, gear-switch (no charge for first gear), and full-body clearance sampled at stored primitive states; tie breaks, reopen/dominance and termination semantics.
 - [ ] Cancellation and time/expansion/memory budgets, structured diagnostics.
 - [ ] Exact path reconstruction and validated piecewise path output using canonical `(segmentIndex, lambda)` evaluation; complete state and one-sided cusp semantics.
 - [ ] Evaluate goal conditions on actual continuous endpoints with configurable XY/yaw tolerances and optional additional full-state constraints; verify final swept motion.
