@@ -117,8 +117,10 @@ The **shape intersection is geometric at each evaluated state**, but either fixe
 
 ## Reconstruction, refinement and output
 
+**Refinement-aware search priority (ADR-0020):** Hybrid A* supplies a feasible geometric starting path and basic maneuver/topology choices; the planned downstream optimizer improves the shape where feasible. Do not inflate search with sophisticated smoothing, dense search nodes within a primitive or expensive effort/steering-objective logic solely to produce a raw shape that refinement will replace. Maintain the model-valid, collision-checked primitive trajectory and reconstructable controls required to validate the initial path. Refinement cannot reliably invent a missed route/homotopy class. When refinement is implemented, assess search changes against final validated path quality, success rate and **combined search+optimization latency**; optimizing raw search quality alone is not the objective.
+
 - Follow stable node parent indices back to start; reverse sequence, append any validated analytic connection, reconstruct intermediate model states.
 - Keep exact original motion path, including cusp and rotate-in-place events and its start/end conditions.
-- Optional shortcutting or curve optimization only accepts replacements with verified endpoints, model constraints, collision clearance and cost policy.
+- The downstream path-optimization/refinement stage (optional in the first runnable vertical slice) only accepts replacements with verified endpoints, full model constraints, collision checking against the applicable map snapshot and cost policy. Retain the original validated path if optimization fails.
 - For clamped spatial curves, endpoint heading can be constrained through endpoint tangents, but curvature, curvature rate and articulated feasibility require extra constraints; a smooth spline is **not** automatically feasible.
 - Output is a piecewise path with monotone progress, independently evaluable segments and full model-state semantics. Holonomic travel direction and body yaw may differ. The separate MPC owns final timing, speeds, acceleration and moving-obstacle prediction; rate-limited path claims must state the timing assumptions on which they rely.
