@@ -4,7 +4,7 @@
 **Date:** 2026-10-25  
 **Related:** [ADR-0013](0013-single-label-search-baseline.md), [ADR-0015](0015-admissible-default-heuristics.md), [ADR-0020](0020-evidence-driven-mvp-simplicity.md), [ADR-0022](0022-opt-in-adaptive-collision-subdivision.md), [ADR-0023](0023-rk4-arc-length-primitives-and-samples.md)
 
-**Updates:** [ADR-0027](0027-combined-hybrid-a-star-heuristic-and-guarded-analytic-expansion.md) replaces the initial Euclidean-only performance heuristic with combined Reeds–Shepp / obstacle-field estimates (strict certified fallback remains); [ADR-0029](0029-conservative-orientation-hull-mask-and-raster-footprint-collision.md) replaces the per-pose polygon–cell intersection algorithm with conservative hull-mask + **boundary-only raster by default with optional interior coverage**; default assurance is intentionally weaker for enclosed obstacles. The approved numeric primitive, discretization and search cost settings and primitive sampling interval remain unchanged.
+**Updates:** [ADR-0027](0027-combined-hybrid-a-star-heuristic-and-guarded-analytic-expansion.md) replaces the initial Euclidean-only performance heuristic with combined Reeds–Shepp / obstacle-field estimates (strict certified fallback remains); [ADR-0029](0029-conservative-orientation-hull-mask-and-raster-footprint-collision.md) replaces the per-pose polygon–cell intersection algorithm with conservative hull-mask + **boundary-only raster by default with optional interior coverage**; default assurance is intentionally weaker for enclosed obstacles. The approved numeric primitive, discretization and **distance/reverse/switch** search cost settings and primitive sampling interval remain unchanged. **MVP change:** the previously accepted 0.15/0.40 m clearance term is **deferred to a low-priority optional extension** (see below); it is **not** evaluated in the first implementation.
 
 ## Context
 
@@ -44,11 +44,12 @@ The physical Ackermann model stays `State=(x,y,yaw)`; travel direction is a **se
 Use **equivalent meters** (not measured execution time) and evaluate along the actual primitive samples:
 
 ```text
-cost = L * (1 + 0.10 * isReverse)
-     + 0.50 m * isDirectionSwitch
-     + 0.15 * integral_primitive phi(clearance(q(s))) ds
+MVP cost = L * (1 + 0.10 * isReverse)
+         + 0.50 m * isDirectionSwitch
 
-phi(d) = max(0, 1 - d / 0.40 m)^2
+# LOW-PRIORITY OPTIONAL EXTENSION; disabled/not implemented in MVP:
+# cost += 0.15 * integral_primitive phi(clearance(q(s))) ds
+# phi(d) = max(0, 1 - d / 0.40 m)^2
 ```
 
 | Setting | Baseline |
@@ -56,13 +57,15 @@ phi(d) = max(0, 1 - d / 0.40 m)^2
 | Forward distance multiplier | **1.00** |
 | Reverse distance multiplier | **1.10** |
 | Forward/reverse transition cost | **0.50 m**, only between actual successive directions |
-| Whole-footprint clearance weight | **0.15** (dimensionless) |
-| Clearance influence radius | **0.40 m** |
+| Whole-footprint clearance weight | **0 in MVP (disabled)**; optional future weight **0.15** (dimensionless) |
+| Clearance influence radius | **Not used in MVP edge costs**; optional future **0.40 m** |
 | Steering-change and curvature/smoothness penalties in search | **0**; addressed by downstream obstacle-aware refinement (ADR-0024) |
 
-The entire transformed robot footprint, not only the rear-axle point or shape vertices, determines geometric obstacle clearance. The occupancy threshold and unknown/out-of-bounds policies used for clearance must agree with hard collision testing. `phi` is a nonnegative preference for extra clearance **within** the 0.40 m influence band; it cannot override collision rejection. Integrate/evaluate this soft cost using the same stored primitive samples in the first implementation (e.g. deterministic trapezoidal quadrature over arc length); this is an approximation, and higher-fidelity clearance queries are deferred unless tests justify them. **Update (ADR-0029):** because a nearest-obstacle 2D Euclidean distance transform is already required for the conservative collision lookup, **reuse that same distance field for the initial clearance preference**. Sample EDT values along the rasterized actual footprint boundary and apply the conservative `sqrt(2)*mapResolution` cell-square correction; threshold the same EDT for a separate clearance-influence mask, without another distance-transform build. These are approximate full-footprint boundary clearance values, not exact geometric distances, and do not correct the default boundary-only collision mode's ability to miss enclosed blocking cells.
+**MVP scope:** compute **no clearance integral**, no per-pose clearance distances and no clearance-influence mask. Edge-cost evaluation needs only already-known primitive length, travel direction and incoming gear. This does **not** remove the nearest-obstacle EDT used to build the collision-candidate mask (ADR-0029); it removes only **clearance scoring** from the first implementation.
 
-These cost weights are approved starting defaults, subject to measurement and tuning, not values claimed to originate from Stanford Junior's paper. **ADRs 0026–0028 require an OMPL-backed near-goal Reeds–Shepp connector in the first Ackermann implementation.** Apply the *same* costs to each straight/arc connector section, including incoming-gear and internal cusp switches, and full-body clearance sampled along the connector.
+**Low-priority future option:** the preserved coefficient **0.15** and influence radius **0.40 m** can be used for a footprint-based soft penalty. If enabled later, evaluate clearance at the **stored complete-state samples of each already collision-accepted primitive**, then integrate over its actual traveled arc length (e.g., trapezoidal quadrature) **before relaxing the successor with `tentativeG = current.g + edgeCost`**. Read the nearest-obstacle EDT at cells along the *actual transformed robot footprint boundary*, not just at the axle cell; use a conservative grid-cell correction and compatible map policy. Its value is a soft routing preference, never proof of collision freedom. See ADR-0029 for the deferred algorithm.
+
+These cost weights are approved starting defaults, subject to measurement and tuning, not values claimed to originate from Stanford Junior's paper. **ADRs 0026–0028 require an OMPL-backed near-goal Reeds–Shepp connector in the first Ackermann implementation.** Apply the *same active MVP costs* to each straight/arc connector section, including incoming-gear and internal cusp switches. The optional clearance integral is **not** evaluated for analytic connectors until the low-priority clearance-cost feature is enabled.
 
 ## Revised collision checking — coupled to primitive expansion
 
@@ -81,7 +84,7 @@ These cost weights are approved starting defaults, subject to measurement and tu
 - Verify six controls at every valid ordinary Ackermann state, their transformed ends and stored samples; test 0.25 m XY and 10-degree wrapped yaw bins, distinct forward/reverse labels with one retained arrival *per complete key*, and no charge for selecting the first gear.
 - On a simple map, check candidate rejection when any stored shape overlaps an occupied cell and when a cell lies **inside** a large footprint without crossing its edges; test rotated grid frame, unknown/free/reject/out-of-bounds policy.
 - Demonstrate that no separate collision-only fixed sampling is generated by default; additional states are queried only when `adaptiveSubdivision=true`. Build at least one between-samples collision example showing the default's explicitly approximate nature.
-- Check all initial cost terms against a hand-computed toy primitive, including clearance integral units, forward vs reverse and gear switches; verify Euclidean goal-region lower bound is no larger than such nonnegative edge-cost paths.
+- Check first-implementation edge costs against hand-computed forward/reverse and gear-switch primitives; assert **no nearest-obstacle EDT lookup or clearance integration is performed for the MVP edge cost**. Verify goal-region Euclidean lower-bound behavior where certified. Keep clearance-integral/quadrature tests on the low-priority extension checklist.
 - Test start-validity, goal tolerances, accepted parent-edge reconstruction, input validation and infeasible/unreachable maps; log sampled-only assurance rather than certified collision freedom.
 
 ## Outside approved numeric baseline
