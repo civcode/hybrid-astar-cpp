@@ -21,7 +21,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 | --- | --- |
 | FR-001, FR-003, FR-016 | Model concept compile tests for differential, Ackermann and mecanum; derivative and integrator checks; model-aware key distinction for articulation and other relevant dimensions; **single-node-per-key** replacement, reopen/stale-queue and pruning approximation tests |
 | FR-002, FR-017 | Primitive propagation against exact solutions, forward/reverse, in-place rotation, sideways mecanum translation with fixed yaw, simultaneous translation/rotation, limits and step-size convergence |
-| FR-004, FR-005 | Compound-body transforms, articulated hinge configurations, self-collision exclusions, swept-geometry cases between sample endpoints |
+| FR-004, FR-005 | Independent immutable frame-attached circles, rectangles, convex polygons and compound body sets (ADR-0021); unknown frame ID/invalid geometry rejection; single-body and articulated multi-frame transforms including two trailers and stationary reference-point articulation; explicit self-collision exclusion policy once decided (OQ-014); swept cases between safe sampled endpoints (OQ-009) |
 | FR-006, FR-007, FR-018 | REP-103/105 frames, rotated origin conversion, cell-center offsets, row-major indexing, unknown/out-of-bounds semantics, Dijkstra known maps, lazy settlement, cache invalidation |
 | FR-008 | Dubins/Reeds–Shepp endpoint, length, segment direction and symmetries; randomized OMPL comparison |
 | FR-009, FR-015 | Stale queue labels, reopen rules, budgets/cancellation and structured diagnostic status |
@@ -66,7 +66,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 
 ## Collision verification
 
-- State-level tests: rectangle, circle, convex polygon, compounds, rotation and articulated transforms.
+- State-level tests: independent immutable circles, rectangles, convex polygons and multi-shape compounds, local offsets, rotation, articulated state-dependent frames, tractor with two trailers, and invalid frame/degenerate polygon rejection (ADR-0021).
 - Motion tests: intersecting a thin obstacle between safe endpoints; in-place rotation clipping corners; articulation sweeping without reference-point movement; mecanum sideways rectangular-footprint clearance at fixed yaw.
 - Articulated-steering ODE tests: author-supplied four-state model, denominator guard, finite steering range, nonzero heading change at zero reference-point speed, closed joint-only cycles and frame transforms after conventions are confirmed.
 - Property tests: static obstacle map immutability across plan; collision results invariant under paired global transforms where map transform is exact.
