@@ -44,7 +44,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 
 ## M1 — Standalone foundation (no search yet)
 
-- [ ] C++20 CMake targets for core/math plus Catch2/CTest; no ROS dependency.
+- [ ] **Minimum compiling C++20 CMake library** with focused Ackermann-native pose/config/core types, CTest smoke tests and **isolated OMPL Reeds–Shepp steering adapter**. Do not design all future generic C++ model ABIs before first Ackermann slice; omit ROS dependencies.
 - [ ] Format/lint/test/benchmark commands documented for local use.
 - [ ] Common types: poses, transforms, frame ids, angles, units, result/status.
 - [ ] Immutable validated native configuration; YAML (yaml-cpp) and JSON (nlohmann/json) adapters.
@@ -90,7 +90,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Segment/direction representation, robust normalization and degenerate handling.
 - [ ] Validate OMPL steering adapter against analytic endpoints, invariances, signed segments and cusp/degenerate fixtures; optional independent native solver comparison only if later implemented (ADR-0028).
 - [ ] **Required for first Ackermann performance-oriented search:** reverse-Dijkstra obstacle-aware 2D goal field, map/policy/goal revision caching (ADR-0027).
-- [ ] Combine nonholonomic OMPL Reeds–Shepp distance with holonomic obstacle-grid distance by `max` (ADR-0027); expose unproven-admissibility fast mode and strict certified Euclidean/zero fallback; test nonzero goal tolerance and grid overestimation.
+- [ ] Combine OMPL RS distance with holonomic obstacle-aware goal-rooted reverse Dijkstra by `max` (ADR-0027). Seed **all traversable grid cells intersecting the XY goal tolerance disk**, even if the nominal center cell is blocked; preserve independent heading/actual footprint checks at terminal states. Store settled vs unavailable/disconnected field states and fall back to **finite RS/Euclidean** without prematurely pruning Hybrid A*. Expose uncertified performance mode and strict certified fallback; test nonzero goal tolerance/grid overestimation.
 - [ ] Profile steering distance-only calls and heuristic cache behavior.
 
 **Exit:** OMPL steering adapter passes independent analytic/invariance tests, combined heuristic is implemented with explicit guarantee mode, and obstacle distance-field checks pass grid fixtures.
@@ -99,11 +99,11 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 
 - [ ] Node pool/open heap, stable indices, stale entry strategy, parent/action records.
 - [ ] Generic search loop with primitive expansion and **required OMPL Reeds–Shepp near-goal analytic expansion** for geometric Ackermann (ADRs 0026–0028).
-- [x] Accept Ackermann **0.25 m XY / 10° yaw + incoming gear** search key, reverse multiplier **1.10**, and gear-switch **0.50 m** for MVP edge costs. Defer the previously proposed **0.15/0.40 m EDT-based clearance penalty** to a low-priority opt-in extension (ADRs 0025,0029). Combined RS/2D obstacle heuristic remains required (ADR-0027).
+- [x] Accept Ackermann **0.25 m XY / **5° yaw (72 bins)** + incoming gear** search key, reverse multiplier **1.10**, and gear-switch **0.50 m** for MVP edge costs. Defer the previously proposed **0.15/0.40 m EDT-based clearance penalty** to a low-priority opt-in extension (ADRs 0025,0029). Combined RS/2D obstacle heuristic remains required (ADR-0027).
 - [ ] Implement **MVP edge costs only:** equivalent-meter forward length (1.00), reverse length (1.10) and 0.50 m per direction switch (none for first choice). Apply the same active weights to OMPL Reeds–Shepp straight/arc sections and internal/incoming gear switches. Do **not** compute any clearance integral or per-pose nearest-obstacle EDT score. Tie breaks, reopen/dominance, and validated feasible-first analytic termination remain required.
 - [ ] Cancellation and time/expansion/memory budgets, structured diagnostics.
 - [ ] Exact path reconstruction and validated piecewise path output using canonical `(segmentIndex, lambda)` evaluation; complete state and one-sided cusp semantics.
-- [ ] Validate continuous goal tolerance and complete sampled motions. For near-goal **OMPL Reeds–Shepp**, check every arc/cusp at ≤0.10 m, actual path length and weighted cost against configurable guard limits with difficult-maneuver exceptions (ADR-0027); on rejected connector continue ordinary search.
+- [ ] Validate continuous goal tolerance and complete sampled motions. **Set configurable near-goal RS XY trigger to 20.0 m**, require a finite configurable connector length cap and optional weighted-cost guard, with deterministic attempted/rejected/accepted diagnostics. For near-goal **OMPL Reeds–Shepp**, check every arc/cusp at ≤0.10 m, actual path length and weighted cost against configurable guard limits with difficult-maneuver exceptions (ADR-0027); on rejected connector continue ordinary search.
 - [ ] Scenario tests (wall/doorway, narrow turns, reverse parking, unreachable goal; mecanum sideways travel and yaw-independent footprint constraints).
 - [ ] Compare geometric raw versus **finally validated refined** path planning outcomes and total pipeline latency, including paths lost to single-label key pruning, without promising refinability of missing homotopy classes.
 - [ ] Local latency/memory/quality baseline with and without obstacle-aware heuristic.
