@@ -29,13 +29,13 @@ int main() {
   opts.checkFootprintInterior = true;
   if (hybrid_astar::collision::assurance(opts) != hybrid_astar::collision::Assurance::FullFootprintPoseSampled) return 12;
   hybrid_astar::steering::AnalyticExpansionOptions guards;
-  guards.maxPathLengthMeters = 22.5; // 5 * illustrative radius, not a default
   using hybrid_astar::steering::AnalyticGate;
   using hybrid_astar::steering::evaluateAnalyticGuards;
-  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{19,0,1}, 10, 12, guards) != AnalyticGate::AcceptableForFurtherValidation) return 13;
-  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{21,0,0}, 1, 1, guards) != AnalyticGate::OutsideTrigger) return 14;
-  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{1,0,0}, 23, 23, guards) != AnalyticGate::OverLengthLimit) return 15;
+  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{19,0,1}, 12, guards) != AnalyticGate::AcceptableForFurtherValidation) return 13;
+  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{21,0,0}, 1, guards) != AnalyticGate::OutsideTrigger) return 14;
+  // A large valid weighted cost is not rejected without an explicit cost cap.
+  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{1,0,0}, 230.0, guards) != AnalyticGate::AcceptableForFurtherValidation) return 15;
   guards.maxWeightedCostMeters = 15.0;
-  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{1,0,0}, 10, 16, guards) != AnalyticGate::OverCostLimit) return 16;
+  if (evaluateAnalyticGuards(Pose2D{}, Pose2D{1,0,0}, 16, guards) != AnalyticGate::OverCostLimit) return 16;
   return 0;
 }
