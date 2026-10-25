@@ -1,8 +1,10 @@
 # ADR-0022: Complete-shape grid intersection with opt-in adaptive collision subdivision
 
-**Status:** Accepted (sampling schedule for first Ackermann implementation refined by ADR-0025)  
+**Status:** Partly superseded for Ackermann narrow-phase geometry by [ADR-0029](0029-conservative-orientation-hull-mask-and-raster-footprint-collision.md); primitive sample schedule and adaptive-off default retained  
 **Date:** 2026-10-25  
 **Related:** [ADR-0021](0021-independent-multibody-collision-geometry.md), [ADR-0017](0017-explicit-unknown-occupancy-policy.md), [ADR-0018](0018-known-free-only-occupancy-threshold.md), [ADR-0020](0020-evidence-driven-mvp-simplicity.md)
+
+**Updated narrow phase:** The first implementation replaces per-occupied-cell polygon–square SAT with conservative rasterized boundary checks **and an enclosed-cell interior guard** after a precomputed hull/envelope collision-candidate lookup (ADR-0029). Statements below demanding SAT at every occupied cell are historical. Stored RK4 sample poses, opt-in adaptive subdivision and sampled-only motion assurance still apply.
 
 ## Context
 
