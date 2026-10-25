@@ -14,7 +14,7 @@
 | NFR-008 | Portability | Standalone Linux C++20 and CMake baseline first; validate additional toolchains by matrix |
 | NFR-009 | Modularity | No core dependency on ROS 2/OMPL/Ceres/yaml-cpp/nlohmann-json/Catch2/cxxopts |
 | NFR-010 | Result transparency | Structured status (success, no path, cancelled, budget exceeded, invalid input, internal failure) and metrics |
-| NFR-011 | Path quality | Path length, reverse count, steer variation/curvature, obstacle clearance, refinement success rate |
+| NFR-011 | Path quality | Evaluate **final validated path after optional refinement** as the product metric: length, reverse count, steering/curvature, clearance, refinement success rate; also log the raw path for diagnosis (ADR-0020) |
 | NFR-012 | Maintainability | Compile-time model contract checks for three reference chassis, focused modules, contract tests and documented decisions |
 
 ## Scenario benchmark matrix (proposed)
@@ -39,7 +39,7 @@
 2. Warm up caches, then measure cold-start and warm-cache separately. Use repeatable seeded scenario sets.
 3. Isolate heuristic-build, search, collision, steering, path reconstruction, refinement and serialization costs.
 4. Report distributions rather than single best runs; preserve failing seeds and inputs.
-5. Compare changes against previous baseline; any claimed speedup must include equivalent success-rate and path-feasibility results.
+5. Compare changes against previous baseline; any claimed speedup must include equivalent success-rate and path-feasibility results. When the refiner is available, also report **combined search+refinement runtime** and **final validated path** quality, not only the raw Hybrid A* path.
 6. Profile locally before optimizing; avoid running GitHub Actions for local builds or benchmarks.
 
 ## Simplicity and evidence gate (ADR-0020)
@@ -48,6 +48,7 @@
 - Every proposed optimization first supplies a motivating reproducible failure or benchmark, then reports end-to-end results (success/feasibility, output quality including optional refinement, latency and memory), not just microbenchmark improvement.
 - Preserve robust model/collision validation, clear numerical failure modes and honest reporting of approximate guarantees even when implementation is deliberately minimal.
 - Stage optional search policies, map publication optimizations, actuator-effort tables and sophisticated refinement behind evidence rather than requiring them for the first viable product.
+- Hybrid A* should be a low-cost feasible-path initializer for the intended downstream optimizer: avoid raw-path micro-optimizations that are not retained in the **final validated solution**. Keep indispensable collision/model validity, topology discovery and original-path fallback.
 
 ## Open acceptance thresholds
 
