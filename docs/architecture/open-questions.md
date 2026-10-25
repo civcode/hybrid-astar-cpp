@@ -24,14 +24,14 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 | OQ-011 | Steering cost/termination | How to cost analytic connectors and when is it safe to stop search? |
 | OQ-012 | Replanning and cache concurrency | Map revisions can be published atomically and read safely by concurrent requests (ADR-0019). Still choose planner-instance concurrency rule, mutable lazy-cache synchronization/per-request scratch ownership, cancellation and safe eviction under load. |
 | OQ-013 | Refinement guarantee | Constraint-enforced spatial spline vs control-parameterized segments, and what `validated` means |
-| OQ-014 | Geometry data and frames | FrameId registry and validation, compound convex bodies, self-collision policy |
+| OQ-014 | **Partly resolved — accepted multibody design** | Collision geometry is independent of kinematics: immutable frame-attached circle, rectangle and convex-polygon bodies; compounds as collections, model supplies state-dependent named frame transforms, including arbitrary-length trailer chains ([ADR-0021](../adr/0021-independent-multibody-collision-geometry.md)). **Open:** exact `FrameId` validation/representation, self-collision pair/exclusion policy and detailed collision checker contracts (OQ-009). |
 | OQ-015 | Dependency versions and packaging | Eigen, Catch2, cxxopts, nlohmann/json, yaml-cpp, Ceres optional; vendoring vs package manager |
 | OQ-016 | Exact performance target | Reference CPUs, maps, latency percentiles, memory budgets, allocation constraints |
 | OQ-017 | ROS adapter boundary | Native path-to-message losslessness, metadata and explicit cusp/rotation support |
 | OQ-018 | Thread/cancellation API | Cancellation token granularity, planner scratch ownership and safe shutdown |
 | OQ-019 | Motion capabilities | How descriptive capability metadata complements (but never substitutes for) model-defined admissible controls ([ADR-0008](../adr/0008-motion-model-capabilities.md)) |
 | OQ-020 | Mecanum milestone | When to implement the third reference model and whether it must complete end-to-end search for M4 |
-| OQ-021 | Mathematical kinematic contract | Derivative/tangent/state-manifold operations, exact propagation customization, discrete modes and time vs progress conventions ([model spec](kinematic-models.md)) |
+| OQ-021 | **Partly resolved — minimal boundary accepted** | Model supplies state, control, tangent/derivative, validity, reference pose and state-dependent named rigid-body frame transforms. Geometry, primitive selection, integrator, indexer and checker are separate ([ADR-0021](../adr/0021-independent-multibody-collision-geometry.md), [model spec](kinematic-models.md)). **Open:** exact manifold tangent/update operations, optional exact propagation, discrete modes, timing/progress API and concrete C++20 signature. |
 | OQ-022 | Supplied articulated-steering geometry and sign conventions | **Confirmed:** `(x,y,Theta)` is the rear-chassis reference pose. **Still open:** exact rear-reference-point location, whether inputs are rear-reference speed and articulation rate, positive sign of `gamma`, physical meaning of `l1`/`l2`, front/joint frame transforms and valid joint range ([model spec](kinematic-models.md)) |
 | OQ-023 | Native occupancy/frame representation | REP-103/105 and grid layout accepted (ADR-0009), known-cell occupancy threshold/default accepted (ADR-0018); still choose signed occupancy versus typed cell classification, application-specific encodings, malformed-value policy and frame ID API ([map coordinates](map-coordinates.md)) |
 | OQ-024 | Speed-profile and trajectory boundary | The global planner returns geometry only; trajectory planning/MPC owns execution timing. **Proposed extension:** precompute model-derived *kinematic effort* catalogs from actuator-coordinate motion demands and primitive transitions at a declared reference speed, avoiding runtime speed/effort equations. This is **not** electrical energy or guaranteed traversal time. Open: reference-speed feasibility, normalized control/rate measures, smoothing/connector assumptions, objective scale, state-dependent lookup bins, arrival-key semantics and catalog validation. |
@@ -51,7 +51,8 @@ These items are intentionally **not** silently decided by API sketches. Mark a d
 - [ ] Confirm primitive and path parameter units, reversing cusp and rotation semantics.
 - [ ] Confirm how heuristic certification and completeness/optimality claims are worded.
 - [ ] Agree minimal compile-time policy concepts and public result/error types.
-- [ ] Validate ODE/tangent/integrator contracts against differential drive, Ackermann and ideal mecanum (OQ-021).
+- [x] Accept independent frame-attached multibody geometry and minimal model responsibilities, extensible to trailers (ADR-0021).
+- [ ] Validate ODE/tangent/integrator contracts against differential drive, Ackermann and ideal mecanum (OQ-021); settle remaining concrete signatures.
 - [ ] Ensure search and path interfaces never assume that body heading equals travel tangent.
 - [ ] Confirm the supplied articulated-steering input and body-frame conventions (OQ-022) before implementing collision transforms.
 - [x] Accept per-request unknown-cell policy with conservative `Occupied` frontier default (ADR-0017).
