@@ -9,11 +9,11 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 | Compile-time contracts | Reject incompatible policy interfaces | `static_assert(KinematicModel<...>)` and deliberate negative compile tests |
 | Unit / analytic tests | Verify math and small rules in isolation | Closed-form differential/Ackermann integration, body transforms |
 | Property/metamorphic tests | Verify invariants independent of another implementation | Translation/rotation covariance, round-trip, radius scaling |
-| Differential tests | Compare native steering against a known oracle | Optional OMPL Dubins/Reeds–Shepp test target |
+| Steering adapter tests | Verify **OMPL-backed** Dubins/Reeds–Shepp endpoints, segments, cusps and interpolation; future native replacement can be compared independently (ADR-0028) |
 | Integration tests | Verify cross-module contracts | One-map snapshot, keys, cost, full collision validation, exact reconstructed edge |
 | Scenario tests | Verify behavior under representative environments | Dead ends, narrow turns, multi-point turns, rotate in place |
 | Performance tests | Detect regressions with reproducible scenarios | Latency percentiles, allocation and peak-memory measurements |
-| Contract/architecture checks | Prevent dependency leakage | Standalone CMake build without ROS, OMPL or Ceres |
+| Contract/architecture checks | Standalone CMake build without ROS/Ceres in generic core; OMPL is a **scoped steering runtime dependency** and must not leak through public model/search/path types (ADR-0028) |
 
 ## Requirements-to-tests traceability
 
@@ -21,16 +21,16 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 | --- | --- |
 | FR-001, FR-003, FR-016 | Model concept compile tests for differential, Ackermann and mecanum; derivative and integrator checks; initial Ackermann **(0.25 m XY, 10° yaw, gear)** index with **one continuous node per complete key**, distinct forward/reverse arrivals, reopen/stale queue and pruning approximation tests; future articulation-key distinctions (ADR-0025). |
 | FR-002, FR-017 | Accepted initial Ackermann primitives: **0.50 m traveled length**, six controls (forward/reverse × left/straight/right), RK4 **0.05 s** step at reference **1 m/s**, endpoint arc-length tolerance **0.0001 m**, full-state samples at **0.10 m** including endpoints (**six samples**); also test iteration/failure/convergence, analytic arc oracle, future stationary/holonomic models and cache validity (ADRs 0023,0025). |
-| FR-004, FR-005 | Independent immutable frame-attached circles/rectangles/convex polygons (ADR-0021); geometric **whole-shape/cell** overlap including obstacle enclosed by body; **reuse all stored primitive samples** during search (no separate default schedule), opt-in adaptive subdivision `false` until enabled (ADRs 0022,0025); multi-trailer/stationary articulation fixtures later; sampled-only assurance and frame/geometry validation. |
+| FR-004, FR-005 | Precomputed conservative all-heading hull collision-possibility mask; safe lookup bypasses detailed checks only when all possible pose/heading/quantization displacements are covered, flagged pose uses **supercover raster polygon boundary plus interior blocked-cell guard**. Validate contained obstacles/corner grazes, unknown/threshold/out-of-bounds/map revisions; reuse 0.10 m primitive samples and ≤0.10 m RS segment samples, no continuous swept claim (ADR-0029). |
 | FR-006, FR-007, FR-018 | REP-103/105 frames, rotated origin conversion, cell-center offsets, row-major indexing, unknown/out-of-bounds semantics, Dijkstra known maps, lazy settlement, cache invalidation |
-| FR-008 | Native Dubins/Reeds–Shepp endpoint, length, segment directions/cusps and symmetries; optional randomized test-only OMPL comparison; **first Ackermann MVP** near-goal Reeds–Shepp from actual node to exact goal, all segments sampled at ≤0.10 m including cusps/endpoints, complete footprint/map rejection, correct incoming/internal gear-switch and clearance cost, fallback on collision, goal-region success when exact center is blocked, feasible-first no optimality claim (ADR-0026). |
+| FR-008 | OMPL-backed Dubins/Reeds–Shepp geometric distance, segments/cusps and interpolation behind native interface; near-goal Ackermann RS connector includes **actual length/weighted-cost safeguard** and fallback on rejection; runtime adapters tested with independent analytic invariants (ADRs 0027,0028). |
 | FR-009, FR-015 | Stale queue labels, reopen rules, budgets/cancellation and structured diagnostic status |
 | FR-010, FR-012 | Exact primitive reconstruction, analytic tail, cusp and rotation progress; `(segmentIndex, lambda)` evaluations, full state, shared boundary pose and optional one-sided derivatives |
 | FR-011 | Obstacle-aware optimization **during** candidate improvement on same pinned map/policy, full-body clearance for rotated and articulated/trailer bodies, obstacle-cutting shortcut rejection or adjustment, independent final swept collision/model/boundary validation, unchanged raw feasible fallback on failure; distinguish non-certified sampled assurance (ADR-0024) |
 | FR-013, FR-014 | YAML/JSON roundtrip/validation in adapters, no ROS dependencies in core |
 | FR-019 | XY <= 0.25 m and wrapped yaw <= 10 degrees defaults, independent threshold equality, zero-tolerance mode, model-specific optional state constraints, continuous endpoint check and valid swept motion |
 | FR-020 | Fixed-curvature three-state Ackermann exact arcs and reversals; steering rate discontinuity explicitly reported, and optional refiner tested for valid smooth connector rather than assumed valid |
-| FR-021 | Certified lower bounds for goal region/edge cost, explicitly relaxed heuristic modes, and no unproven optimality guarantee from quantized-key Hybrid A* |
+| FR-021 | **Required** combined obstacle-free RS + obstacle-aware reverse-Dijkstra heuristic; compare expansion counts and output quality with Euclidean, show raw components can overestimate a continuous **goal-region** lower bound, disclose unproven-admissibility performance mode and strict certified fallback (ADRs 0015,0027). |
 | FR-022 | Three per-request unknown policies over identical immutable snapshots; default `Occupied`, optimistic `Free` diagnostics, strict `Reject` fails upfront on unknown anywhere in complete map, full-footprint frontier traversability; known-cell threshold `c <= max`, default max `0`, boundary tests |
 | NFR-001..012 | See [quality protocol](quality.md); scenario baselines and metadata stored with results |
 
@@ -45,14 +45,14 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 
 ## Dubins and Reeds–Shepp battle-hardening
 
-- Implement native solvers independently; *no OMPL source in runtime*.
-- Optional CMake switch e.g. `HYBRID_ASTAR_TEST_WITH_OMPL=ON` enables only a differential test executable. Default OFF.
+- Use **OMPL via a scoped steering adapter** for first MVP; validate signed segment extraction, interpolation, path length, endpoints and cusp metadata independently. Native solver is an optional low-priority follow-up (ADR-0028).
+- Build steering adapter with OMPL as declared runtime dependency; test solver behavior directly and keep all OMPL types out of generic core public interfaces (ADR-0028).
 - Fixed-seed randomized pairs plus hand-crafted edge cases: same pose, close poses, headings near ±pi, extreme turning radii, collinear/cusp solutions, reverse symmetry.
 - Compare **lengths within mixed absolute/relative tolerance**, reconstructed endpoints, signed segments and interpolation. Different equal-cost families are not failures.
 - Include random transformations / scaling and independent analytic invariants to detect shared oracle mistakes.
-- Persist any failure's seed, poses, radius, native/OMPL outputs in a deterministic regression case.
+- Persist numerical failures with seed, poses, radius, OMPL adapter output and independent expected values in deterministic regression fixtures.
 - Track distance-only evaluation and full path/interpolation separately in benchmarks.
-- **Near-goal MVP acceptance (ADR-0026):** verify XY-only configurable trigger even at yaw mismatch; 0.10 m maximum arc-length intervals on **each** analytic straight/arc segment with every cusp and end represented; full transformed shape-vs-cell occupancy tests at all samples using the pinned snapshot; gear switches at internal cusps and between incoming gear and first section; reverse multiplier and full-body clearance cost consistent with ADR-0025; exact goal pose and goal-tolerance checks; invalid connector falls back to normal search, including possibility of a free endpoint inside goal tolerances when the exact goal center is blocked. Reject numerical degeneracies and report sampled-only assurance.
+- **Near-goal MVP acceptance (ADRs 0026–0028):** verify XY trigger despite yaw mismatch, each segment at ≤0.10 m spacing incl cusps, all collision raster/guard checks on pinned map, internal/incoming switch penalties, reverse multiplier/clearance, exact goal. Reject excessive **actual** RS path length or weighted cost per configurable guard while permitting difficult-maneuver exceptions; continue search on rejection and disclose feasible-first nonoptimal behavior.
 
 ## Map coordinate and frame verification
 
@@ -69,9 +69,9 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 ## Collision verification
 
 - State-level tests: independent immutable circles, rectangles, convex polygons and multi-shape compounds, local offsets, rotation, articulated state-dependent frames, tractor with two trailers, and invalid frame/degenerate polygon rejection (ADR-0021).
-- Whole-shape state tests: occupied cell completely enclosed by polygon with no boundary/vertex contact; polygon-cell corner and edge intersections; rectangle/polygon containment both ways, touching edges, circle-cell tangencies, rotated grid frames, unknown/occupied policies. Do **not** treat vertex-only or perimeter-only occupancy sampling as geometric collision validity.
+- Raster state tests: blocked cell completely enclosed by polygon even when all boundary cells are free (interior guard), conservative grid supercover edges and touching corners, circle/compound coverage, rotated grid, unknown/threshold/out-of-bounds semantics; compare against exact shape–cell geometry as an **independent test oracle only** (ADR-0029).
 - Motion tests: intersecting a thin obstacle between safe endpoints; in-place rotation clipping corners; articulation sweeping without reference-point movement; mecanum sideways rectangular-footprint clearance at fixed yaw.
-- **Initial default collision behavior:** for every accepted or rejected 0.50 m Ackermann candidate, transform and check full shape(s) at its **six stored complete-state primitive samples**. Do not run a separate fixed collision scheduler, interpolate linearly between search nodes or create intermediate search labels. With `adaptiveSubdivision=true` alone, additional evaluated states between stored samples are allowed; for future rotating long bodies/trailers and stationary articulation, verify adequate generator-sample domains and bounded adaptive failure behavior. Never infer continuous swept safety from safe endpoints or sampled points (ADR-0025).
+- **Initial default collision behavior (ADR-0029):** for each 0.50 m Ackermann primitive check all six stored poses; at each pose consult precomputed collision-candidate mask (or fall back if missing/stale), then rasterized polygon edges + interior-cell guard for flagged poses; no extra search nodes or independent fixed schedule.
 - Articulated-steering ODE tests: author-supplied four-state model, denominator guard, finite steering range, nonzero heading change at zero reference-point speed, closed joint-only cycles and frame transforms after conventions are confirmed.
 - Property tests: static obstacle map immutability across plan; collision results invariant under paired global transforms where map transform is exact.
 - Record whether verification is **primitive-sampled**, **adaptive sampled**, or (future) **conservatively continuous**, including **primitive sample spacing (0.10 m for initial Ackermann)**, counts and relevant limits. Neither primitive-only nor adaptive sampling alone may be labeled formally continuously collision-free (ADRs 0022,0025).
@@ -80,7 +80,7 @@ Verification starts with the contract, not after the feature. Use **Catch2 v3**,
 
 ## Heuristic correctness and guarantees
 
-- Tiny hand-computed maps for Dijkstra values, lazy vs eager equivalence, unreachable goals and unknown-cell policies.
+- Tiny hand-computed maps for Dijkstra goal-field consistency and separate kinematic OMPL RS lookup; check map revision and heading/yaw-bin guards and goal-tolerance effects.
 - Verify heuristic cache invalidates on map identity/revision, goal *region*, inflation/threshold/unknown policy and grid geometry, including changed origin yaw or frame ID. A policy-only change must not reuse policy-dependent cached traversability/heuristic data. A snapshot revision stays fixed during a request even if a new revision becomes available.
 - **Accepted live-map contract tests (ADR-0019):** publish R+1 while two requests read R; old occupancy/metadata remain unchanged, latest-handle handoff is atomic; model caches survive map publication; map-derived cache reuses only effective-input-compatible keys, with bounded eviction and lazy-on-miss rebuild; strict `Reject` fails during deterministic full-map prevalidation, independent of search/heuristic order. Record map identity/revision in path results, enforce release of old snapshot lifetimes, and test replay/revision-reset mismatches. See [accepted ADR](../adr/0019-live-map-snapshot-cache-and-reject.md).
 - For any declared *admissible* heuristic mode, compare `h` to a proven lower bound or analytically solvable case. Do not infer admissibility solely because reverse Dijkstra runs.
