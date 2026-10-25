@@ -23,6 +23,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [x] Accept OQ-006 configurable known-cell max occupancy, default zero (ADR-0018).
 - [x] Accept OQ-006 immutable full-grid shared snapshots with atomic publication, revision-keyed on-demand bounded caching and strict full-snapshot `Reject` validation (ADR-0019).
 - [x] Accept **lean MVP and evidence-driven complexity**: rigorous contracts/tests, early working vertical slice, defer speculative modules (ADR-0020).
+- [x] Clarify intended **search → downstream path optimization** boundary: search is a collision-checked, model-feasible path initializer; evaluate quality after refinement rather than overengineering raw search, with independently validated optimized output and raw-path fallback (ADR-0020).
 - [ ] Resolve OQ-004 planning effort-cost objective; finish native occupancy/frame/handle ABI (OQ-023) and mutable cache concurrency (OQ-012).
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
@@ -36,6 +37,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Run the selected model, map snapshot, primitive propagation, collision, search, and exact geometric-path reconstruction together against deterministic fixtures as early as the foundational modules permit.
 - [ ] Expand to other reference models and optional refinement only with targeted model/geometry verification; mark unsupported or partially supported features honestly.
 - [ ] Defer multi-label search, speed-state search, speculative effort optimization, incremental heuristic repair, map tiling and sophisticated concurrent-cache machinery until real scenario evidence motivates them.
+- [ ] Once optional refinement is available, compare search design choices on **final validated output** and total search+refinement latency; preserve feasibility, route/maneuver choice and original-path fallback, not expensive raw-path smoothness.
 - [ ] Log integration failures with reproducing fixtures and compare planning latency, memory, validity and final path quality before adopting new mechanisms.
 
 ## M1 — Standalone foundation (no search yet)
@@ -97,7 +99,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Exact path reconstruction and validated piecewise path output using canonical `(segmentIndex, lambda)` evaluation; complete state and one-sided cusp semantics.
 - [ ] Evaluate goal conditions on actual continuous endpoints with configurable XY/yaw tolerances and optional additional full-state constraints; verify final swept motion.
 - [ ] Scenario tests (wall/doorway, narrow turns, reverse parking, unreachable goal; mecanum sideways travel and yaw-independent footprint constraints).
-- [ ] Compare geometric raw versus refined path planning outcomes, including paths lost to single-label key pruning, without promising refinability of missing homotopy classes.
+- [ ] Compare geometric raw versus **finally validated refined** path planning outcomes and total pipeline latency, including paths lost to single-label key pruning, without promising refinability of missing homotopy classes.
 - [ ] Local latency/memory/quality baseline with and without obstacle-aware heuristic.
 
 **Exit:** model-independent, validated baseline paths with measured performance.
