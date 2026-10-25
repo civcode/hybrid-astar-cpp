@@ -30,7 +30,7 @@ flowchart TD
   S --> COL[Motion collision checker]
   S --> ANA[Optional analytic connector]
   MOT --> KM[Kinematic model]
-  ANA --> STEER[Native Dubins / Reeds–Shepp / future]
+  ANA --> STEER[OMPL steering adapter / future native replacement]
   H --> STEER
   H --> ENV
   COL --> ENV
