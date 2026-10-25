@@ -8,7 +8,7 @@
 | NFR-002 | Efficient search | Generated / expanded / re-opened nodes, open-set peak, heuristic cache hit ratio |
 | NFR-003 | Bounded memory | Peak resident memory, bytes/node, per-request allocations, cache sizes; budget configurable |
 | NFR-004 | Robust numerical behavior | Endpoint error, turning-radius scaling, finite/NaN checks, extreme radii, degenerate configurations |
-| NFR-005 | Kinematic and collision correctness | Constraint violation count; complete-trajectory swept-footprint validation with documented resolution/certification |
+| NFR-005 | Kinematic and collision correctness | Constraint violation count; whole-shape occupancy-cell checks at each propagated sample; fixed-sampling default versus optional adaptive subdivision (off by default); documented resolution/coverage and explicitly **sampled-only** assurance (ADR-0022) |
 | NFR-006 | Reproducibility | Fixed seeds, inputs, build flags, map/config hash, machine/OS/compiler metadata |
 | NFR-007 | Thread safety / concurrency | Planner-instance ownership, immutable snapshot sharing, cache synchronization; TSAN where possible |
 | NFR-008 | Portability | Standalone Linux C++20 and CMake baseline first; validate additional toolchains by matrix |
@@ -54,6 +54,7 @@
 - [ ] Define reference machines and supported OS/compiler versions.
 - [ ] Set per-scenario planning latency budgets (p95/p99), if needed.
 - [ ] Set memory budgets and maximum grid/state dimensions.
-- [ ] Specify collision-validation guarantee level (sampled vs conservative continuous).
+- [x] Accept sampled-only shape/cell validation for the MVP with fixed sampling default and opt-in adaptive subdivision (ADR-0022); **continuous clearance certification remains unclaimed**.
+- [ ] Set representative fixed-sampling resolution/units and optional adaptive threshold/budget based on test cases; document geometry intersection tolerances.
 - [ ] Define numerical tolerances for pose, arc length and constraint checks.
 - [ ] Define expected baseline success rate and path-quality comparisons.
