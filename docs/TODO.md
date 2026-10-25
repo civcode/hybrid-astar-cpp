@@ -92,7 +92,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Combine nonholonomic OMPL Reeds–Shepp distance with holonomic obstacle-grid distance by `max` (ADR-0027); expose unproven-admissibility fast mode and strict certified Euclidean/zero fallback; test nonzero goal tolerance and grid overestimation.
 - [ ] Profile steering distance-only calls and heuristic cache behavior.
 
-**Exit:** native steering passes analytic/oracle tests and obstacle heuristic passes grid fixtures.
+**Exit:** OMPL steering adapter passes independent analytic/invariance tests, combined heuristic is implemented with explicit guarantee mode, and obstacle distance-field checks pass grid fixtures.
 
 ## M4 — Hybrid A* baseline
 
