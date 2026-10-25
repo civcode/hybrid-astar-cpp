@@ -68,7 +68,9 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Deterministic key replacement/pruning tests, including loss of alternative continuous arrivals and history-dependent transition-cost approximation.
 - [ ] Geometry frame transforms from hypothetical state; add a tractor/two-trailer synthetic state-transform fixture without assuming a production ODE; retain the supplied four-state articulated-steering model fixture only after its physical frame conventions are confirmed.
 - [ ] Implement articulated steering derivative with safe denominator checks, articulation state indexing, rate constraints and zero-translation articulation sweep tests (extension milestone, not blocking differential/Ackermann).
-- [ ] Swept-motion broad/narrow phase, explicit validation assurance.
+- [x] Accept shape-vs-grid-cell intersection at sampled states, **fixed nonadaptive sampling as default** and adaptive subdivision as a disabled-by-default per-request option (ADR-0022).
+- [ ] Implement complete circle/rectangle/convex-polygon vs blocked grid-cell intersection; no interior or vertex-only point sampling. Validate grid-rotation, containment, boundary touching, and malformed geometry.
+- [ ] Implement fixed trajectory start/end + configured intermediate checks as default; opt-in adaptive body-motion subdivision with explicit threshold/budget, distinguish fixed/adaptive sampled assurance and fail incomplete refinement safely. Exact step/threshold defaults still need implementation review (OQ-009).
 - [ ] Numerical, collision and maneuver property tests including mecanum lateral/combined motion; baseline microbenchmarks.
 
 **Exit:** differential-drive, Ackermann and ideal mecanum reference models generate repeatable, valid trajectories in fixture maps.
