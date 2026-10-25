@@ -8,11 +8,11 @@
 | NFR-002 | Efficient search | Generated / expanded / re-opened nodes, open-set peak, heuristic cache hit ratio |
 | NFR-003 | Bounded memory | Peak resident memory, bytes/node, per-request allocations, cache sizes; budget configurable |
 | NFR-004 | Robust numerical behavior | Endpoint error, turning-radius scaling, finite/NaN checks, extreme radii, degenerate configurations |
-| NFR-005 | Kinematic and collision correctness | Whole-shape occupancy-cell checks **at each stored primitive sample during search expansion** (0.10 m initial Ackermann); no independent fixed collision scheduler; adaptive subdivision optional/off by default; document resolution/coverage and **sampled-only** assurance (ADRs 0022,0025) |
+| NFR-005 | Sampled collision at stored primitive/connector poses with **sound conservative hull-mask bypass** and rasterized footprint boundary **plus blocked-cell interior guard**; no continuous swept collision certification; benchmark occupancy/mask/raster time (ADR-0029) |
 | NFR-006 | Reproducibility | Fixed seeds, inputs, build flags, map/config hash, machine/OS/compiler metadata |
 | NFR-007 | Thread safety / concurrency | Planner-instance ownership, immutable snapshot sharing, cache synchronization; TSAN where possible |
 | NFR-008 | Portability | Standalone Linux C++20 and CMake baseline first; validate additional toolchains by matrix |
-| NFR-009 | Modularity | No core dependency on ROS 2/OMPL/Ceres/yaml-cpp/nlohmann-json/Catch2/cxxopts |
+| NFR-009 | No ROS 2/Ceres/yaml-cpp/nlohmann-json/Catch2/cxxopts in generic public search API; **OMPL permitted in isolated initial runtime steering adapter** (ADR-0028) |
 | NFR-010 | Result transparency | Structured status (success, no path, cancelled, budget exceeded, invalid input, internal failure) and metrics |
 | NFR-011 | Path quality | Evaluate **final validated path after optional refinement** as the product metric: length, reverse count, steering/curvature, clearance, refinement success rate; also log the raw path for diagnosis (ADR-0020) |
 | NFR-012 | Maintainability | Compile-time model contract checks for three reference chassis, focused modules, contract tests and documented decisions |
@@ -55,7 +55,7 @@
 - [ ] Define reference machines and supported OS/compiler versions.
 - [ ] Set per-scenario planning latency budgets (p95/p99), if needed.
 - [ ] Set memory budgets and maximum grid/state dimensions.
-- [x] Accept sampled-only shape/cell validation for the MVP **at the stored RK4 primitive samples** (0.10 m spacing for initial Ackermann), with no independent fixed scheduler and adaptive opt-in/off by default (ADRs 0022,0025); **continuous clearance certification remains unclaimed**.
+- [x] Accept sample-pose collision validation using a conservative orientation-hull map lookup and rasterized footprint edges **with an interior guard** (ADR-0029). No continuous swept guarantee; retained RK4 0.10 m sample spacing and optional adaptive subdivision off by default.
 - [x] Accept initial Ackermann 0.10 m primitive-generator sample spacing for default collision checks (ADR-0025).
 - [ ] Set future stationary-model generation sample extents, optional adaptive threshold/budget and shape intersection numerical tolerances after targeted tests.
 - [x] Accept first Ackermann RK4 arc-length endpoint tolerance **0.0001 m** (ADR-0025).
