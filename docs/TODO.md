@@ -24,6 +24,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [x] Accept OQ-006 immutable full-grid shared snapshots with atomic publication, revision-keyed on-demand bounded caching and strict full-snapshot `Reject` validation (ADR-0019).
 - [x] Accept **lean MVP and evidence-driven complexity**: rigorous contracts/tests, early working vertical slice, defer speculative modules (ADR-0020).
 - [x] Clarify intended **search → downstream path optimization** boundary: search is a collision-checked, model-feasible path initializer; evaluate quality after refinement rather than overengineering raw search, with independently validated optimized output and raw-path fallback (ADR-0020).
+- [x] Accept **obstacle-aware optimization whenever refinement is enabled**: use map obstacles/clearance during optimization, pinned snapshot and occupancy policy, full transformed collision bodies and independent final validation (ADR-0024).
 - [ ] Resolve OQ-004 planning effort-cost objective; finish native occupancy/frame/handle ABI (OQ-023) and mutable cache concurrency (OQ-012).
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
@@ -111,9 +112,9 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Validate final timed trajectory against model actuation limits and moving-obstacle constraints; reject/adjust/replan if a geometric path cannot be executed safely.
 - [ ] Exact start/end full configurations and map/model provenance.
 - [ ] Native curve math (B-spline / Hermite etc.) without mandating one family in API.
-- [ ] Feasible shortcutting and optional optimization (Ceres isolated behind optional target).
+- [ ] Implement obstacle-aware feasible shortcutting/optimization against the same immutable map snapshot and occupancy policy as search, with **full transformed body** clearance/overlap information considered *during* optimization; choose simple numerical method first, optional Ceres isolated behind optional target (ADR-0024).
 - [ ] Curvature, steering/articulation, endpoint and swept-collision validator.
-- [ ] Original-path fallback on failed refinement; record validation level.
+- [ ] Independently validate model, endpoints and full-body collision of optimizer output under the selected sampled-assurance level; return untouched original path upon failed optimization, exhausted budget or collision (ADR-0024).
 - [ ] Controller-facing evaluation/projection benchmarks.
 
 **Exit:** refined path never silently displaces valid raw path.
