@@ -13,10 +13,10 @@ int main() {
   SearchConfig c;
   validate(c);
   if (c.yawBins != 72 || c.rsTriggerXYMeters != 20.0) return 1;
-  if (hybrid_astar::fixtures::minRearAxleTurningRadiusMeters != 5.0 ||
+  if (hybrid_astar::fixtures::minRearAxleTurningRadiusMeters != 4.0 ||
       hybrid_astar::fixtures::wheelbaseMeters != 2.7 ||
       hybrid_astar::fixtures::bodyFrontXMeters - hybrid_astar::fixtures::bodyRearXMeters != 4.6) return 17;
-  // The max-curvature 0.50m primitive turns by ~5.73 degrees, larger than one 5-degree yaw bin.
+  // The max-curvature 0.50m primitive turns by ~7.16 degrees, larger than one 5-degree yaw bin.
   const double yawDelta = c.primitiveLengthMeters / hybrid_astar::fixtures::minRearAxleTurningRadiusMeters;
   if (quantize(Pose2D{0,0,yawDelta}, Gear::Forward, c).yawBin ==
       quantize(Pose2D{0,0,0}, Gear::Forward, c).yawBin) return 18;
