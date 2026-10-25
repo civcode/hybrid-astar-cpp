@@ -26,6 +26,7 @@ Short records for consequential decisions. Keep the original rationale, add supe
 | [0020](0020-evidence-driven-mvp-simplicity.md) | Accepted | Thorough contracts, lean first implementation; add complexity only for measured need |
 | [0021](0021-independent-multibody-collision-geometry.md) | Accepted | Independent frame-attached multibody collision geometry, support for trailer chains without a scene graph |
 | [0022](0022-opt-in-adaptive-collision-subdivision.md) | Accepted | Whole-shape occupancy-cell intersection; fixed sampling default, adaptive subdivision opt-in |
+| [0023](0023-rk4-arc-length-primitives-and-samples.md) | Accepted | RK4-generated length-terminated primitives with full-state trajectory checkpoints for debugging/visualization |
 
 **Note:** Accepted ADRs record architectural direction. The precise ABI, model contracts, heuristic guarantees, numerical methods and performance targets remain *proposed/open* until review (see [open questions](../architecture/open-questions.md)).
 
