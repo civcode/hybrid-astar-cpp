@@ -24,7 +24,6 @@ std::int64_t floorBin(double value, double step) {
 void validate(const SearchConfig& c) {
   if (!std::isfinite(c.xyBinMeters) || c.xyBinMeters <= 0.0 || c.yawBins == 0 ||
       !std::isfinite(c.primitiveLengthMeters) || c.primitiveLengthMeters <= 0.0 ||
-      !std::isfinite(c.rsTriggerXYMeters) || c.rsTriggerXYMeters < 0.0 ||
       !std::isfinite(c.forwardCostMultiplier) || c.forwardCostMultiplier < 1.0 ||
       !std::isfinite(c.reverseCostMultiplier) || c.reverseCostMultiplier < 1.0 ||
       !std::isfinite(c.gearSwitchCostMeters) || c.gearSwitchCostMeters < 0.0) {
