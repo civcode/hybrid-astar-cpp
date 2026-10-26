@@ -793,6 +793,11 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
   return result;
 }
 
+PlanResult planWithPolicy(const PlanRequest& request,
+                          const planning::PlanarPolicy& policy) {
+  return planImpl(request,policy);
+}
+
 PlanResult plan(const PlanRequest& request) {
   switch(request.options.model) {
   case PlanOptions::Model::Ackermann:
