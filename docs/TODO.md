@@ -3,9 +3,10 @@
 > has been imported. The normative current behavior and remaining W0-W9 gates
 > are tracked in [current-implementation.md](architecture/current-implementation.md).
 > This older checklist and ADR references may predate the verified vertical
-> slice and must not override the current contract. **Still pending:** OMPL
-> signed RS connector and end-to-end integration (W5), lazy obstacle field
-> (W6), optional EDT/disc proof (W7), clearance/quality refinement (W8),
+> slice and must not override the current contract. **Still pending:** OMPL-ON
+> integration verification and benchmarks for signed connector (W5),
+> performance-grid benchmarks and any reachability proof (W6),
+> optional EDT/disc proof (W7), clearance/quality refinement (W8),
 > future chassis/actuation and ROS adapters (W9). No swept/actuator safety
 > certification or validated global optimality is claimed.
 
