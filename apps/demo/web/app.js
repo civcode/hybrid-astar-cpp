@@ -106,6 +106,7 @@ function stats(result) {
 }
 async function replan() {
   if(pending)pending.abort();pending=new AbortController();
+  $('exportButton').disabled=true;
   $('planButton').disabled=true;$('overlay').classList.remove('hidden');$('overlay').textContent='Computing an exact-arc route…';
   animation=false;$('playButton').textContent='▶';
   const keys=['scenario','startx','starty','startyaw','goalx','goaly','goalyaw'];
@@ -116,7 +117,7 @@ async function replan() {
     const res=await fetch('/api/plan?'+params,{signal});
     const result=await res.json();
     if(!res.ok)throw new Error(result.error||'Planning request failed');
-    snapshot=result;$('position').value=0;stats(result);draw();
+    snapshot=result;$('exportButton').disabled=false;$('position').value=0;stats(result);draw();
   } catch(e) {
     if(e.name==='AbortError')return;
     $('message').className='readout bad';$('message').textContent=e.message;
@@ -140,6 +141,15 @@ $('position').addEventListener('input',()=>{$('travel').textContent=(Number($('p
 $('showOriginal').addEventListener('change',draw);
 $('scenario').addEventListener('change',()=>{snapshot=null;resetScenario();replan();});
 $('planButton').addEventListener('click',replan);
+$('exportButton').addEventListener('click',()=>{
+  if(!snapshot)return;
+  const data=new Blob([JSON.stringify(snapshot,null,2)+'\n'],{type:'application/json'});
+  const href=URL.createObjectURL(data);
+  const link=document.createElement('a');
+  link.href=href;link.download='hybrid-astar-'+$('scenario').value+'-plan.json';
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(href),2000);
+});
 $('refine').addEventListener('change',()=>{$('curved').disabled=!$('refine').checked;});
 canvas.addEventListener('click',e=>{
   const g=canvasGeometry();const rect=canvas.getBoundingClientRect();
@@ -154,6 +164,13 @@ new ResizeObserver(draw).observe(canvas);
   resetScenario();$('curved').disabled=true;
   try {const caps=await (await fetch('/api/capabilities')).json();
     $('ompl').disabled=!caps.ompl;$('omplInfo').textContent=caps.ompl?'(available)':'(build without OMPL)';
+    if(caps.customMap) {
+      $('customOption').hidden=false;
+      defaults.custom={name:'Imported PGM map',
+        start:[caps.mapWidthMeters*.2,caps.mapHeightMeters*.5,0],
+        goal:[caps.mapWidthMeters*.8,caps.mapHeightMeters*.5,0]};
+      $('scenario').value='custom';resetScenario();
+    }
   }catch(e){$('connection').textContent='OFFLINE';}
   await replan();
 })();
