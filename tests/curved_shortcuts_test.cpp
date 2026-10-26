@@ -69,6 +69,8 @@ int main() {
   require(ref.path.weightedCostMeters<4.6-1e-3,"cost strictly reduced");
   require(ref.path.solutionQuality==SolutionQuality::FeasibleAfterRefinement,
           "curved section evidence");
+  require(ref.prunedByCostLowerBound>0,
+          "nonnegative cost bound prunes long CSC candidates");
   require(std::abs(ref.path.reached.yaw-req.goal.yaw)<1e-6,"arc final heading");
   // With the built-in straight-only mode, that curved same-position target is
   // intentionally not shortcuttable (backwards-compatible default).
@@ -79,5 +81,7 @@ int main() {
   settings.maxTotalPoseChecks=220;
   const auto bounded=refinePath(req,given(req,{first,second,third}),{},settings);
   require(bounded.path.status==PlanStatus::Success,"bounded curved refiner keeps verified original");
+  require(bounded.exactPoseChecks<=settings.maxTotalPoseChecks,
+          "global strict pose-check budget never exceeded");
   std::cout<<"CURVED SHORTCUTS PASS\n";
 }
