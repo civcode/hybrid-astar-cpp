@@ -46,6 +46,7 @@ private:
   const MapSnapshot& map_;
   OccupancyPolicy policy_;
   Footprint footprint_;
+  double originCos_, originSin_; // map-frame rotation reused for every pose check
 };
 
 // Progress is NONNEGATIVE reference-axle arc length; curvature is signed

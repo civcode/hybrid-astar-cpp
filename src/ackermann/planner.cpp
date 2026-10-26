@@ -1,6 +1,7 @@
 #include "hybrid_astar/ackermann/planner.hpp"
 #include "hybrid_astar/ackermann/cover_prefilter.hpp"
 #include "hybrid_astar/ackermann/clearance.hpp"
+#include "hybrid_astar/ackermann/hotpath_profiler.hpp"
 
 #include <algorithm>
 #include <array>
@@ -72,6 +73,7 @@ void validateOptions(const PlanOptions& o) {
       !std::isfinite(o.finalMaxBodyPointMotionMeters) || o.finalMaxBodyPointMotionMeters<=0 ||
       o.maxSamplesPerSection<2 || o.maxFinalSamplesPerSection<2 ||
       o.maxTotalFinalPoseChecks==0 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
+      o.searchLabelReserve>o.maxGeneratedNodes ||
       o.discPrefilterCount>64 ||
       (o.gridQueueMode!=OpenQueueMode::BinaryLazy &&
        o.gridQueueMode!=OpenQueueMode::FourAryLazy &&
@@ -276,7 +278,8 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
 } // namespace
 
 ExactCollisionChecker::ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy, Footprint footprint)
-  : map_(map), policy_(policy), footprint_(footprint) {
+  : map_(map), policy_(policy), footprint_(footprint),
+    originCos_(std::cos(map.origin.yaw)),originSin_(std::sin(map.origin.yaw)) {
   validateMap(map_,policy_); validateFootprint(footprint_);
   if (policy_.unknown==UnknownPolicy::Reject &&
       std::find(map_.cells.begin(),map_.cells.end(),static_cast<std::int8_t>(-1))!=map_.cells.end())
@@ -291,7 +294,7 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose) const {
   if (!finite(pose)) throw std::invalid_argument("Nonfinite collision pose");
   const double yaw=pose.yaw-map_.origin.yaw;
   const double c=std::cos(yaw),s=std::sin(yaw);
-  const double co=std::cos(map_.origin.yaw),so=std::sin(map_.origin.yaw);
+  const double co=originCos_,so=originSin_;
   const double dx=pose.x-map_.origin.x,dy=pose.y-map_.origin.y;
   const double x0=co*dx+so*dy,y0=-so*dx+co*dy;
   const std::array<Vec2,4> body{{{footprint_.rearX,-footprint_.halfWidth},
