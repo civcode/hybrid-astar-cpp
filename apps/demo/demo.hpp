@@ -1,6 +1,7 @@
 #pragma once
 #include "hybrid_astar/ackermann/planner.hpp"
 #include "hybrid_astar/ackermann/refinement.hpp"
+#include "apps/demo/map_edits.hpp"
 #include <optional>
 #include <memory>
 #include <string>
@@ -10,6 +11,8 @@ namespace hybrid_astar::demo {
 struct Options {
   std::string scenario = "open";
   std::shared_ptr<const ackermann::MapSnapshot> customMap;
+  std::vector<CellEdit> edits;
+  std::uint64_t editGeneration = 0;
   std::optional<Pose2D> start, goal;
   bool refine = false;
   bool curvedRefinement = false;
