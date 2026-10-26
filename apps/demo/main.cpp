@@ -2,6 +2,8 @@
 #include "apps/demo/map_io.hpp"
 #include "apps/demo/map_yaml.hpp"
 #include <charconv>
+#include <cstdint>
+#include <limits>
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
@@ -69,6 +71,15 @@ bool flag(const std::string& value) {
 }
 Options requestOptions(const std::map<std::string,std::string>& params) {
   Options o;
+  if(auto it=params.find("edits");it!=params.end())o.edits=hybrid_astar::demo::parseCellEdits(it->second);
+  if(auto it=params.find("editRevision");it!=params.end()) {
+    std::uint64_t value=0;
+    const auto& raw=it->second;
+    const auto [end,error]=std::from_chars(raw.data(),raw.data()+raw.size(),value);
+    if(raw.empty()||error!=std::errc{}||end!=raw.data()+raw.size()||value>1000000000ULL)
+      throw std::invalid_argument("Invalid editRevision");
+    o.editGeneration=value;
+  }
   if(auto it=params.find("scenario");it!=params.end())o.scenario=it->second;
   if(auto it=params.find("refine");it!=params.end())o.refine=flag(it->second);
   if(auto it=params.find("curved");it!=params.end())o.curvedRefinement=flag(it->second);
@@ -85,7 +96,7 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   };
   o.start=coords("start");o.goal=coords("goal");
   for(const auto& [name,_]:params) {
-    if(name!="scenario"&&name!="refine"&&name!="curved"&&name!="performance"&&
+    if(name!="scenario"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="curved"&&name!="performance"&&
        name!="improve"&&name!="ompl"&&name!="startx"&&name!="starty"&&
        name!="startyaw"&&name!="goalx"&&name!="goaly"&&name!="goalyaw")
       throw std::invalid_argument("Unknown option: "+name);
@@ -121,31 +132,106 @@ void sendReply(int fd,int code,std::string_view type,const std::string& body) {
   }
 }
 void handle(int client,const std::shared_ptr<const hybrid_astar::ackermann::MapSnapshot>& customMap) {
-  char data[8193]{};
-  const auto received=::recv(client,data,8192,0);
-  if(received<=0)return;
-  std::string_view request(data,static_cast<std::size_t>(received));
-  const auto firstEnd=request.find("\r\n");
-  if(firstEnd==std::string_view::npos) {sendReply(client,400,"application/json",jsonError("Invalid request line"));return;}
-  const auto line=request.substr(0,firstEnd);
-  if(!line.starts_with("GET ")) {sendReply(client,405,"application/json",jsonError("Only GET is supported"));return;}
-  const auto end=line.find(' ',4);
-  if(end==std::string_view::npos||end-4>2048) {sendReply(client,400,"application/json",jsonError("Invalid request URL"));return;}
-  const auto url=line.substr(4,end-4);
-  const auto q=url.find('?');const auto route=url.substr(0,q);
+  // Bound both headers and form data. A timeout prevents a half-open local
+  // connection from blocking this deliberately single-threaded demo server.
+  timeval timeout{5,0};
+  ::setsockopt(client,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof(timeout));
+  ::setsockopt(client,SOL_SOCKET,SO_SNDTIMEO,&timeout,sizeof(timeout));
+  constexpr std::size_t maxHeader=8192,maxBody=65536;
+  std::string request;
+  request.reserve(maxHeader);
+  char chunk[4096];
+  std::size_t endHeaders=std::string::npos;
+  while((endHeaders=request.find("\r\n\r\n"))==std::string::npos) {
+    if(request.size()>maxHeader) {
+      sendReply(client,400,"application/json",jsonError("Headers too long"));return;
+    }
+    const auto n=::recv(client,chunk,sizeof(chunk),0);
+    if(n<=0) {
+      sendReply(client,400,"application/json",jsonError("Incomplete HTTP headers"));return;
+    }
+    request.append(chunk,static_cast<std::size_t>(n));
+    if(request.size()>maxHeader+maxBody) {
+      sendReply(client,400,"application/json",jsonError("Request too long"));return;
+    }
+  }
+  if(endHeaders>maxHeader) {
+    sendReply(client,400,"application/json",jsonError("Headers too long"));return;
+  }
+  const auto lineEnd=request.find("\r\n");
+  if(lineEnd==std::string::npos) {
+    sendReply(client,400,"application/json",jsonError("Invalid request line"));return;
+  }
+  const auto line=std::string_view(request).substr(0,lineEnd);
+  const auto methodEnd=line.find(' ');
+  const auto urlEnd=methodEnd==std::string_view::npos?std::string_view::npos:line.find(' ',methodEnd+1);
+  if(urlEnd==std::string_view::npos||urlEnd-methodEnd>2050) {
+    sendReply(client,400,"application/json",jsonError("Invalid request URL"));return;
+  }
+  const auto method=line.substr(0,methodEnd);
+  const auto url=line.substr(methodEnd+1,urlEnd-methodEnd-1);
+  const auto queryAt=url.find('?'),route=url.substr(0,queryAt);
+  if(method!="GET"&&method!="POST") {
+    sendReply(client,405,"application/json",jsonError("Only GET and planning POST are supported"));return;
+  }
+  if(method=="POST"&&route!="/api/plan") {
+    sendReply(client,405,"application/json",jsonError("POST is only supported for /api/plan"));return;
+  }
   try {
+    std::string_view params;
+    if(method=="POST") {
+      bool sawLength=false,sawType=false;
+      std::size_t length=0;
+      auto header=std::string_view(request).substr(lineEnd+2,endHeaders-lineEnd-2);
+      while(!header.empty()) {
+        const auto split=header.find("\r\n");
+        const auto part=header.substr(0,split);
+        const auto colon=part.find(':');
+        if(colon==std::string_view::npos)throw std::invalid_argument("Invalid HTTP header");
+        std::string key(part.substr(0,colon));
+        for(char& ch:key) if(ch>='A'&&ch<='Z')ch=char(ch-'A'+'a');
+        const auto start=part.find_first_not_of(" \t",colon+1);
+        const auto value=start==std::string_view::npos?std::string_view{}:part.substr(start);
+        if(key=="content-length") {
+          if(sawLength)throw std::invalid_argument("Duplicate Content-Length");
+          sawLength=true;
+          const auto [stop,err]=std::from_chars(value.data(),value.data()+value.size(),length);
+          if(err!=std::errc{}||stop!=value.data()+value.size()||length>maxBody)
+            throw std::invalid_argument("Invalid or oversized Content-Length");
+        } else if(key=="content-type") {
+          if(sawType)throw std::invalid_argument("Duplicate Content-Type");
+          sawType=true;
+          if(!value.starts_with("application/x-www-form-urlencoded"))
+            throw std::invalid_argument("Expected URL-encoded planning form");
+        } else if(key=="transfer-encoding")
+          throw std::invalid_argument("Chunked transfer is unsupported");
+        if(split==std::string_view::npos)break;
+        header.remove_prefix(split+2);
+      }
+      if(!sawLength||!sawType)throw std::invalid_argument("POST requires Content-Length and Content-Type");
+      const std::size_t offset=endHeaders+4;
+      if(request.size()-offset>length)throw std::invalid_argument("Excess POST body bytes");
+      while(request.size()-offset<length) {
+        const auto remaining=length-(request.size()-offset);
+        const auto n=::recv(client,chunk,std::min(remaining,sizeof(chunk)),0);
+        if(n<=0)throw std::invalid_argument("Truncated planning form");
+        request.append(chunk,static_cast<std::size_t>(n));
+      }
+      params=std::string_view(request).substr(offset,length);
+    } else params=queryAt==std::string_view::npos?std::string_view{}:url.substr(queryAt+1);
     if(route=="/"||route=="/index.html")sendReply(client,200,"text/html; charset=utf-8",loadAsset("index.html"));
     else if(route=="/map_geometry.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("map_geometry.js"));
     else if(route=="/app.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("app.js"));
     else if(route=="/style.css")sendReply(client,200,"text/css; charset=utf-8",loadAsset("style.css"));
     else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson(customMap.get()));
     else if(route=="/api/plan") {
-      const auto query=q==std::string_view::npos?std::string_view{}:url.substr(q+1);
-      auto options=requestOptions(queryParameters(query));
+      auto options=requestOptions(queryParameters(params));
       options.customMap=customMap;
       sendReply(client,200,"application/json",hybrid_astar::demo::toJson(hybrid_astar::demo::run(options)));
     } else sendReply(client,404,"application/json",jsonError("Not found"));
-  } catch(const std::exception& e) {sendReply(client,400,"application/json",jsonError(e.what()));}
+  }catch(const std::exception& e) {
+    sendReply(client,400,"application/json",jsonError(e.what()));
+  }
 }
 void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<const hybrid_astar::ackermann::MapSnapshot>& customMap) {
   const int server=::socket(AF_INET,SOCK_STREAM,0);
