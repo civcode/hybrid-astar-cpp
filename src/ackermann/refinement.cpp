@@ -205,6 +205,7 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
             ++result.rejected;continue;
           }
           result.path=makeVerified(req,result.path,evaluated);
+          result.path.solutionQuality=SolutionQuality::FeasibleAfterRefinement;
           ++result.accepted;
           changed=true;
           break;
@@ -219,7 +220,8 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
     // If original was validated before an exceptional proposal, it is safe
     // to return. Otherwise never advertise a path as verified.
     result.status=result.path.status==PlanStatus::Success?
-                   RefinementStatus::Unchanged:RefinementStatus::OriginalNotVerified;
+                   (result.accepted?RefinementStatus::Improved:RefinementStatus::Unchanged):
+                   RefinementStatus::OriginalNotVerified;
   }
   return result;
 }
