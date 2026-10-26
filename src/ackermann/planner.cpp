@@ -266,6 +266,7 @@ void summarizePath(PlanResult& r) {
     const auto& section=r.sections[i];
     r.geometricLengthMeters+=section.lengthMeters;
     if (section.gear==Gear::Reverse) r.reverseLengthMeters+=section.lengthMeters;
+    if(section.kind==MotionKind::RotateInPlace)continue;
     if (previous!=Gear::None && previous!=section.gear) r.gearChangeSectionIndices.push_back(i);
     previous=section.gear;
   }
@@ -287,9 +288,14 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
     else ++stats->searchMotionCalls;
   }
   if (!std::isfinite(section.lengthMeters) || section.lengthMeters<0) return MotionStatus::Incomplete;
-  // Upper bound on translation+rotation of EVERY body point per interval.
-  const double factor=1.0+checker.maxBodyRadius()*std::abs(section.curvature);
-  const double divisions=std::max(section.lengthMeters/step,section.lengthMeters*factor/bodyStep);
+  // For a spin, reference travel is ZERO but every off-center body point
+  // moves as much as radius*|yaw change|. Never use length-only sampling.
+  const bool spin=section.kind==MotionKind::RotateInPlace;
+  const double divisions=spin
+      ? checker.maxBodyRadius()*std::abs(section.turnRadians)/bodyStep
+      : std::max(section.lengthMeters/step,
+                 section.lengthMeters*(1.0+checker.maxBodyRadius()*
+                                     std::abs(section.curvature))/bodyStep);
   if (!std::isfinite(divisions) || divisions > static_cast<double>(limit-1)) return MotionStatus::Incomplete;
   const std::size_t n=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(divisions)));
   const bool useTemplate=templateMotion && templateMotion->samples.size()==n+1;
@@ -301,8 +307,8 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
     if (checks>=maxTotalChecks) return MotionStatus::Incomplete;
     const auto pose=[&]() -> Pose2D {
       if(!useTemplate)
-        return section.evaluate(i==n ? section.lengthMeters :
-                                section.lengthMeters*static_cast<double>(i)/n);
+        return section.evaluate(i==n ? section.progressExtent() :
+                                section.progressExtent()*static_cast<double>(i)/n);
       const auto& relative=templateMotion->samples[i].localPose;
       return {section.start.x+anchorCos*relative.x-anchorSin*relative.y,
               section.start.y+anchorSin*relative.x+anchorCos*relative.y,
@@ -386,10 +392,27 @@ MotionSection makeSection(const Pose2D& p, Gear g, double curvature, double leng
   return section;
 }
 
+MotionSection makeRotationSection(const Pose2D& start,double signedTurnRadians) {
+  if(!finite(start)||!std::isfinite(signedTurnRadians)||signedTurnRadians==0)
+    throw std::invalid_argument("Invalid stationary rotation section");
+  MotionSection section;
+  section.start=start;section.gear=Gear::None;
+  section.kind=MotionKind::RotateInPlace;
+  section.turnRadians=signedTurnRadians;
+  section.end=section.evaluate(std::abs(signedTurnRadians));
+  return section;
+}
+
 Pose2D MotionSection::evaluate(double progress) const {
-  if (!finite(start) || gear==Gear::None || !std::isfinite(curvature) ||
-      !std::isfinite(lengthMeters) || lengthMeters<0 || !std::isfinite(progress) ||
-      progress<0 || progress>lengthMeters)
+  if(kind==MotionKind::RotateInPlace) {
+    if(!finite(start)||!std::isfinite(turnRadians)||turnRadians==0||
+       !std::isfinite(progress)||progress<0||progress>std::abs(turnRadians))
+      throw std::invalid_argument("Invalid rotation section progress");
+    return {start.x,start.y,wrap(start.yaw+std::copysign(progress,turnRadians))};
+  }
+  if (kind!=MotionKind::Translate||!finite(start) || gear==Gear::None ||
+      !std::isfinite(curvature) || !std::isfinite(lengthMeters) ||
+      lengthMeters<0 || !std::isfinite(progress) || progress<0 || progress>lengthMeters)
     throw std::invalid_argument("Invalid Ackermann section evaluation");
   const double d=(gear==Gear::Forward?1.0:-1.0)*progress;
   const double delta=curvature*d;
