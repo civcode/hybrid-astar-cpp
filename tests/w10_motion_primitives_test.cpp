@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <memory>
+#include <limits>
 #include <numbers>
 #include <stdexcept>
 
@@ -25,7 +26,7 @@ static Pose2D rk4(const dd::Model& model,Pose2D state,dd::Control u,double t) {
   constexpr int steps=12000;
   const double dt=t/steps;
   auto advance=[&](Pose2D p,dd::Derivative k,double scale) {
-    return Pose2D{p.x+scale*k.dx,p.y+scale*k.dyaw*0.+scale*k.dy,
+    return Pose2D{p.x+scale*k.dx,p.y+scale*k.dy,
                   p.yaw+scale*k.dyaw};
   };
   for(int i=0;i<steps;++i) {
