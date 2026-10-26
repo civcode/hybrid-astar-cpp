@@ -28,6 +28,8 @@ target_compile_features(hybrid_astar_differential_drive PUBLIC cxx_std_20)
 target_include_directories(hybrid_astar_differential_drive PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
 add_library(hybrid_astar::differential_drive ALIAS hybrid_astar_differential_drive)
+# Core search invokes differential primitive generation when that model is selected.
+target_link_libraries(hybrid_astar_core PUBLIC hybrid_astar_differential_drive)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
 if(HYBRID_ASTAR_PROFILE_HOTPATHS)
   target_compile_definitions(hybrid_astar_core PRIVATE HYBRID_ASTAR_PROFILE_HOTPATHS=1)
