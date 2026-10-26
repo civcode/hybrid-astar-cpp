@@ -89,5 +89,20 @@ int main() {
     require(plan(q).status==PlanStatus::Success,
             "larger independent strict cap permits complete validation");
   }
+  {
+    auto m=map();PlanRequest q;q.map=m;
+    q.start={20,20,0};q.goal={21,20,0};
+    q.options.maxTotalFinalPoseChecks=1;
+    const auto incomplete=plan(q);
+    require(incomplete.status==PlanStatus::ValidationIncomplete,
+            "global final-check cap cannot return unchecked success");
+    require(incomplete.collisionEvidence==CollisionEvidence::None,
+            "no collision evidence after incomplete required work");
+    require(incomplete.diagnostics.finalPoseChecks<=1,
+            "strict whole-request check count never exceeds limit");
+    q.options.maxTotalFinalPoseChecks=0;
+    require(plan(q).status==PlanStatus::InvalidRequest,
+            "zero strict final work allowance is invalid");
+  }
   std::cout<<"SCENARIOS PASS\n";
 }
