@@ -2,12 +2,14 @@
 #include "hybrid_astar/ackermann/planner.hpp"
 #include "hybrid_astar/ackermann/refinement.hpp"
 #include <optional>
+#include <memory>
 #include <string>
 #include <string_view>
 
 namespace hybrid_astar::demo {
 struct Options {
   std::string scenario = "open";
+  std::shared_ptr<const ackermann::MapSnapshot> customMap;
   std::optional<Pose2D> start, goal;
   bool refine = false;
   bool curvedRefinement = false;
@@ -25,5 +27,5 @@ struct Outcome {
 ackermann::PlanRequest makeRequest(std::string_view scenario);
 Outcome run(const Options& options);
 std::string toJson(const Outcome& result);
-std::string capabilitiesJson();
+std::string capabilitiesJson(bool customMapAvailable=false);
 } // namespace hybrid_astar::demo
