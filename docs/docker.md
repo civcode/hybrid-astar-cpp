@@ -58,7 +58,7 @@ docker run --rm -p 127.0.0.1:8765:8765 \
   --map /imported/my-map.pgm --resolution 0.25
 ```
 
-The browser automatically selects **Imported PGM map** when available. Its
+The browser automatically selects **Imported map** when available. Its
 **Export path JSON** button downloads the actual core planner results to your
 browser, not a file written inside the container. CLI JSON export remains
 available with `--once --output FILE.json`, where FILE refers to the
@@ -67,6 +67,23 @@ container filesystem unless a writeable host volume is mounted.
 PGM maps use top-row-first raster order, 0=obstacle, white=free and the
 grayscale value 205 as unknown for maxval=255. The default occupancy policy
 treats unknown as occupied. No remote map-upload endpoint is enabled.
+
+### Load a ROS map YAML descriptor
+
+The image includes [`sample.yaml`](../apps/demo/maps/sample.yaml), which
+references the sibling `sample.pgm` file and uses a 90° rotated world origin.
+
+```bash
+docker run --rm -p 127.0.0.1:8765:8765 hybrid-astar:demo \
+  ./build-docker/hybrid_astar_demo --bind 0.0.0.0 \
+  --map-yaml apps/demo/maps/sample.yaml
+```
+
+When mounting your own map files, mount the **YAML and PGM together** so
+relative image paths resolve within the container. The browser map, vehicle
+headings and click placement use the YAML translation/yaw. The Docker image
+also includes Node.js for an optional coordinate round-trip CTest.
+This restricted map YAML reader supports P2/P5 and `mode: trinary` only.
 
 ## Run Catch2 + CTest (explicit manual action)
 

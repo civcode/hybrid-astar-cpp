@@ -74,7 +74,7 @@ filenames or data from an HTTP query.
 
 ```bash
 ./build-demo/hybrid_astar_demo --map apps/demo/maps/sample.pgm --resolution 0.5
-# Browse http://127.0.0.1:8765, then select Imported PGM map
+# Browse http://127.0.0.1:8765, then select Imported map
 
 ./build-demo/hybrid_astar_demo --once \
   --map apps/demo/maps/sample.pgm --resolution 0.5 \
@@ -94,9 +94,8 @@ maxval=255, the shade 205 is interpreted as **unknown** (-1), matching
 common ROS map files. By default unknown cells are treated as occupied by
 the planner. The first PGM row is at the **top** of the image; the loader
 flips it to the map's bottom-left positive-Y convention. Resolution defaults
-to 0.25 metres/pixel and is set with `--resolution`. Origin and yaw are
-currently fixed to `(0,0,0)`; support for ROS map YAML metadata is future
-work. Files are limited to 1024×1024 dimensions, at most **262,144 pixels**
+to 0.25 metres/pixel and is set with `--resolution`. Bare PGM imports use an origin of `(0,0,0)`; use `--map-yaml` for
+translated or rotated map origins. Files are limited to 1024×1024 dimensions, at most **262,144 pixels**
 and finite 0–2 metres/pixel resolution. The loader rejects malformed headers,
 truncated data, excess pixels, and unsupported formats.
 
@@ -104,6 +103,42 @@ Imported map data is immutable for each request. Start and goal initial
 positions are chosen at 20% and 80% of map width along its vertical midpoint;
 they must be adjusted for maps where either footprint is blocked. Collision
 checking is still done by the core filled-footprint checker.
+
+### ROS-style YAML map metadata with rotated origins
+
+The new `--map-yaml` option loads a map-server-style YAML description and
+its referenced P2/P5 PGM raster. Relative `image:` paths resolve relative to
+the YAML file, not the process's working directory:
+
+```bash
+./build-demo/hybrid_astar_demo \
+  --map-yaml apps/demo/maps/sample.yaml
+
+./build-demo/hybrid_astar_demo --once \
+  --map-yaml apps/demo/maps/sample.yaml \
+  --output /tmp/rotated-plan.json
+```
+
+The bundled sample uses a **90° map yaw**, a nonzero world translation and
+`mode: trinary`. The C++ planner now initializes custom start/goal poses in
+the **rotated world frame**, and the browser translates world-to-map
+coordinates for occupancy rendering, path samples and click-to-place.
+All pose fields remain world x/y in metres and yaw in **degrees** on the UI
+and CLI. YAML `origin: [x, y, yaw]` instead uses **radians**, as in ROS.
+
+Supported metadata: `image`, `resolution`, `origin`, `negate`,
+`occupied_thresh`, `free_thresh`, and `mode: trinary`. The probability
+model is `negate ? pixel/maxval : 1 - pixel/maxval`; values above
+`occupied_thresh` become blocked, below `free_thresh` become free, and
+intermediate values remain unknown/occupied by default. The legacy bare
+`--map` PGM behavior remains unchanged.
+
+This is a **restricted flat map YAML schema**, not a complete YAML parser:
+multiline YAML, compressed/PNG raster formats, `scale`/`raw` modes and
+external frame metadata are not accepted. A YAML map supplies its own
+resolution, so `--resolution` cannot be combined with `--map-yaml`.
+The user supplies the file at application startup; the HTTP API cannot
+open an arbitrary server-side YAML path.
 
 ## CLI / simple JSON API
 
@@ -157,6 +192,7 @@ enforcement. No GitHub Actions triggers are added.
 
 ## Code
 
+- `apps/demo/map_io.{hpp,cpp}`, `apps/demo/map_yaml.{hpp,cpp}`: PGM raster and restricted map-server YAML import
 - `apps/demo/demo.hpp`, `apps/demo/demo.cpp`: scenario
   creation, synchronous planner/refiner orchestration and JSON output
 - `apps/demo/main.cpp`: native command line and loopback HTTP server
@@ -164,5 +200,5 @@ enforcement. No GitHub Actions triggers are added.
 - `tests/demo_test.cpp` and `tests/demo_http_test.py`:
   local end-to-end regression checks
 
-The current demo ships built-in maps only; reading arbitrary PGM/ROS
-OccupancyGrid files or writing ROS paths is a later application milestone.
+The demo ships built-in maps and local PGM/YAML imports. Reading arbitrary
+ROS OccupancyGrid messages or publishing ROS paths remains future work.

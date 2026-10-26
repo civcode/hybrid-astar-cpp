@@ -36,8 +36,10 @@ cmake --build build-demo --parallel --target hybrid_astar_demo
 ```
 
 Open **http://127.0.0.1:8765**. To explore a custom occupancy map,
-start the app with `--map apps/demo/maps/sample.pgm --resolution 0.5`.
-The app accepts PGM P2/P5 files with bounded dimensions and uses the actual
+start the app with `--map apps/demo/maps/sample.pgm --resolution 0.5`,
+or use **`--map-yaml apps/demo/maps/sample.yaml`** for ROS-style resolution,
+occupancy thresholds and a translated/rotated origin.
+The app accepts bounded PGM P2/P5 files and restricted map-server YAML and uses the actual
 C++ planner to validate every accepted route. The browser now provides
 **Export path JSON**, and CLI mode supports `--once --output plan.json`.
 See [map loading and export semantics](apps/demo/README.md#import-a-pgm-map-and-export-a-validated-planning-result).

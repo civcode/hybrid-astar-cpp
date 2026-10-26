@@ -124,6 +124,16 @@ browser pathfinding implementation. Local C++ demo and loopback HTTP smoke
 tests are separately registered when the demo is built; Python 3 enables
 the network smoke test where available. See [app usage](../../apps/demo/README.md).
 
+A subsequent app-only extension supports local P2/P5 PGM import and
+restricted ROS `mode: trinary` map-server YAML, including `image`,
+`resolution`, `origin=[x,y,yaw]`, `negate` and occupancy thresholds.
+Custom pose defaults, path visualization and canvas click world coordinates
+now use the same nonzero map translation/yaw as the core planner.
+The `apps/demo/maps/sample.yaml` fixture uses a 90-degree origin rotation;
+the C++ loader and independent JavaScript transform have local tests.
+Unsupported arbitrary YAML schemas/PNG/ROS message integration remain deferred.
+The browser/CLI can export JSON but this is still not a timed ROS Path.
+
 This is a **single-user developer demo**, not a dynamic-map/ROS/Nav2
 integration or remote/public HTTP service. It advertises only the core's
 static-map **adaptive-sampled geometric evidence**, not certified swept

@@ -22,6 +22,18 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Next Planning Lab increment — rotated ROS YAML (2026-10-26)
+
+- [x] Load flat ROS map-server YAML with a sibling/relative PGM image.
+- [x] Respect resolution, translated/rotated origin, negate and trinary
+  occupancy thresholds; preserve unknown cells conservatively.
+- [x] Transform C++ default start/goal and browser map/world XY
+  consistently. Add a checked-in 90-degree sample map descriptor.
+- [x] Register Catch2 YAML/PGM threshold tests and Node geometry
+  round-trip tests (Node also provisioned by Docker).
+- [ ] Execute new Catch2/Docker-OMPL matrix on a Docker host; direct local
+  Clang sanitizer, GCC planner and Node geometry probes already passed.
+
 ## Subsequent Planning Lab application increment — 2026-10-26
 
 - [x] Add P2/P5 parser bounds, orientation/unknown-occupancy Catch2 tests,
@@ -71,8 +83,11 @@ See [Docker/testing guide](docker.md) and [demo usage](../apps/demo/README.md).
 - [x] Export planning output as CLI JSON (`--once --output`) or browser
   download, including motion sections, provenance, sampled collision evidence,
   termination reason and explicit lack of actuator feasibility.
-- [ ] Extend map import to map YAML origin/frame metadata and arbitrary
-  occupancy sources only after defining and testing the schema.
+- [x] Implement restricted ROS map-server YAML (PGM, trinary mode) with
+  `image` resolution, world-frame origin/yaw, negate and thresholds.
+  Custom-map default poses and browser XY conversions now honor rotation.
+- [ ] Add comprehensive YAML features, PNG raster, frame metadata and
+  ROS OccupancyGrid integration only with a separately validated schema.
 - [ ] Add downstream timed trajectory and steering-actuator visualization
   only after those models are actually implemented and validated.
 - [ ] Verify the browser UI on target operating systems and build against a
