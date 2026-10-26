@@ -50,7 +50,7 @@ function drawPose(p,color,g,body=false) {
   ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2.5;
   ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);ctx.fill();
   const isDiff=$('model').value==='differential';
-  const headLength=isDiff?.35:1.6;
+  const headLength=isDiff ? 0.35 : 1.6;
   const [tx,ty]=mapPoint(p[0]+headLength*Math.cos(p[2]),p[1]+headLength*Math.sin(p[2]),g);
   ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
   if(!body)return;
