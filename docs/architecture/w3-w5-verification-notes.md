@@ -1,5 +1,16 @@
 # W3–W5 follow-up implementation and verification — 2026-10-26
 
+> **Later verification update, 2026-10-26:** This is a historical record
+> from before the OMPL source archive was supplied. The actual OMPL 2.0.2
+> RS implementation has since been compiled and executed in the focused offline
+> CMake harness, including 12,000 signed endpoint cases and sanitizer runs.
+> A combined `planAndRefineWithReedsShepp()` adapter and a cumulative strict
+> final-validation check budget have also been implemented. See
+> [real OMPL source verification](w5-ompl-source-verification.md) for the
+> **current** test evidence and remaining full-package build gate.
+
+
+
 This is an engineering verification note, not a certification of
 continuous swept-body safety or timed actuator feasibility. Read the
 [current implementation contract](current-implementation.md) and the
