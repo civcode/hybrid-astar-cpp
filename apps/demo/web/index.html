@@ -10,7 +10,7 @@
 <label class="label" for="scenario">Environment</label><select id="scenario">
 <option value="open">Open field</option><option value="reverse">Reverse maneuver</option>
 <option value="parking">Parking approach</option><option value="warehouse">Warehouse obstacles</option>
-<option value="blocked">Unreachable wall</option><option value="custom" id="customOption" hidden>Imported PGM map</option></select>
+<option value="blocked">Unreachable wall</option><option value="custom" id="customOption" hidden>Imported map</option></select>
 <div class="divider"></div><div class="section-label">START POSE <small>Click map to place</small></div>
 <div class="coords"><label>X (m)<input id="startx" type="number" step="0.25"/></label><label>Y (m)<input id="starty" type="number" step="0.25"/></label><label>Yaw (°)<input id="startyaw" type="number" step="5"/></label></div>
 <div class="section-label">GOAL POSE <small>Shift-click map to place</small></div>
@@ -36,4 +36,4 @@
 <div><span>REVERSE</span><strong id="reverseLen">—</strong></div><div><span>EXPANSIONS</span><strong id="expanded">—</strong></div>
 <div><span>PLANNING TIME</span><strong id="elapsed">—</strong></div></div>
 </section></div><footer>Hybrid A* Planning Lab · Geometric path planning · No actuator or swept-volume safety claim</footer></main>
-<script src="/app.js" defer></script></body></html>
+<script src="/map_geometry.js" defer></script><script src="/app.js" defer></script></body></html>

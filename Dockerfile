@@ -6,7 +6,7 @@ FROM ubuntu:24.04 AS dependencies
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake ninja-build pkg-config \
-    ca-certificates curl tar python3 \
+    ca-certificates curl tar python3 nodejs \
     catch2 libeigen3-dev libboost-all-dev \
     libflann-dev libode-dev libyaml-cpp-dev \
   && rm -rf /var/lib/apt/lists/*

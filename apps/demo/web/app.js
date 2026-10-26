@@ -8,6 +8,7 @@ const defaults = {
   blocked:   {name:'Unreachable wall',start:[10,20,0],goal:[35,20,0]}
 };
 let snapshot=null, pending=null, animation=false, lastFrame=0;
+let customOrigin=[0,0,0];
 const canvas=$('map'), ctx=canvas.getContext('2d');
 function setPose(prefix,v) {['x','y','yaw'].forEach((s,i)=>$(prefix+s).value=Number(v[i]).toFixed(i===2?0:2));}
 function resetScenario() {
@@ -29,8 +30,18 @@ function canvasGeometry() {
   const ox=(w-mw*scale)/2,oy=(h-mh*scale)/2;
   return {w,h,mw,mh,scale,ox,oy};
 }
-function mapPoint(x,y,g) {return [g.ox+x*g.scale,g.oy+(g.mh-y)*g.scale];}
-function worldPoint(px,py,g) {return [(px-g.ox)/g.scale,g.mh-(py-g.oy)/g.scale];}
+function activeOrigin() {
+  return snapshot?.origin||($('scenario').value==='custom'?customOrigin:[0,0,0]);
+}
+function localPoint(x,y,g) {return [g.ox+x*g.scale,g.oy+(g.mh-y)*g.scale];}
+function mapPoint(x,y,g) {
+  const [lx,ly]=MapGeometry.toLocal(x,y,activeOrigin());
+  return localPoint(lx,ly,g);
+}
+function worldPoint(px,py,g) {
+  const lx=(px-g.ox)/g.scale,ly=g.mh-(py-g.oy)/g.scale;
+  return MapGeometry.toWorld(lx,ly,activeOrigin());
+}
 function drawPose(p,color,g,body=false) {
   const [x,y]=mapPoint(p[0],p[1],g);
   ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2.5;
@@ -69,11 +80,11 @@ function draw() {
   const g=canvasGeometry();ctx.clearRect(0,0,g.w,g.h);
   ctx.fillStyle='#112238';ctx.fillRect(g.ox,g.oy,g.mw*g.scale,g.mh*g.scale);
   ctx.strokeStyle='#2c4157';ctx.lineWidth=.7;
-  for(let x=0;x<=g.mw;x+=5){const [sx]=mapPoint(x,0,g);ctx.beginPath();ctx.moveTo(sx,g.oy);ctx.lineTo(sx,g.oy+g.mh*g.scale);ctx.stroke();}
-  for(let y=0;y<=g.mh;y+=5){const [,sy]=mapPoint(0,y,g);ctx.beginPath();ctx.moveTo(g.ox,sy);ctx.lineTo(g.ox+g.mw*g.scale,sy);ctx.stroke();}
+  for(let x=0;x<=g.mw;x+=5){const [sx]=localPoint(x,0,g);ctx.beginPath();ctx.moveTo(sx,g.oy);ctx.lineTo(sx,g.oy+g.mh*g.scale);ctx.stroke();}
+  for(let y=0;y<=g.mh;y+=5){const [,sy]=localPoint(0,y,g);ctx.beginPath();ctx.moveTo(g.ox,sy);ctx.lineTo(g.ox+g.mw*g.scale,sy);ctx.stroke();}
   if(snapshot) {
     for(const [x,y,length,value] of snapshot.mapRuns) {
-      const [sx,sy]=mapPoint(x*snapshot.resolution,(y+1)*snapshot.resolution,g);
+      const [sx,sy]=localPoint(x*snapshot.resolution,(y+1)*snapshot.resolution,g);
       ctx.fillStyle=value===-1?'#a58b61':'#71859e';
       ctx.fillRect(sx,sy,Math.max(1,length*snapshot.resolution*g.scale),Math.max(1,snapshot.resolution*g.scale));
     }
@@ -153,8 +164,10 @@ $('exportButton').addEventListener('click',()=>{
 $('refine').addEventListener('change',()=>{$('curved').disabled=!$('refine').checked;});
 canvas.addEventListener('click',e=>{
   const g=canvasGeometry();const rect=canvas.getBoundingClientRect();
-  const [x,y]=worldPoint(e.clientX-rect.left,e.clientY-rect.top,g);
-  if(x<0||x>g.mw||y<0||y>g.mh)return;
+  const px=e.clientX-rect.left,py=e.clientY-rect.top;
+  const lx=(px-g.ox)/g.scale,ly=g.mh-(py-g.oy)/g.scale;
+  if(lx<0||lx>g.mw||ly<0||ly>g.mh)return;
+  const [x,y]=worldPoint(px,py,g);
   const prefix=e.shiftKey?'goal':'start';
   $(prefix+'x').value=x.toFixed(2);$(prefix+'y').value=y.toFixed(2);
   snapshot=null;draw();replan();
@@ -166,9 +179,12 @@ new ResizeObserver(draw).observe(canvas);
     $('ompl').disabled=!caps.ompl;$('omplInfo').textContent=caps.ompl?'(available)':'(build without OMPL)';
     if(caps.customMap) {
       $('customOption').hidden=false;
-      defaults.custom={name:'Imported PGM map',
-        start:[caps.mapWidthMeters*.2,caps.mapHeightMeters*.5,0],
-        goal:[caps.mapWidthMeters*.8,caps.mapHeightMeters*.5,0]};
+      customOrigin=caps.origin||[0,0,0];
+      const start=MapGeometry.toWorld(caps.mapWidthMeters*.2,caps.mapHeightMeters*.5,customOrigin);
+      const goal=MapGeometry.toWorld(caps.mapWidthMeters*.8,caps.mapHeightMeters*.5,customOrigin);
+      defaults.custom={name:'Imported map',
+        start:[...start,customOrigin[2]*180/Math.PI],
+        goal:[...goal,customOrigin[2]*180/Math.PI]};
       $('scenario').value='custom';resetScenario();
     }
   }catch(e){$('connection').textContent='OFFLINE';}
