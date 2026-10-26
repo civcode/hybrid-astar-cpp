@@ -107,6 +107,28 @@ The scheduler API now takes **search XY-bin meters**, not map resolution.
 Legacy collision options default to full-footprint, while explicitly
 boundary-only diagnostic mode cannot be used by `plan()`.
 
+## Optional developer demonstration application
+
+The independent `app/` **Planning Lab** runs the shipped Ackermann
+`plan()` directly from a localhost-only C++20 HTTP/CLI executable.
+Build with `HYBRID_ASTAR_BUILD_APP=ON` (default **OFF**); browse at
+`http://127.0.0.1:8765`. Five preconfigured 50 × 40 m occupancy maps,
+editable/clickable XY/yaw start and goal, online replanning, reverse/forward
+section displays, full vehicle footprint playback, strict status and
+cost/expansion/time readouts are supplied without any ROS/browser framework.
+The mode can invoke strict `refinePath()`, native CSC shortcuts, optional
+performance-grid heuristic and bounded improvement. If the separate optional
+OMPL target is built, its signed Reeds–Shepp planning/refinement is available.
+The native UI uses the library's actual returned exact arcs, not a distinct
+browser pathfinding implementation. Local C++ demo and loopback HTTP smoke
+tests are separately registered when the demo is built; Python 3 enables
+the network smoke test where available. See [app usage](../../app/README.md).
+
+This is a **single-user developer demo**, not a dynamic-map/ROS/Nav2
+integration or remote/public HTTP service. It advertises only the core's
+static-map **adaptive-sampled geometric evidence**, not certified swept
+clearance, timed steering/actuator feasibility or global optimum.
+
 ## Important limitations (never advertise as implemented)
 
 - **W5:** The signed connector and reusable OMPL evaluator are implemented.
