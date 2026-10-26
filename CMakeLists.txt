@@ -3,6 +3,7 @@ project(hybrid_astar_cpp VERSION 0.1.0 LANGUAGES CXX)
 
 option(HYBRID_ASTAR_ENABLE_OMPL "Build OMPL-backed steering adapter" OFF)
 option(HYBRID_ASTAR_BUILD_TESTS "Build standalone smoke tests" ON)
+option(HYBRID_ASTAR_BUILD_BENCHMARKS "Build optional manually run planner benchmark" OFF)
 
 add_library(hybrid_astar_core STATIC
   src/ackermann/search_config.cpp
@@ -45,4 +46,9 @@ if(HYBRID_ASTAR_BUILD_TESTS)
     target_link_libraries(hybrid_astar_ompl_smoke PRIVATE hybrid_astar::ompl)
     add_test(NAME ompl_smoke COMMAND hybrid_astar_ompl_smoke)
   endif()
+endif()
+
+if(HYBRID_ASTAR_BUILD_BENCHMARKS)
+  add_executable(hybrid_astar_planner_bench bench/planner_bench.cpp)
+  target_link_libraries(hybrid_astar_planner_bench PRIVATE hybrid_astar::core)
 endif()
