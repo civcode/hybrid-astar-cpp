@@ -48,6 +48,14 @@ TEST_CASE("Differential drive can plan a positive-cost stationary turn",
     }
   }
   REQUIRE(hasSpin);
+  // Independent dense recheck, separate from the planner's search samples
+  // and strict final-validation schedule.
+  ExactCollisionChecker checker(*q.map,q.occupancy,q.footprint);
+  for(const auto& section:r.sections) {
+    const auto extent=section.progressExtent();
+    for(int j=0;j<=80;++j)
+      REQUIRE(checker.check(section.evaluate(extent*double(j)/80))==PoseCollision::Clear);
+  }
   auto repeated=plan(q);
   REQUIRE(repeated.status==r.status);
   REQUIRE(repeated.diagnostics.expanded==r.diagnostics.expanded);
