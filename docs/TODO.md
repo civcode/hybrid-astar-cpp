@@ -22,6 +22,30 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## W11 model-policy Hybrid A* extraction — 2026-10-26
+
+- [x] Introduce C++20 `PlanarSearchModel` policy for state/key/hash,
+  immutable primitive catalog, successor section, incoming mode,
+  geometric footprint, cost and model option validation.
+- [x] Compile one typed search loop for Ackermann/differential drive,
+  removing chassis branches from the per-node successor hot path.
+- [x] Add public `planWithPolicy` adapter; test identical Ackermann and
+  differential-drive outcomes and a third standalone pivot-only policy.
+- [x] Reject zero/nonfinite third-party edge costs and unverified legacy
+  analytic/clearance hooks; require exact section endpoint/continuity
+  checks before a model-provided path can be accepted.
+- [x] Register W11 Catch2 equivalence, custom footprint, invalid policy,
+  and dishonest-endpoint regression tests.
+- [ ] Run exact GitHub checkout with Catch2/Docker/OMPL and sanitizers;
+  source-level verification is not a release build.
+- [ ] Expand model state and key dimensionality beyond SE(2), with
+  model-supplied multibody frame transforms and compound collision geometry.
+- [ ] Add lateral holonomic/mecanum geometric sections, not only rigid
+  Ackermann arcs and zero-translation turns; verify cost positivity
+  and independent full-body motion feasibility.
+
+See [W11 model-policy implementation](architecture/w11-model-policy-kernel.md).
+
 ## W10 differential-drive and precomputed primitives — 2026-10-26
 
 - [x] Introduce shared local SE2 constant-twist primitives with model-aware

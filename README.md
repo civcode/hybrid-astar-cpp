@@ -78,6 +78,33 @@ build and test are manual, not GitHub Actions automation. See the
 **Docker execution has not yet been validated in this assistant environment**
 because no Docker engine is installed here.
 
+## W11 — model-policy Hybrid A* search kernel
+
+The native Hybrid A* expansion loop is now **policy-driven**, not a
+switch between hardcoded Ackermann and differential-drive successor
+algorithms. Both models provide their local primitive catalog, search-key
+discretization and hash, exact section evaluator, incoming-motion mode,
+collision footprint, and positive edge costs through a common C++20
+`PlanarSearchModel` contract. Search node storage is typed and the
+model dispatch happens once per request; priority queues, one-label
+dominance, cancellation, immutable map revision, and independent strict
+path validation remain in the single shared kernel.
+
+An external rigid-planar policy can use
+`planning::PlanarPolicyAdapter<MyPolicy>` with
+`ackermann::planWithPolicy(request,adapter)`, without duplicating the
+planner or editing the model selection switch. Tests compare both
+built-ins to the adapter path and exercise a third **pivot-only** planar
+policy, including custom collision geometry and rejection of dishonest
+segment endpoints. Unsupported analytic/clearance hooks and nonpositive
+edges are rejected for externally supplied policies.
+
+**Current limit:** the reusable runtime policy accepts SE(2) rigid-body
+states and a rectangular footprint. Full articulated state, compound
+multibody collision and holonomic lateral section support require
+additional model-specific state/geometry contracts. See
+[W11 model-policy kernel](docs/architecture/w11-model-policy-kernel.md).
+
 ## W10 — cached Ackermann primitives and differential-drive kinematics
 
 The C++ core now includes **two exact constant-control planar models**:

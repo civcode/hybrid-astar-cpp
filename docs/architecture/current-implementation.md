@@ -246,7 +246,7 @@ The relocated core-only demo has been compiled and smoke-tested locally.
 | W6 Obstacle heuristic | Detour failure diagnosed and opt-in weighting added | Original long-wall cap of 7k settlements offered no useful relaxed-grid values; 20k plus weight 1.2 recovers validated detour in 3530 expansions at higher cost; zero-weight-change certified mode, bounded seeding/corner handling preserved; optimality unproved |
 | W7 Disc/EDT | Opt-in prototype, disabled by default | Blocked-center exact EDT, conservative rectangle disc cover, strict exact fallback; 3/4/5-disc randomized differential tests and staged end-to-end benchmarks; proof review and further map/geometry testing pending |
 | W8 Quality/refiner | Optional CSC shortcut extension implemented | Validated incumbent continuation, exact-oriented clearance weighting, strict section-boundary refinement, and opt-in forward/reverse CSC candidates with cost lower-bound pruning; 2000 seeded pose tests and local benchmark pass. Steering-rate smoothing, broader benchmarks and final retry remain pending |
-| W9 Other models | Deferred | Add only after a second real model exists; actuator/ROS contracts independent |
+| W9 Other models | Differential drive integrated; policy-based planar expansion added | Ackermann and differential drive use one model-policy search kernel; external pivot-only planar policy demonstrates extensibility; general multibody/articulated state not yet supported |
 
 ## Provisional configuration / decision log
 
@@ -289,6 +289,17 @@ footprint collision sampling and independent strict validation.
 The localhost Planning Lab supports model selection and animates
 stationary turns. This reuses planar pose/gear indexing; a fully generic
 model-parametric core and broad shape registry are still deferred.
+**W11 policy extraction:** A common C++20 `PlanarSearchModel`
+concept now provides cached catalog, per-model key/hash, segment
+materialization, incoming drive mode, edge costs, collision footprint
+and validation. The single templated search kernel is compiled for
+Ackermann/differential drive and exposes an adapter-backed public
+`planWithPolicy` entry for other rigid-planar chassis. A third pivot-only
+policy and bad-cost/forged-endpoint regressions exercise that external
+extension. No claims are made for 4+ state coordinates, lateral
+holonomic sections or articulated multibody collision yet; see
+[W11 model-policy contract](w11-model-policy-kernel.md).
+
 See [W10 differential-drive primitive status](w10-differential-primitives.md)
 and [working search/demo contract](w10-differential-search.md).
 
