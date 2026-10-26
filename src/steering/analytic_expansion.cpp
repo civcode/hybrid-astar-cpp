@@ -37,26 +37,25 @@ AnalyticExpansionScheduler::AnalyticExpansionScheduler(AnalyticExpansionOptions 
 }
 
 void AnalyticExpansionScheduler::reset() noexcept {
-  closestHeuristicCells_ = std::numeric_limits<double>::infinity();
+  closestHeuristicBins_ = std::numeric_limits<double>::infinity();
   expansionsUntilNextAttempt_ = 0;
 }
 
 bool AnalyticExpansionScheduler::shouldAttempt(double heuristicCostMeters,
-                                               double mapResolutionMeters) {
+                                               double searchXYBinMeters) {
   if (!std::isfinite(heuristicCostMeters) || heuristicCostMeters < 0.0 ||
-      !std::isfinite(mapResolutionMeters) || mapResolutionMeters <= 0.0) {
+      !std::isfinite(searchXYBinMeters) || searchXYBinMeters <= 0.0) {
     throw std::invalid_argument("Invalid heuristic distance or map resolution");
   }
 
-  // Keep this distance in grid-cell equivalents, as with Nav2's scheduling;
-  // do not mistake heuristic meters for grid-cell counts.
-  const double cells = heuristicCostMeters / mapResolutionMeters;
+  // Convert meters to SEARCH BIN units; occupancy resolution is irrelevant.
+  const double bins = heuristicCostMeters / searchXYBinMeters;
   if (!std::isfinite(cells)) {
-    throw std::out_of_range("Heuristic cell distance overflow");
+    throw std::out_of_range("Heuristic search-bin distance overflow");
   }
-  closestHeuristicCells_ = std::min(closestHeuristicCells_, cells);
+  closestHeuristicBins_ = std::min(closestHeuristicBins_, bins);
   const double proposed = std::max(
-      std::floor(closestHeuristicCells_ / options_.attemptRatio),
+      std::floor(closestHeuristicBins_ / options_.attemptRatio),
       std::ceil(options_.attemptRatio));
 
   // Cap unreasonably large intervals without undefined floating-to-int casts.
