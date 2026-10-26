@@ -78,6 +78,8 @@ struct PlanOptions {
   SolutionPolicy solutionPolicy = SolutionPolicy::FirstStrictlyValidated;
   std::size_t maxExtraExpansionsAfterFirst = 2500; // optional, measured separately
   std::size_t gridMaxSettlementsPerQuery = 500;
+  double clearanceWeight = 0.0; // zero by default: equivalent-meter integral
+  double clearanceInfluenceRadiusMeters = 0.40;
   std::size_t discPrefilterCount = 0; // 0=off, optionally benchmark 4 or 5 // finite lazy Dijkstra budget
   double minimumTurningRadiusMeters = 4.0;
   double goalXYToleranceMeters = 0.25;
@@ -112,6 +114,7 @@ struct PlanDiagnostics {
   std::size_t gridSettlements = 0, gridFallbacks = 0;
   std::size_t validatedCandidates = 0, incumbentImprovements = 0;
   std::size_t discDefinitelyClear = 0, discExactFallback = 0;
+  std::size_t clearanceSamples = 0;
 };
 
 struct PlanResult {
@@ -121,6 +124,7 @@ struct PlanResult {
   Gear finalGear = Gear::None;
   double goalXYErrorMeters = 0.0, goalYawErrorRadians = 0.0;
   double weightedCostMeters = 0.0;
+  double clearanceCostMeters = 0.0;
   SolutionQuality solutionQuality = SolutionQuality::FeasibleFirst;
   TerminationReason terminationReason = TerminationReason::None;
   double geometricLengthMeters = 0.0, reverseLengthMeters = 0.0;
