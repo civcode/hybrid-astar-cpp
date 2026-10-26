@@ -35,7 +35,7 @@ struct PivotOnlyPolicy {
   const a::PlanRequest& request;
 
   void validate() const {}
-  a::Footprint footprint() const {return request.footprint;}
+  a::Footprint footprint() const {return {-.35,.35,.25};}
   Hash keyHash(a::PlanDiagnostics* diagnostics) const noexcept {return {diagnostics};}
   std::vector<Primitive> catalog(const m::SampleLimits& limits) const {
     std::vector<Primitive> out;
@@ -166,4 +166,23 @@ TEST_CASE("External policy rejects unsupported analytic and nonpositive edges",
   r.options.clearanceWeight=0.;
   p::PlanarPolicyAdapter<ZeroCostPivotPolicy> zero{ZeroCostPivotPolicy{r}};
   REQUIRE(a::planWithPolicy(r,zero).status==a::PlanStatus::InvalidRequest);
+}
+
+TEST_CASE("External model footprint is used instead of Ackermann request geometry",
+          "[w11][policy][collision]") {
+  auto r=openRequest();
+  r.goal={10,15,.5*std::numbers::pi_v<double>};
+  // This obstacle intersects the default 3.6 m Ackermann front overhang,
+  // but not the custom 0.7 x 0.5 m pivot platform.
+  auto map=std::make_shared<a::MapSnapshot>(*r.map);
+  map->cells[std::size_t(15/.25)*map->width+std::size_t(11.5/.25)]=100;
+  r.map=map;
+  const a::ExactCollisionChecker ackBody(*r.map,r.occupancy,r.footprint);
+  REQUIRE(ackBody.check(r.start)==a::PoseCollision::Colliding);
+  p::PlanarPolicyAdapter<PivotOnlyPolicy> custom{PivotOnlyPolicy{r}};
+  const auto result=a::planWithPolicy(r,custom);
+  REQUIRE(result.status==a::PlanStatus::Success);
+  REQUIRE(result.collisionEvidence==
+          a::CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  REQUIRE(result.mapRevision==51);
 }
