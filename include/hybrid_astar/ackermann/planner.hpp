@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+namespace hybrid_astar::planning {class PlanarPolicy;}
+
 namespace hybrid_astar::ackermann {
 
 // Raw OccupancyGrid semantics: -1 unknown, 0..100 known; x-fastest rows.
@@ -189,5 +191,11 @@ struct PlanResult {
 // One active arrival per (x,y,yaw,incoming gear) key; not complete/optimal.
 // First strictly validated feasible path; finite work-limit aborts != NoPath.
 PlanResult plan(const PlanRequest& request);
+// Public planar-model extension seam: same collision, key-label, queue,
+// budgets, path reconstruction and independent strict final validator.
+// The caller must keep policy and its referenced configuration alive.
+// Non-planar/articulated state and multibody geometry are NOT yet supported.
+PlanResult planWithPolicy(const PlanRequest& request,
+                          const planning::PlanarPolicy& policy);
 
 } // namespace hybrid_astar::ackermann
