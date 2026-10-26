@@ -110,4 +110,28 @@ ackermann::PlanResult planWithReedsShepp(ackermann::PlanRequest request,
   }
   return ackermann::plan(request);
 }
+ReedsSheppRefinementResult planAndRefineWithReedsShepp(
+    ackermann::PlanRequest request,
+    ackermann::RefinementOptions refinementOptions,
+    bool usePerformanceHeuristic) {
+  ReedsSheppEvaluator evaluator(request.options.minimumTurningRadiusMeters);
+  request.analyticConnector=[&evaluator](const Pose2D& from,const Pose2D& goal) {
+    return evaluator.shortestPath(from,goal);
+  };
+  if(usePerformanceHeuristic) {
+    request.options.heuristicMode=ackermann::HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+    request.analyticDistance=[&evaluator](const Pose2D& from,const Pose2D& goal) {
+      return evaluator.distance(from,goal);
+    };
+  }
+  ReedsSheppRefinementResult result;
+  result.original=ackermann::plan(request);
+  if(result.original.status==ackermann::PlanStatus::Success) {
+    result.refinement=ackermann::refinePath(request,result.original,
+      [&evaluator](const Pose2D& from,const Pose2D& to) {
+        return evaluator.shortestPath(from,to);
+      },refinementOptions);
+  }
+  return result;
+}
 } // namespace hybrid_astar::steering
