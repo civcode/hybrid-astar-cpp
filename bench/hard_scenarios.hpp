@@ -1,6 +1,8 @@
 #pragma once
 #include "hybrid_astar/ackermann/planner.hpp"
 #include <algorithm>
+#include <cmath>
+#include <utility>
 #include <cstddef>
 #include <memory>
 #include <string>
