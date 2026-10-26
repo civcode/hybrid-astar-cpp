@@ -166,6 +166,8 @@ public:
     // A blocked center cell is not an exact footprint-collision oracle.
     // But it cannot have a finite value in this raw-grid relaxation; don't
     // burn hundreds of settlements trying to compute one.
+    if(settled_[target]&&std::isfinite(dist_[target]))
+      return std::max(fallback,dist_[target]);
     if(!traversable(target)||heap_.empty()) {
       if(!traversable(target))++diag_.gridBlockedQueryFallbacks;
       ++diag_.gridFallbacks;return fallback;
