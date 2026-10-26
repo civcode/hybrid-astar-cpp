@@ -184,6 +184,10 @@ class DifferentialDrivePolicy {
 public:
   using State=Pose2D;
   using Key=ackermann::SearchKey;
+  using Hash=PlanarKeyHash;
+  Hash keyHash(ackermann::PlanDiagnostics* diagnostics) const noexcept {
+    return {diagnostics};
+  }
   using Mode=ackermann::Gear;
   using Section=ackermann::MotionSection;
   using Primitive=PlanarPrimitive;
