@@ -1,9 +1,11 @@
-# Architecture baseline (draft v0.1)
+# Architecture: baseline and current implementation
 
-This is a lightweight, reviewable specification rather than a full arc42 document. Documents describe **intent and proposed contracts**; nothing here implies that implementation or benchmarks already exist.
+The baseline and ADRs are historical architecture proposals; the first C++20 Ackermann search vertical slice now exists. Start with [current implementation contract](current-implementation.md), then the [external-review consolidated specification](Hybrid_AStar_Consolidated_Specification.md). The consolidated review is a proposed synthesis; it is not an approved ADR, completed full planner or safety certification. Older ADR behavior is superseded where it conflicts with the current implementation contract.
 
 | Document | Focus |
 | --- | --- |
+| [Current implementation](current-implementation.md) | Normative shipped behavior, evidence, open W0–W9 work packages |
+| [Consolidated synthesis](Hybrid_AStar_Consolidated_Specification.md) | Original three-review proposed architecture and decision register |
 | [Requirements](requirements.md) | Traceable capabilities, constraints, non-goals |
 | [Components](components.md) | Ownership, dependency direction, data flow |
 | [Interfaces](interfaces.md) | C++20-oriented API sketches and semantic contracts |
