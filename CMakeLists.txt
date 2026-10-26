@@ -119,10 +119,15 @@ if(HYBRID_ASTAR_BUILD_APP)
     target_compile_definitions(hybrid_astar_demo_map_yaml_test PRIVATE
       HYBRID_ASTAR_SAMPLE_YAML_PATH="\"${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/maps/sample.yaml\"")
     add_test(NAME demo_map_yaml_test COMMAND hybrid_astar_demo_map_yaml_test)
+    add_executable(hybrid_astar_demo_map_edit_test tests/demo_map_edit_test.cpp)
+    target_link_libraries(hybrid_astar_demo_map_edit_test PRIVATE hybrid_astar_demo_logic Catch2::Catch2WithMain)
+    add_test(NAME demo_map_edit_test COMMAND hybrid_astar_demo_map_edit_test)
     add_test(NAME demo_cli_import_yaml COMMAND hybrid_astar_demo
       --once --map-yaml ${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/maps/sample.yaml)
     find_program(HYBRID_ASTAR_NODE_EXE node)
     if(HYBRID_ASTAR_NODE_EXE)
+      add_test(NAME demo_map_editor_test COMMAND ${HYBRID_ASTAR_NODE_EXE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/web/map_editor.test.js)
       add_test(NAME demo_map_geometry_test COMMAND ${HYBRID_ASTAR_NODE_EXE}
         ${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/web/map_geometry.test.js)
     endif()
