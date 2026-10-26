@@ -53,8 +53,12 @@ std::shared_ptr<ackermann::MapSnapshot> parsePgm(std::istream& in,double resolut
   for(std::size_t row=0;row<height;++row)for(std::size_t col=0;col<width;++col) {
     unsigned pixel;
     if(magic=="P2")pixel=parseUInt(token(in));
-    else {const auto value=in.get();if(value==std::char_traits<char>::eof())
-      throw std::invalid_argument("Truncated binary PGM raster");pixel=unsigned(value);}
+    else {
+      const auto value=in.get();
+      if(value==std::char_traits<char>::eof())
+        throw std::invalid_argument("Truncated binary PGM raster");
+      pixel=unsigned(value);
+    }
     if(pixel>maxValue)throw std::invalid_argument("PGM pixel exceeds maxval");
     std::int8_t occupancy=pixel*2u>=maxValue?0:100;
     if(maxValue==255 && pixel==205)occupancy=-1;
