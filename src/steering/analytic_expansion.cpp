@@ -45,12 +45,12 @@ bool AnalyticExpansionScheduler::shouldAttempt(double heuristicCostMeters,
                                                double searchXYBinMeters) {
   if (!std::isfinite(heuristicCostMeters) || heuristicCostMeters < 0.0 ||
       !std::isfinite(searchXYBinMeters) || searchXYBinMeters <= 0.0) {
-    throw std::invalid_argument("Invalid heuristic distance or map resolution");
+    throw std::invalid_argument("Invalid heuristic distance or search XY bin");
   }
 
   // Convert meters to SEARCH BIN units; occupancy resolution is irrelevant.
   const double bins = heuristicCostMeters / searchXYBinMeters;
-  if (!std::isfinite(cells)) {
+  if (!std::isfinite(bins)) {
     throw std::out_of_range("Heuristic search-bin distance overflow");
   }
   closestHeuristicBins_ = std::min(closestHeuristicBins_, bins);
