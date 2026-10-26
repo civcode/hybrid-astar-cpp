@@ -33,9 +33,9 @@ int main() {
   try { edgeCost(-1.0, Gear::Forward, Gear::Forward, c); return 10; }
   catch (const std::invalid_argument&) {}
   hybrid_astar::collision::CheckOptions opts;
-  if (hybrid_astar::collision::assurance(opts) != hybrid_astar::collision::Assurance::BoundaryOnlyPoseSampled) return 11;
-  opts.checkFootprintInterior = true;
-  if (hybrid_astar::collision::assurance(opts) != hybrid_astar::collision::Assurance::FullFootprintPoseSampled) return 12;
+  if (hybrid_astar::collision::assurance(opts) != hybrid_astar::collision::Assurance::FullFootprintPoseSampled) return 11;
+  opts.checkFootprintInterior = false; // explicit unsafe diagnostic only
+  if (hybrid_astar::collision::assurance(opts) != hybrid_astar::collision::Assurance::BoundaryOnlyPoseSampled) return 12;
   using hybrid_astar::steering::AnalyticCostGate;
   using hybrid_astar::steering::AnalyticExpansionOptions;
   using hybrid_astar::steering::AnalyticExpansionScheduler;
