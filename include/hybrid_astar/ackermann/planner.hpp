@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hybrid_astar/ackermann/search_config.hpp"
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -59,7 +60,7 @@ MotionSection makeSection(const Pose2D& start, Gear gear,
 enum class CollisionEvidence { None, FullFootprintBodyMotionAdaptiveSampled };
 enum class PlanStatus {
   Success, NoPath, InvalidRequest, InvalidMap, RejectedUnknownMap,
-  StartInCollision, BudgetExceeded, ValidationIncomplete,
+  StartInCollision, BudgetExceeded, Cancelled, ValidationIncomplete,
   StrictValidationFailed, InternalError
 };
 
@@ -83,6 +84,7 @@ struct PlanRequest {
   Footprint footprint;
   Pose2D start, goal;
   PlanOptions options;
+  std::shared_ptr<const std::atomic_bool> cancelled; // optional request-local token
 };
 
 struct PlanDiagnostics {
