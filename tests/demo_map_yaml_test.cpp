@@ -71,3 +71,19 @@ TEST_CASE("Malformed or unsupported ROS YAML fails explicitly", "[app][yaml]") {
   std::istringstream missing("image: sample.pgm\nresolution: 0.5\n");
   REQUIRE_THROWS_AS(parseRosMapYaml(missing),std::invalid_argument);
 }
+
+TEST_CASE("Rotated occupancy cell intersects real world-frame vehicle footprint", "[app][yaml][collision]") {
+  std::string raster="P2\n12 12\n255\n";
+  for(int top=0;top<12;++top)
+    for(int col=0;col<12;++col)
+      raster+=(top==6&&col==5?"0 ":"255 ");
+  std::istringstream input(raster);
+  auto map=parsePgm(input,1.);
+  map->origin={5,-2,1.5707963267948966};
+  ExactCollisionChecker checker(*map,{},Footprint{-.2,.2,.2});
+  // First PGM row is high Y, so raster row 6 is local Y cell 5.
+  const Pose2D occupied{5-5.5,-2+5.5,1.5707963267948966};
+  const Pose2D free{5-2.5,-2+2.5,1.5707963267948966};
+  REQUIRE(checker.check(occupied)==PoseCollision::Colliding);
+  REQUIRE(checker.check(free)==PoseCollision::Clear);
+}
