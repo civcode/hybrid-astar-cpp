@@ -102,6 +102,79 @@ double goalErrorYaw(const Pose2D& p,const Pose2D& g) { return std::abs(wrap(p.ya
 double heuristic(const Pose2D& p,const Pose2D& goal,double tolerance) {
   return std::max(0.0,goalErrorXY(p,goal)-tolerance);
 }
+// Deterministic request-local lazy reverse Dijkstra for PERFORMANCE ordering.
+// Settled values are not certified continuous-space bounds or NoPath proofs.
+class LazyGrid {
+public:
+  LazyGrid(const MapSnapshot& m,OccupancyPolicy p,const Pose2D& goal,
+           double tolerance,std::size_t limit,PlanDiagnostics& diag)
+      : m_(m),p_(p),limit_(limit),diag_(diag),
+        dist_(m.cells.size(),std::numeric_limits<double>::infinity()),
+        settled_(m.cells.size(),false) {
+    const auto local=mapLocal(goal);
+    // Seed every free cell square intersecting the XY goal tolerance disc.
+    for (std::size_t y=0;y<m.height;++y) for (std::size_t x=0;x<m.width;++x) {
+      const std::size_t idx=y*m.width+x;
+      if (!traversable(idx)) continue;
+      const double left=x*m.resolutionMeters, bottom=y*m.resolutionMeters;
+      const double dx=local.x-std::clamp(local.x,left,left+m.resolutionMeters);
+      const double dy=local.y-std::clamp(local.y,bottom,bottom+m.resolutionMeters);
+      if (std::hypot(dx,dy)<=tolerance) {
+        dist_[idx]=0.0;
+        heap_.emplace(0.0,idx);
+      }
+    }
+  }
+  double estimate(const Pose2D& pose,double fallback) {
+    const auto local=mapLocal(pose);
+    if (local.x<0||local.y<0||local.x>=m_.width*m_.resolutionMeters||
+        local.y>=m_.height*m_.resolutionMeters) {++diag_.gridFallbacks;return fallback;}
+    const auto x=static_cast<std::size_t>(std::floor(local.x/m_.resolutionMeters));
+    const auto y=static_cast<std::size_t>(std::floor(local.y/m_.resolutionMeters));
+    const auto target=y*m_.width+x;
+    for (std::size_t work=0;work<limit_ && !heap_.empty() && !settled_[target];) {
+      auto [distance,index]=heap_.top();heap_.pop();
+      if (settled_[index]||distance>dist_[index]) continue;
+      settled_[index]=true;++work;++diag_.gridSettlements;
+      const std::size_t cx=index%m_.width,cy=index/m_.width;
+      for (int dy=-1;dy<=1;++dy) for (int dx=-1;dx<=1;++dx) {
+        if (dx==0&&dy==0) continue;
+        if ((dx<0&&cx==0)||(dy<0&&cy==0)||
+            (dx>0&&cx+1>=m_.width)||(dy>0&&cy+1>=m_.height)) continue;
+        std::size_t nx=cx,ny=cy;
+        if (dx<0) --nx; else if (dx>0) ++nx;
+        if (dy<0) --ny; else if (dy>0) ++ny;
+        const auto next=ny*m_.width+nx;
+        if (!traversable(next)||settled_[next]) continue;
+        const double candidate=distance+m_.resolutionMeters*((dx&&dy)?std::numbers::sqrt2_v<double>:1.0);
+        if (std::isfinite(candidate)&&candidate<dist_[next]) {
+          dist_[next]=candidate;heap_.emplace(candidate,next);
+        }
+      }
+    }
+    if (settled_[target]&&std::isfinite(dist_[target])) return std::max(fallback,dist_[target]);
+    ++diag_.gridFallbacks;
+    return fallback;
+  }
+private:
+  Vec2 mapLocal(const Pose2D& p) const {
+    const double dx=p.x-m_.origin.x,dy=p.y-m_.origin.y;
+    const double c=std::cos(m_.origin.yaw),s=std::sin(m_.origin.yaw);
+    return {c*dx+s*dy,-s*dx+c*dy};
+  }
+  bool traversable(std::size_t index) const {
+    return m_.cells[index]==-1?p_.unknown==UnknownPolicy::Free:
+                               m_.cells[index]<=p_.maxTraversableOccupancy;
+  }
+  const MapSnapshot& m_;
+  OccupancyPolicy p_;
+  std::size_t limit_;
+  PlanDiagnostics& diag_;
+  std::vector<double> dist_;
+  std::vector<bool> settled_;
+  using Item=std::pair<double,std::size_t>;
+  std::priority_queue<Item,std::vector<Item>,std::greater<Item>> heap_;
+};
 enum class MotionStatus { Clear, Colliding, Incomplete, Cancelled };
 MotionStatus checkMotion(const MotionSection& section, const ExactCollisionChecker& checker,
                          double step, double bodyStep, std::size_t limit, std::size_t& checks,
@@ -225,8 +298,26 @@ PlanResult plan(const PlanRequest& r) {
     std::unordered_map<SearchKey,Label,KeyHash> active;
     Queue open;
     steering::AnalyticExpansionScheduler scheduler(opt.analytic);
+    result.heuristicCertifiedAdmissible=opt.heuristicMode==HeuristicMode::CertifiedRegionEuclidean;
+    std::unique_ptr<LazyGrid> grid;
+    if (opt.heuristicMode==HeuristicMode::PerformanceReedsSheppAndObstacleGrid)
+      grid=std::make_unique<LazyGrid>(*r.map,r.occupancy,r.goal,
+                       opt.goalXYToleranceMeters,opt.gridMaxSettlementsPerQuery,result.diagnostics);
+    const auto estimate=[&](const Pose2D& p) {
+      double h=heuristic(p,r.goal,opt.goalXYToleranceMeters);
+      if (grid) {
+        h=grid->estimate(p,h);
+        if (r.analyticDistance) {
+          try {
+            const double d=r.analyticDistance(p,r.goal);
+            if (std::isfinite(d)&&d>=0) h=std::max(h,d);
+          } catch (const std::exception&) { /* keep finite fallbacks */ }
+        }
+      }
+      return h;
+    };
     const auto startKey=quantize(r.start,Gear::None,opt.search);
-    const double initialH=heuristic(r.start,r.goal,opt.goalXYToleranceMeters);
+    const double initialH=estimate(r.start);
     nodes.push_back({r.start,startKey,Gear::None,0.0,initialH,0,{}});
     active.emplace(startKey,Label{0,0.0,false});
     open.push({initialH,initialH,0});
@@ -366,7 +457,7 @@ PlanResult plan(const PlanRequest& r) {
           if (check==MotionStatus::Colliding) continue;
           if (nodes.size()>=opt.maxGeneratedNodes) {result.status=PlanStatus::BudgetExceeded;return result;}
           if (found!=active.end() && found->second.expanded) ++result.diagnostics.reopened;
-          const double h=heuristic(sec.end,r.goal,opt.goalXYToleranceMeters);
+          const double h=estimate(sec.end);
           const auto id=nodes.size();
           nodes.push_back({sec.end,key,gear,g,h,item.node,sec});
           active[key]={id,g,false};
