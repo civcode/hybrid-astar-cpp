@@ -35,6 +35,7 @@ struct PivotOnlyPolicy {
   const a::PlanRequest& request;
 
   void validate() const {}
+  a::Footprint footprint() const {return request.footprint;}
   Hash keyHash(a::PlanDiagnostics* diagnostics) const noexcept {return {diagnostics};}
   std::vector<Primitive> catalog(const m::SampleLimits& limits) const {
     std::vector<Primitive> out;
