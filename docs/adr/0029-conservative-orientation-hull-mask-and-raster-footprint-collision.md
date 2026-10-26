@@ -1,3 +1,5 @@
+> **Current implementation precedence (2026-10-26):** This file preserves the baseline design history/proposal. Where defaults, collision assurance, Ackermann integration, heuristics or RS scheduling differ, follow the [current implementation contract](../architecture/current-implementation.md) and its work-package statuses. The [consolidated external reviews](../architecture/Hybrid_AStar_Consolidated_Specification.md) are proposed design guidance, **not** an already approved ADR or evidence of completed features.
+
 # ADR-0029: Conservative collision-candidate mask and configurable rasterized footprint checks
 
 **Status:** Accepted (orientation-envelope broad phase; boundary-only narrow phase is the user-selected MVP default, with optional interior checking and explicitly weaker assurance)  
