@@ -145,6 +145,8 @@ TEST_CASE("Real OMPL paths remain strictly verified on hard maps",
     DYNAMIC_SECTION(item.name) {
       for(bool perf:{false,true}) {
         auto path=execute(item.request,perf,true);
+        auto repeat=execute(item.request,perf,true);
+        comparable(path,repeat);
         REQUIRE(path.status!=PlanStatus::InternalError);
         if(path.status==PlanStatus::Success) {
           REQUIRE_FALSE(item.impossibleByConstruction);
