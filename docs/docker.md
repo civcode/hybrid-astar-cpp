@@ -36,6 +36,38 @@ docker run --rm -p 127.0.0.1:8765:8765 hybrid-astar:demo
 is a single-user development tool with no authentication. It is not a
 production web service or robot motion controller.
 
+## Demo with an imported PGM map
+
+The Docker image includes a [sample PGM occupancy map](../apps/demo/maps/sample.pgm),
+and the browser can display any P2/P5 map loaded at server startup:
+
+```bash
+docker build --target demo -t hybrid-astar:demo .
+docker run --rm -p 127.0.0.1:8765:8765 hybrid-astar:demo \
+  ./build-docker/hybrid_astar_demo --bind 0.0.0.0 \
+  --map apps/demo/maps/sample.pgm --resolution 0.5
+```
+
+To use your own file without rebuilding the image, mount a trusted directory
+read-only and pass its **container path**:
+
+```bash
+docker run --rm -p 127.0.0.1:8765:8765 \
+  -v "$PWD/maps:/imported:ro" hybrid-astar:demo \
+  ./build-docker/hybrid_astar_demo --bind 0.0.0.0 \
+  --map /imported/my-map.pgm --resolution 0.25
+```
+
+The browser automatically selects **Imported PGM map** when available. Its
+**Export path JSON** button downloads the actual core planner results to your
+browser, not a file written inside the container. CLI JSON export remains
+available with `--once --output FILE.json`, where FILE refers to the
+container filesystem unless a writeable host volume is mounted.
+
+PGM maps use top-row-first raster order, 0=obstacle, white=free and the
+grayscale value 205 as unknown for maxval=255. The default occupancy policy
+treats unknown as occupied. No remote map-upload endpoint is enabled.
+
 ## Run Catch2 + CTest (explicit manual action)
 
 ```bash
