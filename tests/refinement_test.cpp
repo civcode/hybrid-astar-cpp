@@ -60,6 +60,15 @@ int main() {
   });
   must(external.status==RefinementStatus::Improved&&external.path.sections.size()==1,
        "provider-generated exact sections use the same strict improvement gate");
+  auto plannerOutput=plan(req);
+  must(plannerOutput.status==PlanStatus::Success,
+       "ordinary planner produces a validated path for refinement");
+  auto roundtrip=refinePath(req,plannerOutput);
+  must(roundtrip.path.status==PlanStatus::Success &&
+       roundtrip.path.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,
+       "actual planner output revalidated end-to-end");
+  must(roundtrip.path.weightedCostMeters<=plannerOutput.weightedCostMeters+1e-9,
+       "post-search refinement never worsens the planner objective");
   auto corrupted=given;
   corrupted.sections[1].end.x+=.25;
   auto invalid=refinePath(req,corrupted);
