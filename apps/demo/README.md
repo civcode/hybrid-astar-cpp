@@ -65,10 +65,16 @@ strict adaptive-sampled validator can be labeled validated. There is **no
 continuous swept guarantee or steering-rate/actuator feasibility** claim.
 A budget-limited response is not proof of a geometric NoPath.
 
-## Choose the vehicle model — Ackermann or differential drive
+## Choose the vehicle model — Ackermann, differential drive or mecanum
 
 Planning Lab's **Kinematic model** selector chooses the existing
-Ackermann rear-axle planner or the ideal differential-drive chassis.
+Ackermann rear-axle planner, ideal differential-drive chassis, or an ideal
+four-wheel **mecanum** chassis. Mecanum has a compact center-referenced
+rectangle, 14 cached cardinal/diagonal/combined-motion templates and
+independent body-lateral travel even when heading is unchanged. Its
+holonomic route segments are blue; spin markers remain violet.
+Unsupported Ackermann-only Reeds–Shepp and shortcut options are disabled
+for differential and mecanum models.
 Differential mode uses a center-referenced **0.70 m × 0.50 m** rectangle,
 eight precomputed local trajectories, and real **in-place rotations**.
 Rotations have zero traveled metres but positive angular effort cost;

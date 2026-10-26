@@ -78,6 +78,22 @@ build and test are manual, not GitHub Actions automation. See the
 **Docker execution has not yet been validated in this assistant environment**
 because no Docker engine is installed here.
 
+## W12 — ideal mecanum/holonomic model
+
+The shared W11 policy-driven kernel now also supports an ideal four-wheel
+mecanum chassis, including body-lateral translation, diagonals, simultaneous
+translation/rotation and in-place turning. It uses an exact constant-twist
+SE(2) evaluator, 14 cached primitive templates, wheel-rate validation,
+positive translation/angular effort costs and independent strict sampled
+full-rectangle collision validation. Select `--model mecanum` in CLI or
+choose **Mecanum** in Planning Lab. This is geometric planning only,
+without guaranteed slip-free/actuator-feasible execution.
+
+The new Catch2 and demo HTTP regression tests are **registered, not
+verified as executed** in the full GitHub checkout. Complete CMake,
+Docker, OMPL and sanitizer gates remain pending; see
+[W12 implementation and verification](docs/architecture/w12-mecanum-holonomic.md).
+
 ## W11 — model-policy Hybrid A* search kernel
 
 The native Hybrid A* expansion loop is now **policy-driven**, not a

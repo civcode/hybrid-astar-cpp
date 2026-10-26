@@ -22,6 +22,26 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## W12 mecanum / holonomic search — 2026-10-26
+
+- [x] Add ideal four-wheel mecanum forward/lateral/angular control mapping,
+  validation, four wheel-rate bounds and exact SE(2) constant-body-twist
+  motion with signed body lateral travel.
+- [x] Introduce 14 cached cardinal, diagonal, lateral+turn, forward+turn
+  and spin primitives; use model-aware body-motion sampling bounds.
+- [x] Integrate a `MecanumPolicy` with the existing W11 shared Hybrid A*
+  kernel and strict collision checker, no Ackermann steering branches.
+- [x] Expose mecanum selection and holonomic path JSON in Planning Lab,
+  browser and CLI, with Catch2 and HTTP regression tests registered.
+- [ ] Execute the **exact-checkout** Catch2/CTest, Docker-OMPL, sanitizer and
+  browser verification matrix; none of the registered W12 tests should be
+  reported as passed until executed.
+- [ ] Add model-aware optimization, actuator/slip verification and eventually
+  generalized multibody state and geometry, only with separate acceptance
+  evidence.
+
+See [W12 mecanum implementation](architecture/w12-mecanum-holonomic.md).
+
 ## W11 model-policy Hybrid A* extraction — 2026-10-26
 
 - [x] Introduce C++20 `PlanarSearchModel` policy for state/key/hash,

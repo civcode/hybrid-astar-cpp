@@ -6,6 +6,7 @@ The baseline and ADRs are historical architecture proposals; the first C++20 Ack
 | --- | --- |
 | [Current implementation](current-implementation.md) | Normative shipped behavior, evidence, open W0–W9 work packages |
 | [Interactive Planning Lab app](../../apps/demo/README.md) | Loopback C++20 demo, live map/start/goal editing, exact path visualization and optional OMPL/refinement |
+| [W12 mecanum/holonomic search](w12-mecanum-holonomic.md) | Independent body-lateral/yaw motion, 14 cached primitives, shared-policy search, strict collision and test limits |
 | [W11 model-parametric search kernel](w11-model-policy-kernel.md) | C++20 search-model concept, Ackermann/differential policies, typed nodes, custom planar model adapter, safety and integration limits |
 | [W10 differential-drive search and Planning Lab](w10-differential-search.md) | Working 8-primitive differential mode, positive-cost rotations, intermediate footprint collision checks and model selection |
 | [W10 differential-drive and cached primitives](w10-differential-primitives.md) | Analytic differential model, stationary angular primitives, Ackermann SE2 template reuse, RK4 oracle and integration scope |
