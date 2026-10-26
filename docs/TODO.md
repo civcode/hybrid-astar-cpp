@@ -1,3 +1,14 @@
+> **2026-10-26 implementation update:** The external-review [consolidated
+> specification](architecture/Hybrid_AStar_Consolidated_Specification.md)
+> has been imported. The normative current behavior and remaining W0-W9 gates
+> are tracked in [current-implementation.md](architecture/current-implementation.md).
+> This older checklist and ADR references may predate the verified vertical
+> slice and must not override the current contract. **Still pending:** OMPL
+> signed RS connector and end-to-end integration (W5), lazy obstacle field
+> (W6), optional EDT/disc proof (W7), clearance/quality refinement (W8),
+> future chassis/actuation and ROS adapters (W9). No swept/actuator safety
+> certification or validated global optimality is claimed.
+
 # Implementation and architecture TODOs
 
 A prioritized, incremental checklist. **All tasks unchecked as of initial documentation baseline**; this is a proposed plan, not a report of completed code. See [architecture index](architecture/README.md) and [open questions](architecture/open-questions.md).
