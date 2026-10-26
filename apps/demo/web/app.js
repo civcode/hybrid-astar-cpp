@@ -10,7 +10,7 @@ const defaults = {
 let snapshot=null, pending=null, animation=false, lastFrame=0;
 let customOrigin=[0,0,0];
 const canvas=$('map'), ctx=canvas.getContext('2d');
-function setPose(prefix,v) {['x','y','yaw'].forEach((s,i)=>$(prefix+s).value=Number(v[i]).toFixed(i===2?0:2));}
+function setPose(prefix,v) {['x','y','yaw'].forEach((s,i)=>$(prefix+s).value=Number(v[i]).toFixed(i===2?3:2));}
 function resetScenario() {
   const d=defaults[$('scenario').value];
   $('sceneTitle').textContent=d.name;
