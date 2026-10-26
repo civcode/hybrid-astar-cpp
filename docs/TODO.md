@@ -22,6 +22,15 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Subsequent Planning Lab application increment — 2026-10-26
+
+- [x] Add P2/P5 parser bounds, orientation/unknown-occupancy Catch2 tests,
+  and live imported-map server, CLI and malformed-input regressions.
+- [x] Add automatic custom-map option in the browser and JSON export control.
+- [ ] Run new Catch2 and full Docker-OMPL matrices on a host with provisioned
+  dependencies; local standalone GCC/Clang sanitizer probes and HTTP checks
+  are not substitutes for a real Catch2/Docker run.
+
 ## Docker and Catch2 test framework — implemented 2026-10-26
 
 - [x] Reorganize developer applications under `apps/demo/`; remove the legacy
@@ -56,8 +65,14 @@ See [Docker/testing guide](docker.md) and [demo usage](../apps/demo/README.md).
   bounded validated-incumbent search and post-search refinement.
 - [x] Add native demo regression and no-dependency optional Python localhost
   API smoke test for scenarios, HTTP assets/errors and invalid input.
-- [ ] Add file-based map import and exporting structured path results when a
-  real application map schema is chosen.
+- [x] Add bounded P2/P5 **static occupancy PGM import** with ROS-compatible
+  top-row-to-positive-Y conversion and planner-pinned map provenance; support
+  a built-in sample map and custom server startup map selection.
+- [x] Export planning output as CLI JSON (`--once --output`) or browser
+  download, including motion sections, provenance, sampled collision evidence,
+  termination reason and explicit lack of actuator feasibility.
+- [ ] Extend map import to map YAML origin/frame metadata and arbitrary
+  occupancy sources only after defining and testing the schema.
 - [ ] Add downstream timed trajectory and steering-actuator visualization
   only after those models are actually implemented and validated.
 - [ ] Verify the browser UI on target operating systems and build against a
