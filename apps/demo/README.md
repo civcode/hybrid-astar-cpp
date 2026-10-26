@@ -192,25 +192,27 @@ To calculate a path and print a JSON document without starting the server:
 ./build-demo/hybrid_astar_demo --once --scenario warehouse --performance
 ```
 
-The web UI calls these **loopback-only** GET endpoints:
+The web UI calls these **loopback-only** HTTP endpoints:
 
 | Endpoint | Response |
 | --- | --- |
 | `/` | HTML application |
-| `/style.css` and `/app.js` | Bundled assets |
+| `/style.css`, `/app.js`, `/map_geometry.js`, `/map_editor.js` | Bundled assets |
 | `/api/capabilities` | JSON bool indicating OMPL availability |
-| `/api/plan?scenario=reverse` | Original result, refinement if requested, and compact occupancy runs |
+| `GET /api/plan?scenario=reverse` | Backward-compatible request without edits |
+| `POST /api/plan` | Bounded form-encoded plan with optional cell overrides and map revision |
 
 Supported query fields: `scenario`, `startx`,
 `starty`, `startyaw`, `goalx`,
 `goaly`, `goalyaw`, `ompl`,
 `refine`, `curved`, `performance`,
-`improve`. Boolean options accept `0` or
+`improve`, `edits`, `editRevision`. Boolean options accept `0` or
 `1`. Yaw values in the HTTP and CLI interfaces are in
 **degrees**. The actual C++ request is populated in radians.
 
-This small developer server intentionally accepts only GET, permits a maximum
-URL of 2048 bytes, serves only three fixed page assets and binds to
+This small developer server accepts GET and POST only for planning (POST
+limited to 64 KiB form bodies, GET URLs to 2048 bytes), serves only its fixed
+bundled assets and binds to
 `127.0.0.1` by default. The explicit `--bind 0.0.0.0` option is for
 container networking; publish the Docker host port to **127.0.0.1 only**. It has no authentication or production-grade
 multiuser request scheduling and should **not** be internet-exposed.
