@@ -469,10 +469,13 @@ PlanResult plan(const PlanRequest& r) {
     const auto startKey=quantize(r.start,Gear::None,opt.search);
     const double initialH=weightedEstimate(r.start);
     nodes.push_back({r.start,startKey,Gear::None,0.0,initialH,0.0,0,{}});
+    const auto initialBucketCount=active.bucket_count();
     {
       HotPathTimer writeTimer(result.diagnostics.labelWriteNanoseconds);
       active.emplace(startKey,Label{0,0.0,false});
     }
+    if(active.bucket_count()!=initialBucketCount)
+      ++result.diagnostics.labelRehashes;
     ++result.diagnostics.labelInsertions;
     result.diagnostics.labelPeakSize=1;
     result.diagnostics.labelPeakBuckets=std::max(result.diagnostics.labelPeakBuckets,active.bucket_count());
