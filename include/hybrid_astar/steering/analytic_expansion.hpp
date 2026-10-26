@@ -25,8 +25,8 @@ AnalyticCostGate evaluateAnalyticCost(double weightedCostMeters,
                                      const AnalyticExpansionOptions& options);
 
 // Owned by one planning request; call once for each popped, non-stale node.
-// The input heuristic is expressed in meters; mapResolutionMeters converts
-// it to the grid-cell units used by the adaptive expansion interval.
+// The input heuristic is expressed in meters; searchXYBinMeters converts
+// it to SEARCH-bin units; occupancy-map resolution is irrelevant.
 // A scheduled attempt is ONE complete Reeds-Shepp path, with all its sections.
 class AnalyticExpansionScheduler {
 public:
