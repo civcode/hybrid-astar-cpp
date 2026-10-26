@@ -65,7 +65,7 @@ TEST_CASE("Rotated map checker preserves exact footprint decisions",
   ExactCollisionChecker world(*rotated,{},Footprint{});
   const double c=std::cos(rotated->origin.yaw),s=std::sin(rotated->origin.yaw);
   for(int y=5;y<90;y+=3)for(int x=5;x<110;x+=3) {
-    const Pose2D localPose{double(x)*.2,double(y)*.2,double((x+y)%57)*.1};
+    const Pose2D localPose{double(x)*.2+.037,double(y)*.2+.023,double((x+y)%57)*.1};
     const Pose2D worldPose{5.0+c*localPose.x-s*localPose.y,
                             -3.0+s*localPose.x+c*localPose.y,
                             localPose.yaw+rotated->origin.yaw};
