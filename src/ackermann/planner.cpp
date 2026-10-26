@@ -433,8 +433,30 @@ PlanResult plan(const PlanRequest& r) {
   if (r.map) { result.mapRevision=r.map->revision; result.mapFrameId=r.map->frameId; result.mapSourceId=r.map->sourceId; }
   result.effectiveOccupancy=r.occupancy;
   if (!r.map || !finite(r.start) || !finite(r.goal)) return result;
-  try { validateOptions(r.options); validateFootprint(r.footprint); }
-  catch (const std::exception&) { result.status=PlanStatus::InvalidRequest; return result; }
+  try {
+    validateOptions(r.options);validateFootprint(r.footprint);
+    const auto& o=r.options;
+    if(o.model!=PlanOptions::Model::Ackermann &&
+       o.model!=PlanOptions::Model::DifferentialDrive)
+      throw std::invalid_argument("Unsupported kinematic model");
+    if(o.model==PlanOptions::Model::DifferentialDrive) {
+      if(!std::isfinite(o.rotationCostMetersPerRadian)||
+         o.rotationCostMetersPerRadian<=0 || r.analyticConnector ||
+         r.analyticDistance || o.clearanceWeight>0)
+        throw std::invalid_argument("Unsupported differential-drive planner option");
+      const differential_drive::Model model(o.diffParameters);
+      auto sampling=o.diffPrimitives;
+      // Reject a catalog that cannot obey the request's collision budget.
+      sampling.sampling={
+        o.searchSampleSpacingMeters,o.searchMaxBodyPointMotionMeters,
+        std::hypot(std::max(std::abs(r.footprint.rearX),
+                            std::abs(r.footprint.frontX)),r.footprint.halfWidth),
+        std::numbers::pi_v<double>,o.maxSamplesPerSection};
+      (void)differential_drive::buildCatalog(model,sampling);
+    }
+  } catch (const std::exception&) {
+    result.status=PlanStatus::InvalidRequest;return result;
+  }
   if (r.occupancy.maxTraversableOccupancy<0 || r.occupancy.maxTraversableOccupancy>100 ||
       (r.occupancy.unknown!=UnknownPolicy::Occupied &&
        r.occupancy.unknown!=UnknownPolicy::Free &&
@@ -468,14 +490,40 @@ PlanResult plan(const PlanRequest& r) {
     if (checkedPose(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
     ++result.diagnostics.searchPoseChecks;
     const auto& opt=r.options;
-    // Generate six SE(2)-local, continuously evaluable, sampled primitives
-    // only once per request. Every search node only rigidly transforms them.
+    // Both models produce immutable SE(2)-local trajectories ONCE per plan.
+    // Search expansion only transforms cached points; no numerical solver.
+    struct SearchPrimitive {
+      Gear gear;
+      double curvature;
+      motion::LocalPrimitive local;
+    };
+    std::vector<SearchPrimitive> primitiveCatalog;
     const motion::SampleLimits templateLimits{
       opt.searchSampleSpacingMeters,opt.searchMaxBodyPointMotionMeters,
       checker.maxBodyRadius(),std::numeric_limits<double>::max(),
       opt.maxSamplesPerSection};
-    const auto primitiveCatalog=buildPrimitiveCatalog(
-        opt.search,opt.minimumTurningRadiusMeters,templateLimits);
+    if(opt.model==PlanOptions::Model::Ackermann) {
+      const auto catalog=buildPrimitiveCatalog(
+          opt.search,opt.minimumTurningRadiusMeters,templateLimits);
+      primitiveCatalog.reserve(catalog.size());
+      for(const auto& primitive:catalog)
+        primitiveCatalog.push_back({primitive.gear,primitive.curvature,primitive.local});
+    } else {
+      differential_drive::PrimitiveConfig cfg=opt.diffPrimitives;
+      cfg.sampling=templateLimits;
+      const differential_drive::Model model(opt.diffParameters);
+      const auto catalog=differential_drive::buildCatalog(model,cfg);
+      primitiveCatalog.reserve(catalog.size());
+      for(const auto& primitive:catalog) {
+        const auto& local=primitive.local;
+        const bool spin=local.extentKind==motion::ExtentKind::RotationRadians;
+        const auto gear=spin?Gear::None:
+            (local.signedTranslationMeters>0?Gear::Forward:Gear::Reverse);
+        const double curvature=spin?0:
+            local.headingChangeRadians/local.signedTranslationMeters;
+        primitiveCatalog.push_back({gear,curvature,local});
+      }
+    }
     result.diagnostics.primitiveTemplatesBuilt=primitiveCatalog.size();
     std::vector<Node> nodes;
     nodes.reserve(std::min<std::size_t>(opt.maxGeneratedNodes,20000));
@@ -722,13 +770,21 @@ PlanResult plan(const PlanRequest& r) {
           const Gear gear=primitive.gear;
           const double k=primitive.curvature;
           const auto* local=primitive.local.samples.empty()?nullptr:&primitive.local;
-          const auto sec=local
-              ? MotionSection{current.pose,local->endpoint(current.pose),gear,k,
-                              opt.search.primitiveLengthMeters}
-              : makeSection(current.pose,gear,k,opt.search.primitiveLengthMeters);
+          const bool spin=primitive.local.extentKind==motion::ExtentKind::RotationRadians;
+          const auto sec=spin
+              ? makeRotationSection(current.pose,primitive.local.headingChangeRadians)
+              : (local
+                  ? MotionSection{current.pose,local->endpoint(current.pose),gear,k,
+                                  primitive.local.extent}
+                  : makeSection(current.pose,gear,k,primitive.local.extent));
           ++result.diagnostics.primitiveTemplateInstantiations;
-          const auto key=quantize(sec.end,gear,opt.search);
-          const double cost=edgeCost(sec.lengthMeters,gear,current.gear,opt.search);
+          const Gear nextGear=spin?current.gear:gear;
+          const auto key=quantize(sec.end,nextGear,opt.search);
+          // A zero-translation spin MUST have a strictly positive cost.
+          // Preserve incoming gear through a spin for subsequent switch fees.
+          const double cost=spin
+              ? opt.rotationCostMetersPerRadian*std::abs(sec.turnRadians)
+              : edgeCost(sec.lengthMeters,gear,current.gear,opt.search);
           const double lowerG=current.g+cost;
           if (!std::isfinite(lowerG)) {result.status=PlanStatus::InternalError;return result;}
           const auto found=[&] {
@@ -772,7 +828,7 @@ PlanResult plan(const PlanRequest& r) {
           if (found!=active.end() && found->second.expanded) ++result.diagnostics.reopened;
           const double h=weightedEstimate(sec.end);
           const auto id=nodes.size();
-          nodes.push_back({sec.end,key,gear,g,h,current.clearanceCost+extra,item.node,sec});
+          nodes.push_back({sec.end,key,nextGear,g,h,current.clearanceCost+extra,item.node,sec});
           const auto oldNode=found!=active.end()?
               std::optional<std::size_t>(found->second.node):std::nullopt;
           const auto bucketsBefore=active.bucket_count();
