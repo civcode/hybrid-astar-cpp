@@ -6,6 +6,7 @@ option(HYBRID_ASTAR_BUILD_TESTS "Build standalone smoke tests" ON)
 
 add_library(hybrid_astar_core STATIC
   src/ackermann/search_config.cpp
+  src/ackermann/planner.cpp
   src/steering/analytic_expansion.cpp)
 add_library(hybrid_astar::core ALIAS hybrid_astar_core)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
@@ -36,6 +37,9 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   add_executable(hybrid_astar_core_smoke tests/core_smoke.cpp)
   target_link_libraries(hybrid_astar_core_smoke PRIVATE hybrid_astar::core)
   add_test(NAME core_smoke COMMAND hybrid_astar_core_smoke)
+  add_executable(hybrid_astar_planner_test tests/planner_test.cpp)
+  target_link_libraries(hybrid_astar_planner_test PRIVATE hybrid_astar::core)
+  add_test(NAME planner_test COMMAND hybrid_astar_planner_test)
   if(HYBRID_ASTAR_ENABLE_OMPL)
     add_executable(hybrid_astar_ompl_smoke tests/ompl_smoke.cpp)
     target_link_libraries(hybrid_astar_ompl_smoke PRIVATE hybrid_astar::ompl)
