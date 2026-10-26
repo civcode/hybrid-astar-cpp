@@ -69,7 +69,7 @@ enum class PlanStatus {
 enum class HeuristicMode { CertifiedRegionEuclidean, PerformanceReedsSheppAndObstacleGrid };
 enum class SolutionPolicy { FirstStrictlyValidated, ImproveIncumbent };
 enum class SolutionQuality { FeasibleFirst, FeasibleAfterImprovement, FeasibleAfterRefinement };
-enum class TerminationReason { None, FirstValidated, ImprovementBudgetExhausted, SearchExhausted, WorkBudgetExceeded, CancelledAfterIncumbent };
+enum class TerminationReason { None, FirstValidated, ImprovementBudgetExhausted, SearchExhausted, WorkBudgetExceeded, CancelledAfterIncumbent, ValidationBudgetExhausted };
 
 struct PlanOptions {
   SearchConfig search;
@@ -90,6 +90,7 @@ struct PlanOptions {
   double finalMaxBodyPointMotionMeters = 0.05;
   std::size_t maxSamplesPerSection = 10000; // search only
   std::size_t maxFinalSamplesPerSection = 10000; // independent strict validator
+  std::size_t maxTotalFinalPoseChecks = 250000; // cumulative strict whole-path checks
   std::size_t maxExpansions = 100000;
   std::size_t maxGeneratedNodes = 400000;
 };
