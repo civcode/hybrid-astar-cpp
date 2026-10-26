@@ -1,46 +1,57 @@
 #include "hybrid_astar/steering/reeds_shepp.hpp"
 #include "hybrid_astar/steering/reeds_shepp_evaluator.hpp"
+#include <array>
 #include <cmath>
 #include <memory>
+#include <numbers>
 #include <stdexcept>
-
+using namespace hybrid_astar;
+using namespace hybrid_astar::ackermann;
+using namespace hybrid_astar::steering;
+static void check(bool yes,const char* reason){if(!yes) throw std::runtime_error(reason);}
 int main() {
-  using hybrid_astar::Pose2D;
-  using hybrid_astar::steering::ReedsSheppEvaluator;
-  using hybrid_astar::steering::reedsSheppDistance;
-  const Pose2D origin{};
-  ReedsSheppEvaluator evaluator(4.5);
-  if (std::abs(evaluator.distance(origin,origin))>1.e-8) return 1;
-  if (std::abs(reedsSheppDistance(origin,Pose2D{1,0,0},4.5)-1.)>1.e-6) return 2;
-  if (std::abs(evaluator.distance(origin,Pose2D{-1,0,0})-1.)>1.e-6) return 3;
-
-  for (const Pose2D target : {Pose2D{1,0,0},Pose2D{-1,0,0},Pose2D{4,2,0.7}}) {
-    auto sections=evaluator.shortestPath(origin,target);
-    double length=0;
-    Pose2D reached=origin;
-    if (sections.empty()) return 4;
-    for (const auto& section : sections) {
-      if (std::hypot(section.start.x-reached.x,section.start.y-reached.y)>1.e-6) return 5;
-      reached=section.evaluate(section.lengthMeters);
-      length+=section.lengthMeters;
+  ReedsSheppEvaluator evaluator(4.0);
+  const Pose2D start{20,20,0};
+  check(evaluator.shortestPath(start,start).empty(),"zero RS path");
+  const std::array<Pose2D,9> goals{{
+    {21,20,0},{19,20,0},{23,22,.5},{17,18,-.7},
+    {20,21,std::numbers::pi},{20,20,std::numbers::pi},
+    {21,21,-std::numbers::pi/2},{25,20,1.0},{16,23,2.2}
+  }};
+  bool observedCusp=false;
+  for(const auto& goal:goals) {
+    const auto path=evaluator.shortestPath(start,goal);
+    check(!path.empty(),"nonzero RS chain");
+    double total=0;auto pose=start;Gear previous=Gear::None;
+    for(const auto& section:path) {
+      check(section.gear!=Gear::None&&section.lengthMeters>0,"signed section gear and positive arc progress");
+      check(std::hypot(pose.x-section.start.x,pose.y-section.start.y)<1e-8,"section continuity");
+      check(std::abs(section.curvature)<=.250000001,"curvature bounded by radius");
+      if(previous!=Gear::None&&previous!=section.gear) observedCusp=true;
+      previous=section.gear;
+      total+=section.lengthMeters;
+      pose=section.evaluate(section.lengthMeters);
     }
-    if (std::hypot(reached.x-target.x,reached.y-target.y)>1.e-5 ||
-        std::abs(std::remainder(reached.yaw-target.yaw,2*3.14159265358979323846))>1.e-5) return 6;
-    if (std::abs(length-evaluator.distance(origin,target))>1.e-5) return 7;
+    check(std::hypot(pose.x-goal.x,pose.y-goal.y)<1e-5,"RS exact terminal XY");
+    check(std::abs(std::remainder(pose.yaw-goal.yaw,2*std::numbers::pi))<1e-5,"RS exact terminal yaw");
+    check(std::abs(total-evaluator.distance(start,goal))<1e-5,"RS length matches OMPL metric");
   }
-
-  auto m=std::make_shared<hybrid_astar::ackermann::MapSnapshot>();
-  m->width=m->height=200; m->resolutionMeters=0.2;
-  m->cells.assign(m->width*m->height,0);
-  hybrid_astar::ackermann::PlanRequest request;
-  request.map=m;
-  request.start={20,20,0};request.goal={19,20,0};
-  request.analyticConnector=[&](const Pose2D& p,const Pose2D& g) {
-    return evaluator.shortestPath(p,g);
-  };
-  auto result=hybrid_astar::ackermann::plan(request);
-  if (result.status!=hybrid_astar::ackermann::PlanStatus::Success ||
-      result.diagnostics.analyticAttempts!=1 || result.diagnostics.analyticAccepted!=1)
-    return 8;
+  check(observedCusp,"test targets must exercise actual Reeds-Shepp gear reversal");
+  check(std::abs(reedsSheppDistance(start,{19,20,0},4)-1)<1e-5,"convenience reverse distance");
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=map->height=200;map->resolutionMeters=.2;
+  map->cells.assign(40000,0);
+  PlanRequest request;request.map=map;request.start=start;request.goal={19,20,0};
+  const auto basic=planWithReedsShepp(request);
+  check(basic.status==PlanStatus::Success&&basic.diagnostics.analyticAttempts==1&&
+        basic.diagnostics.analyticAccepted==1,"OMPL automatically connected to complete planner");
+  check(basic.heuristicCertifiedAdmissible,"OMPL connector retains certified heuristic default");
+  check(basic.finalGear==Gear::Reverse&&basic.reverseLengthMeters>.9,"RS reverse path metadata");
+  const auto performance=planWithReedsShepp(request,true);
+  check(performance.status==PlanStatus::Success&&!performance.heuristicCertifiedAdmissible,
+        "explicit noncertified RS performance ordering");
+  request.goal=start;
+  const auto identical=planWithReedsShepp(request);
+  check(identical.status==PlanStatus::Success&&identical.sections.empty(),"zero-path goal completion");
   return 0;
 }
