@@ -1,3 +1,5 @@
+> **Current implementation precedence (2026-10-26):** This file preserves the baseline design history/proposal. Where defaults, collision assurance, Ackermann integration, heuristics or RS scheduling differ, follow the [current implementation contract](../architecture/current-implementation.md) and its work-package statuses. The [consolidated external reviews](../architecture/Hybrid_AStar_Consolidated_Specification.md) are proposed design guidance, **not** an already approved ADR or evidence of completed features.
+
 # ADR-0015: Certified admissible heuristics by default
 
 **Status:** Partly superseded for initial Ackermann performance default by [ADR-0027](0027-combined-hybrid-a-star-heuristic-and-guarded-analytic-expansion.md); certified-mode rules preserved  
