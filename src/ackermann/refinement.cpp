@@ -207,6 +207,26 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
             candidate.insert(candidate.end(),before.begin(),before.begin()+i);
             candidate.insert(candidate.end(),replacement.begin(),replacement.end());
             candidate.insert(candidate.end(),before.begin()+j,before.end());
+            // Clearance penalties are nonnegative. Hence the weighted base
+            // cost of the whole path is a SAFE lower bound on its true cost.
+            // Skip costly exact checking when no strict improvement is possible.
+            Gear priorGear=Gear::None;
+            double baseLowerBound=0.0;
+            bool competitive=true;
+            for (const auto& section:candidate) {
+              if(section.gear==Gear::None||!std::isfinite(section.lengthMeters)||
+                 section.lengthMeters<=0) {competitive=false;break;}
+              const double edge=edgeCost(section.lengthMeters,section.gear,
+                                         priorGear,req.options.search);
+              baseLowerBound+=edge;
+              priorGear=section.gear;
+              if(!std::isfinite(baseLowerBound)||
+                 baseLowerBound>=result.path.weightedCostMeters-
+                    options.minimumCostReductionMeters) {competitive=false;break;}
+            }
+            if(!competitive) {
+              ++result.rejected; ++result.prunedByCostLowerBound; continue;
+            }
             Evaluated evaluated;
             const auto check=validate(req,candidate,checker,clearance.get(),
                                      result.exactPoseChecks,options.maxTotalPoseChecks,evaluated);
