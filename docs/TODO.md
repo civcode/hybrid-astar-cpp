@@ -7,7 +7,7 @@
 > integration verification and benchmarks for signed connector (W5),
 > performance-grid benchmarks and any reachability proof (W6),
 > optional EDT/disc proof review and broader benchmarks (W7),
-> clearance-weight tuning and downstream path refinement (W8),
+> clearance-weight tuning and broader curvature-aware post-path smoothing (W8; a bounded strict shortcut refiner is now implemented),
 > future chassis/actuation and ROS adapters (W9). No swept/actuator safety
 > certification or validated global optimality is claimed.
 
@@ -129,6 +129,14 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Benchmark resulting total planner/search+refinement latency and final validated path quality against the zero-clearance-cost MVP; retain only if it improves the product.
 
 ## M5 — Path representation and optional refinement
+
+**Current W8 increment:** `ackermann::refinePath` implements opt-in bounded
+section-boundary shortcuts, signed-provider injection, recomputed weighted
+cost and independent strict full-path validation. Invalid proposals keep the
+verified original. See [W8 refinement verification](architecture/w8-refinement-verification.md).
+A curvature-continuous obstacle-aware smoother, real-map quality benchmarks,
+and actuator feasibility checks remain separate follow-up tasks.
+
 
 - [ ] Segment-level continuous evaluation using canonical `(segmentIndex, lambda)`, derivative availability, progress/cusp/rotation semantics, and lateral holonomic motion without heading-as-tangent assumptions.
 - [ ] Define external speed-profile input requirements: segment derivatives, rate/acceleration/jerk limits, start/end speeds and mandatory stop conditions (OQ-024).
