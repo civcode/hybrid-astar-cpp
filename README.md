@@ -52,7 +52,8 @@ When the optional OMPL adapter is built, Reeds–Shepp connector controls
 are enabled automatically. The executable also supports
 `--once --scenario reverse` for machine-readable CLI JSON.
 See the [app README](apps/demo/README.md) for full usage, API and limitations.
-No GitHub Actions workflow is required.
+GitHub Actions is optional and **manual only**, with a limited set of test suites.
+See the [manual verification guide](docs/ci/manual-verification.md).
 
 ## Docker: dependencies, tests and demo
 
@@ -73,7 +74,9 @@ docker compose run --build --rm test
 ```
 
 The Compose mapping publishes **only 127.0.0.1 on your host**. The Docker
-build and test are manual, not GitHub Actions automation. See the
+build and test are manual. The optional [manual-only Actions workflow](docs/ci/manual-verification.md)
+can invoke the same Docker integration suite by explicit selection; it has
+no push, PR or scheduled triggers. See the
 [complete Docker guide](docs/docker.md) for CLI planning and benchmarks.
 **Docker execution has not yet been validated in this assistant environment**
 because no Docker engine is installed here.
@@ -275,7 +278,7 @@ ctest --test-dir build --output-on-failure
 # cmake --build build-ompl && ctest --test-dir build-ompl --output-on-failure
 ```
 
-For local manual performance experiments (no GitHub Actions workflow):
+For local manual performance experiments (not run by the Actions verification workflow):
 
 ```bash
 cmake -S . -B build-bench -DCMAKE_BUILD_TYPE=Release -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
@@ -365,4 +368,4 @@ for regression fixtures, budgets and unresolved quality gates.
 - OMPL is the selected runtime Dubins/Reeds–Shepp provider, isolated behind project-native steering APIs; the in-house solver is low priority.
 - Kinematic models are controlled differential equations with admissible controls and body-frame transforms; [mathematical specification](docs/architecture/kinematic-models.md) and [ADR-0008](docs/adr/0008-motion-model-capabilities.md).
 - Existing civcode reference repositories inform design but **must not be vendored or copied**.
-- Local build/test/benchmarks first. Any future GitHub Actions workflow must be manual (`workflow_dispatch`) unless explicitly requested.
+- Local build/test/benchmarks first. The optional GitHub Actions workflow is `workflow_dispatch`-only, with one selected suite per run and per-job usage caps.

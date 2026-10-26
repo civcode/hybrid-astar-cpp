@@ -105,7 +105,8 @@ This executes the C++ test suites under **Catch2 v3** (including actual
 demo smoke (Python 3), and OMPL-enabled signed-path/integration tests.
 Tests are **not automatically run on Docker image build**; the `test`
 service is under a Compose profile and has to be requested explicitly.
-No GitHub Actions workflow is added or dispatched.
+The optional [GitHub Actions verification workflow](ci/manual-verification.md)
+uses `workflow_dispatch` only; no workflow run is dispatched automatically.
 
 To run the planner directly in command-line JSON mode:
 

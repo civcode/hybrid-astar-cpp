@@ -214,8 +214,13 @@ See [W3/W6 failure root-cause investigation](architecture/w3-w6-failure-investig
   Native tests use Catch2 cases and `INFO`/`REQUIRE` assertions.
 - [x] Add native Catch2 `SECTION` fixtures for kinematic propagation and
   strict validated path evidence.
-- [ ] Run a full Docker image build/CTest matrix on a machine with Docker
-  and network access; Docker is unavailable in the assistant's container.
+- [x] Configure an opt-in `workflow_dispatch`-only GitHub Actions workflow,
+  with one selected suite (`quick`, `sanitizers` or `ompl`) per run, bounded
+  parallelism, short job timeouts and no automatic triggers.
+- [ ] Activate the manual workflow via a standalone workflow-file change on
+  `main` (GitHub requires workflow-dispatch files on the default branch).
+- [ ] Run the W11/W12 full Catch2/CTest matrix and the OMPL/Docker matrix
+  using manual GitHub Actions selections; neither has been dispatched yet.
 - [ ] Continue splitting larger legacy Catch2-wrapped test bodies into
   independently named `TEST_CASE`/`SECTION` fixtures for finer diagnostics.
 
@@ -404,6 +409,7 @@ and actuator feasibility checks remain separate follow-up tasks.
 ## Working agreements
 
 - Implement on feature branches with **small commits pushed after meaningful progress**; do not merge without review.
-- Run local tests/benchmarks using available tooling; document limitations rather than dispatch GitHub Actions.
+- Run local tests/benchmarks first; manually dispatch GitHub Actions only on
+  explicit request and select the smallest applicable suite.
 - No automatic workflow triggers (`push`, `pull_request`, `schedule` etc.) unless explicitly requested.
 - Keep requirement IDs, interface docs, ADRs, verification and code changes synchronized.
