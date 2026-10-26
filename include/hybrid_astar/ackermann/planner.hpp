@@ -66,9 +66,13 @@ enum class PlanStatus {
   StrictValidationFailed, InternalError
 };
 
+enum class HeuristicMode { CertifiedRegionEuclidean, PerformanceReedsSheppAndObstacleGrid };
+
 struct PlanOptions {
   SearchConfig search;
   steering::AnalyticExpansionOptions analytic; // only used with connector
+  HeuristicMode heuristicMode = HeuristicMode::CertifiedRegionEuclidean;
+  std::size_t gridMaxSettlementsPerQuery = 500; // finite lazy Dijkstra budget
   double minimumTurningRadiusMeters = 4.0;
   double goalXYToleranceMeters = 0.25;
   double goalYawToleranceRadians = 0.17453292519943295; // 10 degrees
@@ -91,6 +95,7 @@ struct PlanRequest {
   // Optional signed analytic connector; must return complete evaluable sections.
   // The planner independently checks kinematics, cost, collision and final path.
   std::function<std::vector<MotionSection>(const Pose2D&,const Pose2D&)> analyticConnector;
+  std::function<double(const Pose2D&,const Pose2D&)> analyticDistance; // optional RS guidance
 };
 
 struct PlanDiagnostics {
@@ -98,6 +103,7 @@ struct PlanDiagnostics {
   std::size_t staleHeapPops = 0, prunedByKey = 0;
   std::size_t searchPoseChecks = 0, finalPoseChecks = 0;
   std::size_t analyticAttempts = 0, analyticAccepted = 0;
+  std::size_t gridSettlements = 0, gridFallbacks = 0;
 };
 
 struct PlanResult {
