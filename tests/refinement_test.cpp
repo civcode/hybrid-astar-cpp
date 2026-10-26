@@ -44,6 +44,8 @@ int main() {
   must(shortened.path.status==PlanStatus::Success &&
        shortened.path.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,
        "strictly verified output evidence");
+  must(shortened.path.solutionQuality==SolutionQuality::FeasibleAfterRefinement,
+       "result reflects post-path refinement separately from search incumbent quality");
   must(shortened.path.sections.size()==1&&
        shortened.path.sections[0].gear==Gear::Forward,"exact straight one segment");
   must(std::abs(shortened.path.weightedCostMeters-2)<1e-8,"quality beats two gear switches");
@@ -53,6 +55,11 @@ int main() {
   must(shortened.path.mapRevision==50&&shortened.path.mapFrameId=="map",
        "output tied to original map revision");
   must(!shortened.path.trajectoryActuatorFeasible,"geometric refinement cannot imply actuator feasibility");
+  const auto external=refinePath(req,given,[](const Pose2D& from,const Pose2D& to) {
+    return std::vector<MotionSection>{makeSection(from,Gear::Forward,0,to.x-from.x)};
+  });
+  must(external.status==RefinementStatus::Improved&&external.path.sections.size()==1,
+       "provider-generated exact sections use the same strict improvement gate");
   auto corrupted=given;
   corrupted.sections[1].end.x+=.25;
   auto invalid=refinePath(req,corrupted);
@@ -98,6 +105,11 @@ int main() {
   must(blocked.status==RefinementStatus::Unchanged&&blocked.path.sections.size()==4,
        "strict collision checker rejects shorter obstacle-cutting shortcut");
   must(blocked.rejected>0&&blocked.exactPoseChecks>0,"collision proposal really inspected");
+  RefinementOptions finiteAttempts;finiteAttempts.maxAttempts=1;
+  auto bounded=refinePath(req,raw(req,detour),{},finiteAttempts);
+  must(bounded.status==RefinementStatus::WorkBudgetExceeded&&
+       bounded.path.status==PlanStatus::Success&&bounded.path.sections.size()==4,
+       "work cap preserves independently rechecked detour");
   // Optional provider may suggest reverse/cusp sections, but each must pass
   // the same full-path kinematic, objective, and strict collision gate.
   req.map=clear;req.goal={22,20,0};
