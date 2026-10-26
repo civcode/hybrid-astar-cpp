@@ -7,7 +7,7 @@ namespace hybrid_astar::ackermann {
 // A bounded, POST-search path refiner. Does not modify the core planner's
 // default behavior. Only exact kinematic sections are ever substituted.
 // Optional connector can supply signed Reeds-Shepp arcs; when not supplied,
-// the refiner attempts feasible same-heading straight shortcuts only.
+// the refiner attempts straight shortcuts or opt-in fixed-gear CSC curves.
 using RefinementConnector =
     std::function<std::vector<MotionSection>(const Pose2D&, const Pose2D&)>;
 
@@ -15,6 +15,7 @@ struct RefinementOptions {
   std::size_t maxAttempts = 64;           // candidate windows, not map queries
   std::size_t maxAccepted = 4;            // full-path replacements
   std::size_t maxReplacementSections = 32;
+  bool useCurvatureBoundedShortcuts = false; // opt-in fixed-gear LSL/LSR/RSL/RSR
   std::size_t maxTotalPoseChecks = 100000; // includes original revalidation
   double minimumCostReductionMeters = 1e-6;
 };
