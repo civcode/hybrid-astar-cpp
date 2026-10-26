@@ -92,7 +92,19 @@ void validateOptions(const PlanOptions& o) {
     throw std::invalid_argument("Invalid planning options");
 }
 struct KeyHash {
+  PlanDiagnostics* diagnostics = nullptr;
   std::size_t operator()(const SearchKey& k) const noexcept {
+#if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
+    if (diagnostics) {
+      ++diagnostics->hashCalls;
+      HotPathTimer timer(diagnostics->hashNanoseconds);
+      return hash(k);
+    }
+#endif
+    return hash(k);
+  }
+private:
+  static std::size_t hash(const SearchKey& k) noexcept {
     std::size_t h=std::hash<std::int64_t>{}(k.xBin);
     const auto mix=[&](std::size_t v) { h^=v+0x9e3779b97f4a7c15ULL+(h<<6)+(h>>2); };
     mix(std::hash<std::int64_t>{}(k.yBin)); mix(k.yawBin); mix(static_cast<unsigned>(k.incomingGear));
@@ -253,7 +265,15 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
                          const std::atomic_bool* cancel,
                          const ConservativeDiscPrefilter* prefilter=nullptr,
                          PlanDiagnostics* stats=nullptr,
-                         std::size_t maxTotalChecks=std::numeric_limits<std::size_t>::max()) {
+                         std::size_t maxTotalChecks=std::numeric_limits<std::size_t>::max(),
+                         bool finalPhase=false) {
+  std::uint64_t ignoredTime=0;
+  HotPathTimer motionTimer(stats?(finalPhase?stats->finalMotionNanoseconds:
+                                      stats->searchMotionNanoseconds):ignoredTime);
+  if(stats) {
+    if(finalPhase)++stats->finalMotionCalls;
+    else ++stats->searchMotionCalls;
+  }
   if (!std::isfinite(section.lengthMeters) || section.lengthMeters<0) return MotionStatus::Incomplete;
   // Upper bound on translation+rotation of EVERY body point per interval.
   const double factor=1.0+checker.maxBodyRadius()*std::abs(section.curvature);
@@ -269,7 +289,13 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
       if (stats) ++stats->discDefinitelyClear;
     } else {
       if (prefilter && stats) ++stats->discExactFallback;
-      if (checker.check(pose)==PoseCollision::Colliding) return MotionStatus::Colliding;
+      PoseCollision status;
+      if (stats) {
+        ++stats->exactCollisionPoseCalls;
+        HotPathTimer collisionTimer(stats->exactCollisionNanoseconds);
+        status=checker.check(pose);
+      } else status=checker.check(pose);
+      if (status==PoseCollision::Colliding) return MotionStatus::Colliding;
     }
     ++checks;
   }
@@ -387,12 +413,19 @@ PlanResult plan(const PlanRequest& r) {
     if(r.options.clearanceWeight>0)
       clearance=std::make_unique<ClearanceScorer>(*r.map,r.occupancy,r.footprint,
                  r.options.clearanceWeight,r.options.clearanceInfluenceRadiusMeters);
-    if (checker.check(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
+    const auto checkedPose=[&](const Pose2D& pose) {
+      ++result.diagnostics.exactCollisionPoseCalls;
+      HotPathTimer timer(result.diagnostics.exactCollisionNanoseconds);
+      return checker.check(pose);
+    };
+    if (checkedPose(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
     ++result.diagnostics.searchPoseChecks;
     const auto& opt=r.options;
     std::vector<Node> nodes;
     nodes.reserve(std::min<std::size_t>(opt.maxGeneratedNodes,20000));
-    std::unordered_map<SearchKey,Label,KeyHash> active;
+    std::unordered_map<SearchKey,Label,KeyHash> active(0,KeyHash{&result.diagnostics});
+    if(opt.searchLabelReserve)active.reserve(opt.searchLabelReserve);
+    result.diagnostics.labelPeakBuckets=active.bucket_count();
     SearchOpenQueue open(opt.openQueueMode);
     steering::AnalyticExpansionScheduler scheduler(opt.analytic);
     result.heuristicCertifiedAdmissible=opt.heuristicMode==HeuristicMode::CertifiedRegionEuclidean;
@@ -426,8 +459,17 @@ PlanResult plan(const PlanRequest& r) {
     const auto startKey=quantize(r.start,Gear::None,opt.search);
     const double initialH=weightedEstimate(r.start);
     nodes.push_back({r.start,startKey,Gear::None,0.0,initialH,0.0,0,{}});
-    active.emplace(startKey,Label{0,0.0,false});
-    open.push({initialH,initialH,0});
+    {
+      HotPathTimer writeTimer(result.diagnostics.labelWriteNanoseconds);
+      active.emplace(startKey,Label{0,0.0,false});
+    }
+    ++result.diagnostics.labelInsertions;
+    result.diagnostics.labelPeakSize=1;
+    result.diagnostics.labelPeakBuckets=std::max(result.diagnostics.labelPeakBuckets,active.bucket_count());
+    {
+      HotPathTimer queueTimer(result.diagnostics.openQueueNanoseconds);
+      open.push({initialH,initialH,0});
+    }
     result.diagnostics.openQueuePushes=1;result.diagnostics.openQueuePeakSize=1;
     result.diagnostics.openQueuePeakStorageBytes=open.storageBytes();
     result.diagnostics.generated=1;
@@ -475,14 +517,22 @@ PlanResult plan(const PlanRequest& r) {
         if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
         result.status=PlanStatus::Cancelled;return result;
       }
-      const OpenEntry item=open.pop();
+      const OpenEntry item=[&] {
+        HotPathTimer queueTimer(result.diagnostics.openQueueNanoseconds);
+        return open.pop();
+      }();
       ++result.diagnostics.openQueuePops;
       // Copy only expansion fields, not the complete MotionSection. A
       // reference would dangle if the node vector reallocates for children.
       const auto& candidate=nodes[item.node];
       const struct {Pose2D pose; SearchKey key; Gear gear; double g,h,clearanceCost;} current{
         candidate.pose,candidate.key,candidate.gear,candidate.g,candidate.h,candidate.clearanceCost};
-      auto label=active.find(current.key);
+      const auto label=[&] {
+        HotPathTimer lookupTimer(result.diagnostics.labelLookupNanoseconds);
+        return active.find(current.key);
+      }();
+      ++result.diagnostics.labelFinds;
+      if(label!=active.end())++result.diagnostics.labelFindHits;
       if (label==active.end()||label->second.node!=item.node||label->second.expanded) {
         ++result.diagnostics.staleHeapPops;continue;
       }
@@ -502,14 +552,14 @@ PlanResult plan(const PlanRequest& r) {
           if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
           result.status=PlanStatus::ValidationIncomplete;return result;
         }
-        bool valid=checker.check(r.start)==PoseCollision::Clear;
+        bool valid=checkedPose(r.start)==PoseCollision::Clear;
         ++result.diagnostics.finalPoseChecks;
         for (const auto& sec : reverse) {
           if (!valid) break;
           const auto status=checkMotion(sec,checker,opt.finalSampleSpacingMeters,
                          opt.finalMaxBodyPointMotionMeters,opt.maxFinalSamplesPerSection,
                          result.diagnostics.finalPoseChecks,r.cancelled.get(),
-                    nullptr,nullptr,opt.maxTotalFinalPoseChecks);
+                    nullptr,&result.diagnostics,opt.maxTotalFinalPoseChecks,true);
           if (status==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
             result.status=PlanStatus::Cancelled;return result;}
           if (status==MotionStatus::Incomplete) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
@@ -585,14 +635,14 @@ PlanResult plan(const PlanRequest& r) {
               if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
               result.status=PlanStatus::ValidationIncomplete;return result;
             }
-            bool finalValid=checker.check(r.start)==PoseCollision::Clear;
+            bool finalValid=checkedPose(r.start)==PoseCollision::Clear;
             ++result.diagnostics.finalPoseChecks;
             for (const auto& part:candidate) {
               if (!finalValid) break;
               const auto check=checkMotion(part,checker,opt.finalSampleSpacingMeters,
                     opt.finalMaxBodyPointMotionMeters,opt.maxFinalSamplesPerSection,
                     result.diagnostics.finalPoseChecks,r.cancelled.get(),
-                    nullptr,nullptr,opt.maxTotalFinalPoseChecks);
+                    nullptr,&result.diagnostics,opt.maxTotalFinalPoseChecks,true);
               if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
             result.status=PlanStatus::Cancelled;return result;}
               if (check==MotionStatus::Incomplete) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
@@ -617,7 +667,12 @@ PlanResult plan(const PlanRequest& r) {
           const double cost=edgeCost(sec.lengthMeters,gear,current.gear,opt.search);
           const double lowerG=current.g+cost;
           if (!std::isfinite(lowerG)) {result.status=PlanStatus::InternalError;return result;}
-          auto found=active.find(key);
+          const auto found=[&] {
+            HotPathTimer lookupTimer(result.diagnostics.labelLookupNanoseconds);
+            return active.find(key);
+          }();
+          ++result.diagnostics.labelFinds;
+          if(found!=active.end())++result.diagnostics.labelFindHits;
           if (found!=active.end()&&found->second.bestG<=lowerG) {
             ++result.diagnostics.prunedByKey;continue;
           }
@@ -655,8 +710,26 @@ PlanResult plan(const PlanRequest& r) {
           nodes.push_back({sec.end,key,gear,g,h,current.clearanceCost+extra,item.node,sec});
           const auto oldNode=found!=active.end()?
               std::optional<std::size_t>(found->second.node):std::nullopt;
-          active[key]={id,g,false};
-          const bool replaced=open.push({g+h,h,id},oldNode);
+          const auto bucketsBefore=active.bucket_count();
+          {
+            HotPathTimer writeTimer(result.diagnostics.labelWriteNanoseconds);
+            if(found!=active.end()) {
+              found->second={id,g,false};
+              ++result.diagnostics.labelUpdates;
+            } else {
+              active.emplace(key,Label{id,g,false});
+              ++result.diagnostics.labelInsertions;
+            }
+          }
+          if(active.bucket_count()!=bucketsBefore)++result.diagnostics.labelRehashes;
+          result.diagnostics.labelPeakBuckets=
+              std::max(result.diagnostics.labelPeakBuckets,active.bucket_count());
+          result.diagnostics.labelPeakSize=
+              std::max(result.diagnostics.labelPeakSize,active.size());
+          const bool replaced=[&] {
+            HotPathTimer queueTimer(result.diagnostics.openQueueNanoseconds);
+            return open.push({g+h,h,id},oldNode);
+          }();
           ++result.diagnostics.openQueuePushes;
           if(replaced)++result.diagnostics.openQueueReplacements;
           result.diagnostics.openQueuePeakSize=
