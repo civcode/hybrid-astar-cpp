@@ -82,6 +82,17 @@ int main() {
   }
   {
     auto m=std::make_shared<MapSnapshot>(makeMap());
+    PlanRequest q;
+    q.map=m;q.start={20,20,0};q.goal={18,20,0};
+    const auto reverse=plan(q);
+    expect(reverse.status==PlanStatus::Success,"reverse plan accepted");
+    expect(reverse.finalGear==Gear::Reverse,"incoming reverse gear preserved");
+    expect(reverse.sections.size()==4,"four reverse arc sections");
+    expect(std::abs(reverse.weightedCostMeters-2.20)<1e-9,"reverse weighted length");
+    for (const auto& s: reverse.sections) expect(s.gear==Gear::Reverse,"gear for each section");
+  }
+  {
+    auto m=std::make_shared<MapSnapshot>(makeMap());
     PlanRequest request;
     request.map=m;request.start={12,12,0};request.goal={15,12,0};
     request.options.maxExpansions=15000;
