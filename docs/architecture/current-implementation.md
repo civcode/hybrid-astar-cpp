@@ -36,7 +36,13 @@ request-local options. It performs:
    Lower g wins within one approximate key; this can suppress a feasible
    sub-bin arrival, so **no resolution-completeness or global-optimality
    claim** is justified.
-5. Search queue ordered by finite `g+h`. Default `h` is the certified
+5. Search queue ordered by finite `g+h`. The queue's default remains `std::priority_queue` with
+   deterministic tie-breaking by `(f,h,node ID)`; optional binary/4-ary
+   indexed variants are available for opt-in A/B testing. Both the open
+   and the reverse-grid heap expose push/pop/stale/peak/storage diagnostics.
+   Expansion copies only necessary scalar/pose/key fields rather than the
+   stored motion section. **No queue alternative is globally enabled** on
+   the exploratory hardware timing data alone. Default `h` is the certified
    goal-region Euclidean lower bound; an optional **noncertified** performance
    mode combines finite fallback, lazy goal-region-seeded reverse Dijkstra
    (settled distances only) and an optional injected RS exact-goal distance.
@@ -258,6 +264,7 @@ The relocated core-only demo has been compiled and smoke-tested locally.
 | Refinement | Explicit `refinePath()`; straight-only default; opt-in CSC or signed provider; optional real-OMPL combined plan/refine; strict cheaper full-path revalidation and original fallback | CCC/RS completeness, curvature-continuous steering smoothing, multi-seed cost/latency benchmarks |
 | Result | Geometric sampled evidence, no actuator guarantee | Consumer execution assurance policy |
 
+See [W6 priority queue verification](w6-priority-queue-verification.md) for both-heap instrumentation, indexed and four-ary A/B timings, memory costs and unchanged defaults.
 See [W3/W6 failure investigation](w3-w6-failure-investigation.md) for the corrected dead-end fixture, detour heuristic-budget root cause and optional weight tradeoffs.
 See [hard-scenario regression and W6 A/B evidence](w3-w6-hard-scenarios.md) for current test fixtures, counters and remaining search-efficiency limitations.
 See [real OMPL 2.0.2 source integration evidence](w5-ompl-source-verification.md) for the offline 10-suite Release/sanitizer matrix and remaining official-package gate.

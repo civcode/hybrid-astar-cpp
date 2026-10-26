@@ -22,6 +22,25 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## W6 priority-queue profiling — implemented 2026-10-26
+
+- [x] Instrument both Hybrid A* open and lazy reverse-grid frontiers for
+  pushes, pops, stale pops, peak live entries and approximate buffer storage.
+- [x] Implement independent opt-in binary lazy, four-ary lazy, indexed
+  binary and indexed four-ary variants with identical deterministic order.
+- [x] Avoid full `Node`/`MotionSection` copies when expanding children;
+  retain a safe small snapshot instead of holding invalidatable references.
+- [x] Benchmark all queue combinations on seven deterministic hard maps,
+  checking expansion/path/cost equivalence and reporting p50/p95 and memory.
+- [x] Add Catch2 priority/decrease-key and all-scenario equivalence tests;
+  local standalone and Clang sanitizer harnesses pass.
+- [x] Retain the binary-lazy default: indexed alternatives remove stale
+  entries but can cost more memory and latency, particularly for grid cells.
+- [ ] Run exact-checkout Catch2/Docker suite and repeat performance trials
+  on product hardware before changing a queue default.
+
+See [priority-queue verification](architecture/w6-priority-queue-verification.md).
+
 ## W3/W6 planner milestones — implemented 2026-10-26
 
 - [x] Share seven deterministic reverse/parking/three-point/narrow-corridor/

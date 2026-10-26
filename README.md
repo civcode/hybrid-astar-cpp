@@ -78,6 +78,40 @@ build and test are manual, not GitHub Actions automation. See the
 **Docker execution has not yet been validated in this assistant environment**
 because no Docker engine is installed here.
 
+## W6 priority-queue profiling and A/B tuning
+
+Both search queues now expose explicit queue push/pop/stale/peak/memory
+diagnostics. The original `std::priority_queue` binary lazy heap is
+retained as the **default** for the Hybrid A* open set and the optional
+reverse-Dijkstra grid frontier. Four-child and indexed binary/four-child
+heaps can be selected independently to compare realistic CPU and memory
+tradeoffs, without changing certified search semantics. Expansion-state
+copies were also reduced to fields used during expansion rather than
+copying full motion sections.
+
+```cpp
+request.options.openQueueMode =
+    hybrid_astar::ackermann::OpenQueueMode::FourAryLazy;
+request.options.gridQueueMode =
+    hybrid_astar::ackermann::OpenQueueMode::BinaryLazy;
+```
+
+Run the **manual** deterministic p50/p95/memory comparison:
+
+```bash
+cmake -S . -B build-queues -DCMAKE_BUILD_TYPE=Release \
+  -DHYBRID_ASTAR_BUILD_TESTS=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
+cmake --build build-queues --parallel
+ctest --test-dir build-queues --output-on-failure
+./build-queues/hybrid_astar_priority_queue_bench 7 > queues.csv
+```
+
+The indexed frontiers eliminate stale heap pops but can increase storage
+and latency, especially for sparse-index reverse-grid cells. See
+[measurements and verification](docs/architecture/w6-priority-queue-verification.md).
+No alternative has yet shown sufficiently consistent end-to-end improvements
+to replace the original default.
+
 ## Hard-scenario verification and W6 search benchmarking
 
 Seven deterministic planner fixtures now cover reverse approach, three-point
