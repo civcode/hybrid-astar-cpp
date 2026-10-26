@@ -105,6 +105,9 @@ int main() {
     expect(result.diagnostics.analyticAttempts==1 && result.diagnostics.analyticAccepted==1,"first-node attempt");
     expect(result.sections.size()==2 && result.finalGear==Gear::Forward,"analytic cusp preserved");
     expect(std::abs(result.weightedCostMeters-3.6)<1e-9,"analytic cost including cusp");
+    expect(std::abs(result.geometricLengthMeters-3.0)<1e-9,"analytic geometric length");
+    expect(std::abs(result.reverseLengthMeters-1.0)<1e-9,"reverse section length");
+    expect(result.gearChangeSectionIndices.size()==1 && result.gearChangeSectionIndices[0]==1,"explicit cusp event");
     q.options.analytic.maxWeightedCostMeters=2.0;
     auto fallback=plan(q);
     expect(fallback.status==PlanStatus::Success,"cost-gated connector falls back");
