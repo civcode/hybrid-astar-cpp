@@ -91,14 +91,20 @@ void pathJson(std::ostream& os,const PlanResult& path) {
   for(std::size_t i=0;i<path.sections.size();++i) {
     const auto& section=path.sections[i];
     if(i) os<<',';
-    const std::size_t steps=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(section.lengthMeters/.13)));
+    const bool spin=section.kind==MotionKind::RotateInPlace;
+    const double extent=section.progressExtent();
+    // Rotation is parameterized by radians; drawing must retain heading
+    // samples even though all reference positions coincide.
+    const std::size_t steps=std::max<std::size_t>(1,static_cast<std::size_t>(
+        std::ceil(extent/(spin?.07:.13))));
     // Visualization samples are separate from strict collision evidence.
-    os<<"{\"gear\":"<<quoted(section.gear==Gear::Reverse?"reverse":"forward")
+    os<<"{\"gear\":"<<quoted(spin?"rotate":section.gear==Gear::Reverse?"reverse":"forward")
+      <<",\"kind\":"<<quoted(spin?"rotation":"translation")
+      <<",\"turnRadians\":"<<section.turnRadians
       <<",\"curvature\":"<<section.curvature<<",\"length\":"<<section.lengthMeters<<",\"points\":[";
     for(std::size_t j=0;j<=steps;++j) {
       if(j)os<<',';
-      const auto p=section.evaluate(j==steps?section.lengthMeters:
-                                                section.lengthMeters*double(j)/double(steps));
+      const auto p=section.evaluate(j==steps?extent:extent*double(j)/double(steps));
       poseJson(os,p);
     }
     os<<"]}";
@@ -156,6 +162,14 @@ Outcome run(const Options& opt) {
   for(auto p:{out.request.start,out.request.goal})
     if(!finite(p)||p.x < -1000||p.x > 1000||p.y < -1000||p.y > 1000||
        std::abs(p.yaw)>10000)throw std::invalid_argument("Pose is not finite or within demo bounds");
+  if(opt.model=="differential" || opt.model=="diff") {
+    if(opt.ompl || opt.refine || opt.curvedRefinement)
+      throw std::invalid_argument("Reeds-Shepp and Ackermann refinement are unavailable for differential drive");
+    out.request.options.model=PlanOptions::Model::DifferentialDrive;
+    out.request.footprint={-.35,.35,.25}; // compact robot body, reference center
+    out.request.options.rotationCostMetersPerRadian=.4;
+  } else if(opt.model!="ackermann")
+    throw std::invalid_argument("Unknown model (ackermann or differential)");
   if(opt.performanceHeuristic)
     out.request.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
   if(opt.improve) {
@@ -189,7 +203,9 @@ Outcome run(const Options& opt) {
 std::string toJson(const Outcome& out) {
   const auto& m=*out.request.map;
   std::ostringstream os;os<<std::setprecision(12);
-  os<<"{\"width\":"<<m.width<<",\"height\":"<<m.height<<",\"resolution\":"<<m.resolutionMeters
+  os<<"{\"model\":"<<quoted(out.request.options.model==PlanOptions::Model::DifferentialDrive?"differential":"ackermann")
+    <<",\"footprint\":["<<out.request.footprint.rearX<<','<<out.request.footprint.frontX
+    <<','<<out.request.footprint.halfWidth<<"],\"width\":"<<m.width<<",\"height\":"<<m.height<<",\"resolution\":"<<m.resolutionMeters
     <<",\"frameId\":"<<quoted(m.frameId)<<",\"sourceId\":"<<quoted(m.sourceId)<<",\"revision\":"<<m.revision
     <<",\"origin\":";poseJson(os,m.origin);
   os<<",\"start\":";poseJson(os,out.request.start);
@@ -225,7 +241,7 @@ std::string capabilitiesJson(const ackermann::MapSnapshot* customMap) {
   const char* ompl="false";
 #endif
   std::ostringstream os;os<<std::setprecision(15);
-  os<<"{\"ompl\":"<<ompl<<",\"customMap\":"<<(customMap?"true":"false");
+  os<<"{\"ompl\":"<<ompl<<",\"differential\":true,\"customMap\":"<<(customMap?"true":"false");
   if(customMap) os<<",\"mapWidthMeters\":"<<customMap->width*customMap->resolutionMeters
                   <<",\"mapHeightMeters\":"<<customMap->height*customMap->resolutionMeters
                   <<",\"origin\":["<<customMap->origin.x<<','<<customMap->origin.y<<','<<customMap->origin.yaw<<']';
