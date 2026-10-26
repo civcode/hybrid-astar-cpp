@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cmath>
 #include "hybrid_astar/differential_drive/primitives.hpp"
+#include "hybrid_astar/mecanum/primitives.hpp"
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -55,7 +56,7 @@ private:
 
 // Progress is NONNEGATIVE reference-axle arc length; curvature is signed
 // steering curvature, not direction-adjusted yaw rate. Endpoints are analytic.
-enum class MotionKind { Translate, RotateInPlace };
+enum class MotionKind { Translate, RotateInPlace, HolonomicTwist };
 struct MotionSection {
   Pose2D start, end;
   Gear gear = Gear::None;
@@ -63,7 +64,9 @@ struct MotionSection {
   double lengthMeters = 0.0;
   // Rotation is represented in radians, never conflated with travel metres.
   MotionKind kind = MotionKind::Translate;
-  double turnRadians = 0.0; // signed for pure spin; lengthMeters remains zero
+  double turnRadians = 0.0; // signed for spin or holonomic heading motion
+  double forwardMeters = 0.0; // planar body twist
+  double lateralMeters = 0.0; // sideways motion, body heading independent of tangent
   double progressExtent() const noexcept {
     return kind==MotionKind::RotateInPlace?std::abs(turnRadians):lengthMeters;
   }
@@ -73,6 +76,8 @@ struct MotionSection {
 MotionSection makeSection(const Pose2D& start, Gear gear,
                           double curvature, double lengthMeters);
 MotionSection makeRotationSection(const Pose2D& start,double signedTurnRadians);
+MotionSection makeHolonomicSection(const Pose2D& start,double forwardMeters,
+                                  double lateralMeters,double signedTurnRadians);
 
 enum class CollisionEvidence { None, FullFootprintBodyMotionAdaptiveSampled };
 enum class PlanStatus {
@@ -88,9 +93,11 @@ enum class TerminationReason { None, FirstValidated, ImprovementBudgetExhausted,
 
 struct PlanOptions {
   SearchConfig search;
-  enum class Model { Ackermann, DifferentialDrive } model = Model::Ackermann;
+  enum class Model { Ackermann, DifferentialDrive, Mecanum } model = Model::Ackermann;
   differential_drive::Parameters diffParameters{};
   differential_drive::PrimitiveConfig diffPrimitives{};
+  mecanum::Parameters mecanumParameters{};
+  mecanum::PrimitiveConfig mecanumPrimitives{};
   double rotationCostMetersPerRadian = 0.40; // must be strictly positive
   steering::AnalyticExpansionOptions analytic; // only used with connector
   HeuristicMode heuristicMode = HeuristicMode::CertifiedRegionEuclidean;

@@ -266,7 +266,63 @@ private:
   const ackermann::PlanRequest& request_;
 };
 
+
+class MecanumPolicy {
+public:
+  using State=Pose2D;
+  using Key=ackermann::SearchKey;
+  using Hash=PlanarKeyHash;
+  using Mode=ackermann::Gear;
+  using Section=ackermann::MotionSection;
+  using Primitive=PlanarPrimitive;
+  explicit MecanumPolicy(const ackermann::PlanRequest& request):request_(request) {}
+  Hash keyHash(ackermann::PlanDiagnostics* diagnostics) const noexcept {return {diagnostics};}
+  void validate() const {
+    const auto& o=request_.options;
+    if(!std::isfinite(o.rotationCostMetersPerRadian)||
+       o.rotationCostMetersPerRadian<=0||
+       request_.analyticConnector||request_.analyticDistance||o.clearanceWeight>0)
+      throw std::invalid_argument("Unsupported mecanum planning option");
+    const mecanum::Model model(o.mecanumParameters);
+    auto config=o.mecanumPrimitives;
+    const auto& f=request_.footprint;
+    config.sampling={o.searchSampleSpacingMeters,o.searchMaxBodyPointMotionMeters,
+        std::hypot(std::max(std::abs(f.rearX),std::abs(f.frontX)),f.halfWidth),
+        std::numeric_limits<double>::max(),o.maxSamplesPerSection};
+    (void)mecanum::buildCatalog(model,config);
+  }
+  ackermann::Footprint footprint() const {return request_.footprint;}
+  std::vector<Primitive> catalog(const motion::SampleLimits& limits) const {
+    auto config=request_.options.mecanumPrimitives;
+    config.sampling=limits;
+    const mecanum::Model model(request_.options.mecanumParameters);
+    const auto built=mecanum::buildCatalog(model,config);
+    std::vector<Primitive> out;
+    out.reserve(built.size());
+    for(const auto& p:built)out.push_back({Mode::None,0.0,p.local});
+    return out;
+  }
+  Key key(State pose,Mode) const {
+    return ackermann::quantize(pose,Mode::None,request_.options.search);
+  }
+  Section materialize(State start,const Primitive& primitive) const {
+    const auto& p=primitive.local;
+    if(p.extentKind==motion::ExtentKind::RotationRadians)
+      return ackermann::makeRotationSection(start,p.headingChangeRadians);
+    return ackermann::makeHolonomicSection(
+        start,p.signedTranslationMeters,p.lateralTranslationMeters,p.headingChangeRadians);
+  }
+  Mode nextMode(Mode,const Primitive&) const noexcept {return Mode::None;}
+  double edgeCost(Mode,const Primitive&,const Section& s) const {
+    return s.lengthMeters+
+        request_.options.rotationCostMetersPerRadian*std::abs(s.turnRadians);
+  }
+private:
+  const ackermann::PlanRequest& request_;
+};
+
 static_assert(PlanarSearchModel<PlanarPolicy>);
 static_assert(PlanarSearchModel<AckermannPolicy>);
 static_assert(PlanarSearchModel<DifferentialDrivePolicy>);
+static_assert(PlanarSearchModel<MecanumPolicy>);
 } // namespace hybrid_astar::planning

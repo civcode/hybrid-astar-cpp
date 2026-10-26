@@ -264,11 +264,19 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
   // For a spin, reference travel is ZERO but every off-center body point
   // moves as much as radius*|yaw change|. Never use length-only sampling.
   const bool spin=section.kind==MotionKind::RotateInPlace;
+  if(section.kind!=MotionKind::Translate && !spin &&
+     section.kind!=MotionKind::HolonomicTwist) return MotionStatus::Incomplete;
+  // For a lateral or diagonal section, heading is independent of the
+  // travel tangent. Bound ALL points by length + radius * heading delta.
   const double divisions=spin
       ? checker.maxBodyRadius()*std::abs(section.turnRadians)/bodyStep
-      : std::max(section.lengthMeters/step,
-                 section.lengthMeters*(1.0+checker.maxBodyRadius()*
-                                     std::abs(section.curvature))/bodyStep);
+      : (section.kind==MotionKind::HolonomicTwist
+        ? std::max(section.lengthMeters/step,
+                   (section.lengthMeters+checker.maxBodyRadius()*
+                    std::abs(section.turnRadians))/bodyStep)
+        : std::max(section.lengthMeters/step,
+                   section.lengthMeters*(1.0+checker.maxBodyRadius()*
+                                       std::abs(section.curvature))/bodyStep));
   if (!std::isfinite(divisions) || divisions > static_cast<double>(limit-1)) return MotionStatus::Incomplete;
   const std::size_t n=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(divisions)));
   const bool useTemplate=templateMotion && templateMotion->samples.size()==n+1;
@@ -376,7 +384,35 @@ MotionSection makeRotationSection(const Pose2D& start,double signedTurnRadians) 
   return section;
 }
 
+MotionSection makeHolonomicSection(const Pose2D& start,double forwardMeters,
+                                  double lateralMeters,double signedTurnRadians) {
+  const double distance=std::hypot(forwardMeters,lateralMeters);
+  if(!finite(start)||!std::isfinite(distance)||distance<=0||
+     !std::isfinite(forwardMeters)||!std::isfinite(lateralMeters)||
+     !std::isfinite(signedTurnRadians))
+    throw std::invalid_argument("Invalid holonomic section");
+  MotionSection s;
+  s.start=start;
+  s.gear=Gear::None;
+  s.kind=MotionKind::HolonomicTwist;
+  s.lengthMeters=distance;
+  s.forwardMeters=forwardMeters;
+  s.lateralMeters=lateralMeters;
+  s.turnRadians=signedTurnRadians;
+  s.end=s.evaluate(distance);
+  return s;
+}
+
 Pose2D MotionSection::evaluate(double progress) const {
+  if(kind==MotionKind::HolonomicTwist) {
+    if(!finite(start)||!std::isfinite(lengthMeters)||lengthMeters<=0||
+       !std::isfinite(forwardMeters)||!std::isfinite(lateralMeters)||
+       !std::isfinite(turnRadians)||!std::isfinite(progress)||
+       progress<0||progress>lengthMeters)
+      throw std::invalid_argument("Invalid holonomic section progress");
+    return motion::compose(start,motion::constantHolonomicTwist(
+        forwardMeters,lateralMeters,turnRadians,progress/lengthMeters));
+  }
   if(kind==MotionKind::RotateInPlace) {
     if(!finite(start)||!std::isfinite(turnRadians)||turnRadians==0||
        !std::isfinite(progress)||progress<0||progress>std::abs(turnRadians))
@@ -847,6 +883,8 @@ PlanResult plan(const PlanRequest& request) {
     return planImpl(request,planning::AckermannPolicy{request});
   case PlanOptions::Model::DifferentialDrive:
     return planImpl(request,planning::DifferentialDrivePolicy{request});
+  case PlanOptions::Model::Mecanum:
+    return planImpl(request,planning::MecanumPolicy{request});
   }
   PlanResult invalid;
   if(request.map) {
