@@ -216,8 +216,9 @@ The relocated core-only demo has been compiled and smoke-tested locally.
   remain deferred. The clearance
   experiment `lambda=0.15` caused a distant-doorway regression under the
   tested work budget: do not adopt it as a product default.
-- **W9:** No timed steering/actuator checks, dynamic-obstacle predictions,
-  ROS/Nav2 adapter, articulated/self-collision or alternative chassis model.
+- **W9:** Differential-drive and mecanum models now cover additional ideal
+  planar rigid chassis. No timed steering/actuator checks, dynamic-obstacle
+  predictions, ROS/Nav2 adapter or articulated/self-collision support.
 - Cooperative request-local atomic cancellation is implemented and polled
   during search, sample checks and strict validation. Strict final validation
   now has both a **separately metered per-section sample budget** and a
@@ -247,6 +248,8 @@ The relocated core-only demo has been compiled and smoke-tested locally.
 | W7 Disc/EDT | Opt-in prototype, disabled by default | Blocked-center exact EDT, conservative rectangle disc cover, strict exact fallback; 3/4/5-disc randomized differential tests and staged end-to-end benchmarks; proof review and further map/geometry testing pending |
 | W8 Quality/refiner | Optional CSC shortcut extension implemented | Validated incumbent continuation, exact-oriented clearance weighting, strict section-boundary refinement, and opt-in forward/reverse CSC candidates with cost lower-bound pruning; 2000 seeded pose tests and local benchmark pass. Steering-rate smoothing, broader benchmarks and final retry remain pending |
 | W9 Other models | Differential drive integrated; policy-based planar expansion added | Ackermann and differential drive use one model-policy search kernel; external pivot-only planar policy demonstrates extensibility; general multibody/articulated state not yet supported |
+| W11 Model-policy extraction | Implemented; full exact-checkout test gate pending | Public C++20 planar policies, per-model key/hash/footprint, positive edge costs and strict independently validated endpoints |
+| W12 Mecanum holonomic | Implemented; exact-checkout tests registered but unexecuted | Exact planar body-lateral+angular twist, 14 cached primitive templates, wheel-rate bounds, model-policy search/strict collision, Planning Lab/JSON; no slip or actuator proof |
 
 ## Provisional configuration / decision log
 
@@ -296,9 +299,16 @@ and validation. The single templated search kernel is compiled for
 Ackermann/differential drive and exposes an adapter-backed public
 `planWithPolicy` entry for other rigid-planar chassis. A third pivot-only
 policy and bad-cost/forged-endpoint regressions exercise that external
-extension. No claims are made for 4+ state coordinates, lateral
-holonomic sections or articulated multibody collision yet; see
-[W11 model-policy contract](w11-model-policy-kernel.md).
+extension. At the W11 milestone, 4+ state coordinates, lateral holonomic sections and
+articulated multibody collision were not implemented; see
+[W11 model-policy contract](w11-model-policy-kernel.md). **W12 has since
+added ideal mecanum lateral and combined heading sections** to this
+SE(2) single-rigid-body kernel, including positive translation/turn effort,
+four-wheel angular speed validation and a new Planning Lab mode. The full
+exact-checkout W11/W12 Catch2, sanitizer and Docker/OMPL verification gate
+remains pending. Four-plus-dimensional state and articulated multibody
+collision still require a separate generalization; see
+[W12 mecanum implementation](w12-mecanum-holonomic.md).
 
 See [W10 differential-drive primitive status](w10-differential-primitives.md)
 and [working search/demo contract](w10-differential-search.md).

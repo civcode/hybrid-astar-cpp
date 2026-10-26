@@ -1,5 +1,10 @@
 # W11 — model-policy refactor of Hybrid A* search
 
+> Historical W11 milestone: the subsequent
+> [W12 mecanum increment](w12-mecanum-holonomic.md) adds lateral
+> holonomic sections on the same rigid-planar kernel. The W11 limitations
+> below describe the state *at that milestone*, not the newer W12 capability.
+
 **Implementation branch:** `docs/architecture-baseline` · 2026-10-26.
 
 The native Hybrid A* planner now uses **one typed policy-driven

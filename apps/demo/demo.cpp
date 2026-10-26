@@ -96,8 +96,10 @@ void pathJson(std::ostream& os,const PlanResult& path) {
     const double extent=section.progressExtent();
     // Rotation is parameterized by radians; drawing must retain heading
     // samples even though all reference positions coincide.
+    // Combined holonomic heading motion needs angular display samples too.
     const std::size_t steps=std::max<std::size_t>(1,static_cast<std::size_t>(
-        std::ceil(extent/(spin ? .07 : .13))));
+        std::ceil(std::max(extent/(spin ? .07 : .13),
+                      holonomic?std::abs(section.turnRadians)/.07:0.0))));
     // Visualization samples are separate from strict collision evidence.
     os<<"{\"gear\":"<<quoted(spin?"rotate":holonomic?"holonomic":section.gear==Gear::Reverse?"reverse":"forward")
       <<",\"kind\":"<<quoted(spin?"rotation":holonomic?"holonomic":"translation")
