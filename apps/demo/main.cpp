@@ -1,5 +1,6 @@
 #include "apps/demo/demo.hpp"
 #include "apps/demo/map_io.hpp"
+#include "apps/demo/map_yaml.hpp"
 #include <charconv>
 #include <cmath>
 #include <cstdlib>
@@ -134,6 +135,7 @@ void handle(int client,const std::shared_ptr<const hybrid_astar::ackermann::MapS
   const auto q=url.find('?');const auto route=url.substr(0,q);
   try {
     if(route=="/"||route=="/index.html")sendReply(client,200,"text/html; charset=utf-8",loadAsset("index.html"));
+    else if(route=="/map_geometry.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("map_geometry.js"));
     else if(route=="/app.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("app.js"));
     else if(route=="/style.css")sendReply(client,200,"text/css; charset=utf-8",loadAsset("style.css"));
     else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson(customMap.get()));
@@ -164,13 +166,14 @@ void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<
 }
 #endif
 void usage(){std::cout<<"Usage: hybrid_astar_demo [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
-  " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS] [--output FILE.json --once] [--ompl] [--refine] [--curved] [--performance] [--improve]\n"
+  " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS | --map-yaml FILE.yaml] [--output FILE.json --once] [--ompl] [--refine] [--curved] [--performance] [--improve]\n"
   "Default: serve interactive UI on 127.0.0.1 only. --once prints machine-readable JSON.\n";}
 }
 int main(int argc,char** argv) {
   try {
     Options options;unsigned int port=8765;bool once=false;bool allowContainerInterface=false;
-    std::string mapFilename,outputFilename;double mapResolution=.25;
+    std::string mapFilename,mapYamlFilename,outputFilename;double mapResolution=.25;
+    bool mapResolutionSpecified=false;
     for(int i=1;i<argc;++i) {
       const std::string arg=argv[i];
       if(arg=="--help"||arg=="-h"){usage();return 0;}
@@ -191,9 +194,12 @@ int main(int argc,char** argv) {
       } else if(arg=="--map") {
         if(i+1>=argc)throw std::invalid_argument("Missing PGM filename");
         mapFilename=argv[++i];options.scenario="custom";
+      } else if(arg=="--map-yaml") {
+        if(i+1>=argc)throw std::invalid_argument("Missing map YAML filename");
+        mapYamlFilename=argv[++i];options.scenario="custom";
       } else if(arg=="--resolution") {
         if(i+1>=argc)throw std::invalid_argument("Missing map resolution");
-        mapResolution=number(argv[++i]);
+        mapResolution=number(argv[++i]);mapResolutionSpecified=true;
       } else if(arg=="--output") {
         if(i+1>=argc)throw std::invalid_argument("Missing output filename");
         outputFilename=argv[++i];
@@ -211,7 +217,14 @@ int main(int argc,char** argv) {
       else if(arg=="--improve")options.improve=true;
       else throw std::invalid_argument("Unknown flag: "+arg);
     }
-    if(!mapFilename.empty())options.customMap=hybrid_astar::demo::loadPgm(mapFilename,mapResolution);
+    if(!mapFilename.empty()&&!mapYamlFilename.empty())
+      throw std::invalid_argument("--map and --map-yaml are mutually exclusive");
+    if(!mapYamlFilename.empty()) {
+      if(mapResolutionSpecified)
+        throw std::invalid_argument("YAML resolution comes from the map file; omit --resolution");
+      options.customMap=hybrid_astar::demo::loadRosMapYaml(mapYamlFilename);
+    } else if(!mapFilename.empty())
+      options.customMap=hybrid_astar::demo::loadPgm(mapFilename,mapResolution);
     if(!outputFilename.empty()&&!once)throw std::invalid_argument("--output requires --once");
     if(once) {
       const auto json=hybrid_astar::demo::toJson(hybrid_astar::demo::run(options));

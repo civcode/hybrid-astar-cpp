@@ -37,7 +37,11 @@ unsigned parseUInt(std::string s) {
   return v;
 }
 }
-std::shared_ptr<ackermann::MapSnapshot> parsePgm(std::istream& in,double resolution) {
+std::shared_ptr<ackermann::MapSnapshot> parsePgm(std::istream& in,double resolution,PgmOccupancyOptions options) {
+  if(!std::isfinite(options.occupiedThreshold)||!std::isfinite(options.freeThreshold)||
+     options.freeThreshold<0||options.occupiedThreshold>1||
+     options.freeThreshold>=options.occupiedThreshold)
+    throw std::invalid_argument("Invalid PGM occupancy thresholds");
   if(!std::isfinite(resolution)||resolution<=0||resolution>2)
     throw std::invalid_argument("PGM resolution must be finite and in (0,2] m/pixel");
   const auto magic=token(in);
@@ -60,8 +64,15 @@ std::shared_ptr<ackermann::MapSnapshot> parsePgm(std::istream& in,double resolut
       pixel=unsigned(value);
     }
     if(pixel>maxValue)throw std::invalid_argument("PGM pixel exceeds maxval");
-    std::int8_t occupancy=pixel*2u>=maxValue?0:100;
-    if(maxValue==255 && pixel==205)occupancy=-1;
+    std::int8_t occupancy;
+    if(options.rosTrinary) {
+      const double probability=options.negate?double(pixel)/maxValue:1.-double(pixel)/maxValue;
+      occupancy=probability>options.occupiedThreshold?100:
+                probability<options.freeThreshold?0:-1;
+    } else {
+      occupancy=pixel*2u>=maxValue?0:100;
+      if(maxValue==255 && pixel==205)occupancy=-1;
+    }
     map->cells[(height-1-row)*width+col]=occupancy;
   }
   if(magic=="P5") {
@@ -78,9 +89,9 @@ std::shared_ptr<ackermann::MapSnapshot> parsePgm(std::istream& in,double resolut
   }
   return map;
 }
-std::shared_ptr<ackermann::MapSnapshot> loadPgm(const std::string& filename,double resolution) {
+std::shared_ptr<ackermann::MapSnapshot> loadPgm(const std::string& filename,double resolution,PgmOccupancyOptions options) {
   std::ifstream file(filename,std::ios::binary);
   if(!file)throw std::invalid_argument("Unable to open PGM file");
-  return parsePgm(file,resolution);
+  return parsePgm(file,resolution,options);
 }
 }

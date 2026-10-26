@@ -140,8 +140,12 @@ Outcome run(const Options& opt) {
     if(!opt.customMap)throw std::invalid_argument("No custom PGM map has been loaded");
     const auto& m=*opt.customMap;
     out.request.map=opt.customMap;
-    out.request.start={m.width*m.resolutionMeters*.2,m.height*m.resolutionMeters*.5,0};
-    out.request.goal={m.width*m.resolutionMeters*.8,m.height*m.resolutionMeters*.5,0};
+    const auto toWorld=[&](double x,double y) {
+      const double c=std::cos(m.origin.yaw),sn=std::sin(m.origin.yaw);
+      return Pose2D{m.origin.x+c*x-sn*y,m.origin.y+sn*x+c*y,m.origin.yaw};
+    };
+    out.request.start=toWorld(m.width*m.resolutionMeters*.2,m.height*m.resolutionMeters*.5);
+    out.request.goal=toWorld(m.width*m.resolutionMeters*.8,m.height*m.resolutionMeters*.5);
     out.request.options.maxExpansions=25000;
   } else out.request=makeRequest(opt.scenario);
   if(opt.start)out.request.start=*opt.start;
@@ -220,7 +224,8 @@ std::string capabilitiesJson(const ackermann::MapSnapshot* customMap) {
   std::ostringstream os;
   os<<"{\"ompl\":"<<ompl<<",\"customMap\":"<<(customMap?"true":"false");
   if(customMap) os<<",\"mapWidthMeters\":"<<customMap->width*customMap->resolutionMeters
-                  <<",\"mapHeightMeters\":"<<customMap->height*customMap->resolutionMeters;
+                  <<",\"mapHeightMeters\":"<<customMap->height*customMap->resolutionMeters
+                  <<",\"origin\":["<<customMap->origin.x<<','<<customMap->origin.y<<','<<customMap->origin.yaw<<']';
   os<<'}';return os.str();
 }
 } // namespace hybrid_astar::demo
