@@ -136,7 +136,7 @@ void handle(int client,const std::shared_ptr<const hybrid_astar::ackermann::MapS
     if(route=="/"||route=="/index.html")sendReply(client,200,"text/html; charset=utf-8",loadAsset("index.html"));
     else if(route=="/app.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("app.js"));
     else if(route=="/style.css")sendReply(client,200,"text/css; charset=utf-8",loadAsset("style.css"));
-    else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson(bool(customMap)));
+    else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson(customMap.get()));
     else if(route=="/api/plan") {
       const auto query=q==std::string_view::npos?std::string_view{}:url.substr(q+1);
       auto options=requestOptions(queryParameters(query));
