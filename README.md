@@ -1,6 +1,6 @@
 # hybrid-astar-cpp
 
-A standalone, high-performance **C++20 Hybrid A*** path-planning library. **Status: initial complete-primitives Ackermann planning vertical slice, with exact filled-footprint pose checks and strict adaptive-sampled final validation. Analytic RS integration, performance heuristic and continuous swept certification remain unimplemented.**
+A standalone, high-performance **C++20 Hybrid A*** path-planning library. **Status: initial complete-primitives Ackermann planning vertical slice, with exact filled-footprint pose checks and strict adaptive-sampled final validation. The optional signed OMPL connector and lazy performance heuristic are available but require explicit provider configuration; OMPL-enabled builds and continuous swept certification remain unverified/unimplemented.**
 
 The core is intended to be independent of ROS 2, any single vehicle model, and any single geometric curve family. Initial implementation priorities are differential drive and Ackermann; an ideal mecanum/omnidirectional chassis is the third reference model for testing generic interfaces. A separate trajectory planner/MPC will handle time-parameterization and moving-obstacle prediction.
 
@@ -31,9 +31,9 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-When OMPL's CMake package is installed, enable the separate steering adapter and its smoke test with `-DHYBRID_ASTAR_ENABLE_OMPL=ON`. OMPL types are not exposed by the public headers. The default OFF builds the entire current six-primitive Ackermann vertical slice. The **future** RS analytic connector requires OMPL and is not yet wired into the planner. **The OMPL-enabled build is not yet verified in the current environment**, which has no OMPL installation.
+When OMPL's CMake package is installed, enable the separate steering adapter and its smoke test with `-DHYBRID_ASTAR_ENABLE_OMPL=ON`. OMPL types are not exposed by the public headers. The default OFF builds the entire current six-primitive Ackermann vertical slice. The optional signed RS adapter requires OMPL and is wired through the planner's native injectable connector; the OMPL-ON build has not yet been verified here. **The OMPL-enabled build is not yet verified in the current environment**, which has no OMPL installation.
 
-The initial Ackermann **search key** uses independent 0.25 m XY cells, 5-degree heading bins (72), and incoming gear. The goal accepts independent 0.25 m XY and 10-degree yaw tolerances on the actual reached state. Default costs are 1.00× forward, 1.10× reverse, and +0.50 m for a gear switch. The active planner uses a finite goal-region Euclidean ordering heuristic; the combined RS/grid performance heuristic is not implemented. The separate analytic-attempt scheduler now takes **search-bin** units and retains its first-attempt behavior, but is not yet integrated with the planner. The shipped planner always uses exact full-body collision checks at sampled poses; legacy `CheckOptions` now defaults to full-footprint rather than boundary-only.
+The initial Ackermann **search key** uses independent 0.25 m XY cells, 5-degree heading bins (72), and incoming gear. The goal accepts independent 0.25 m XY and 10-degree yaw tolerances on the actual reached state. Default costs are 1.00× forward, 1.10× reverse, and +0.50 m for a gear switch. The active planner uses a finite goal-region Euclidean ordering heuristic; a selectable noncertified performance mode uses lazy reverse-Dijkstra obstacle guidance plus an optional injected RS exact-goal distance. The separate analytic-attempt scheduler now takes **search-bin** units and retains its first-attempt behavior, but is not yet integrated with the planner. The shipped planner always uses exact full-body collision checks at sampled poses; legacy `CheckOptions` now defaults to full-footprint rather than boundary-only.
 
 ## Conventions
 
