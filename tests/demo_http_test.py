@@ -39,6 +39,7 @@ def main(exe):
         else:
             raise AssertionError("Demo server never became ready")
         assert code == 200 and isinstance(json.loads(payload)["ompl"], bool)
+        assert json.loads(payload)["differential"] is True
         assert headers.get("X-Content-Type-Options") == "nosniff"
         for resource, content in [("/", "Planning Lab"),
                                   ("/style.css", "map-wrap"),
@@ -73,6 +74,25 @@ def main(exe):
             payload = urlencode(fields).encode()
             return get(base + "/api/plan", method="POST", data=payload,
                        headers={"Content-Type": "application/x-www-form-urlencoded"})
+        # Differential-drive mode is served by the same C++ planner, with
+        # model-specific geometry and nonzero-cost rotation in place.
+        code, _, body = post({"scenario": "open", "model": "differential",
+                               "startx": "10", "starty": "15", "startyaw": "0",
+                               "goalx": "10", "goaly": "15", "goalyaw": "90"})
+        spin = json.loads(body)
+        assert code == 200 and spin["model"] == "differential"
+        assert spin["footprint"] == [-.35, .35, .25]
+        assert spin["original"]["status"] == "Success"
+        assert spin["original"]["validated"] is True
+        assert spin["original"]["cost"] > 0
+        assert spin["original"]["collisionEvidence"] == "FullFootprintBodyMotionAdaptiveSampled"
+        assert any(sec["kind"] == "rotation" and sec["length"] == 0 and
+                   len(sec["points"]) > 2 and sec["turnRadians"] != 0
+                   for sec in spin["original"]["sections"])
+        code, _, body = post({"scenario":"open", "model":"differential", "ompl":"1"})
+        assert code == 400 and "error" in json.loads(body)
+        code, _, body = post({"scenario":"open", "model":"unsupported"})
+        assert code == 400 and "error" in json.loads(body)
         base_route = json.loads(post({"scenario":"reverse"})[2])
         assert base_route["original"]["status"] == "Success"
         assert base_route["revision"] == 1
