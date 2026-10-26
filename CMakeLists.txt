@@ -4,6 +4,7 @@ project(hybrid_astar_cpp VERSION 0.1.0 LANGUAGES CXX)
 option(HYBRID_ASTAR_ENABLE_OMPL "Build OMPL-backed steering adapter" OFF)
 option(HYBRID_ASTAR_BUILD_TESTS "Build standalone smoke tests" ON)
 option(HYBRID_ASTAR_BUILD_BENCHMARKS "Build optional manually run planner benchmark" OFF)
+option(HYBRID_ASTAR_BUILD_APP "Build the optional localhost browser planning demo" OFF)
 
 add_library(hybrid_astar_core STATIC
   src/ackermann/search_config.cpp
@@ -82,4 +83,27 @@ if(HYBRID_ASTAR_BUILD_BENCHMARKS)
   target_link_libraries(hybrid_astar_planner_bench PRIVATE hybrid_astar::core)
   add_executable(hybrid_astar_refinement_bench bench/refinement_bench.cpp)
   target_link_libraries(hybrid_astar_refinement_bench PRIVATE hybrid_astar::core)
+endif()
+
+# Developer demo only: standalone browser UI served exclusively on loopback.
+# No ROS dependency, no externally hosted service, no GitHub Actions.
+if(HYBRID_ASTAR_BUILD_APP)
+  add_library(hybrid_astar_demo_logic STATIC app/demo.cpp)
+  target_compile_features(hybrid_astar_demo_logic PUBLIC cxx_std_20)
+  target_include_directories(hybrid_astar_demo_logic PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+  target_link_libraries(hybrid_astar_demo_logic PUBLIC hybrid_astar::core)
+  if(HYBRID_ASTAR_ENABLE_OMPL)
+    target_link_libraries(hybrid_astar_demo_logic PUBLIC hybrid_astar::ompl)
+    target_compile_definitions(hybrid_astar_demo_logic PRIVATE HYBRID_ASTAR_DEMO_WITH_OMPL=1)
+  endif()
+  add_executable(hybrid_astar_demo app/main.cpp)
+  target_link_libraries(hybrid_astar_demo PRIVATE hybrid_astar_demo_logic)
+  target_compile_definitions(hybrid_astar_demo PRIVATE
+    HYBRID_ASTAR_DEMO_WEB_ROOT="\"${CMAKE_CURRENT_SOURCE_DIR}/app/web\"")
+  if(HYBRID_ASTAR_BUILD_TESTS)
+    add_executable(hybrid_astar_demo_test tests/demo_test.cpp)
+    target_link_libraries(hybrid_astar_demo_test PRIVATE hybrid_astar_demo_logic)
+    add_test(NAME demo_test COMMAND hybrid_astar_demo_test)
+    add_test(NAME demo_cli_open COMMAND hybrid_astar_demo --once --scenario open)
+  endif()
 endif()
