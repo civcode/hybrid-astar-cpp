@@ -1,4 +1,4 @@
-#include "app/demo.hpp"
+#include "apps/demo/demo.hpp"
 #ifdef HYBRID_ASTAR_DEMO_WITH_OMPL
 #include "hybrid_astar/steering/reeds_shepp_evaluator.hpp"
 #endif

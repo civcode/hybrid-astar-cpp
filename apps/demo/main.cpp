@@ -1,4 +1,4 @@
-#include "app/demo.hpp"
+#include "apps/demo/demo.hpp"
 #include <charconv>
 #include <cmath>
 #include <cstdlib>

@@ -115,10 +115,10 @@ enforcement. No GitHub Actions triggers are added.
 
 ## Code
 
-- `app/demo.hpp`, `app/demo.cpp`: scenario
+- `apps/demo/demo.hpp`, `apps/demo/demo.cpp`: scenario
   creation, synchronous planner/refiner orchestration and JSON output
-- `app/main.cpp`: native command line and loopback HTTP server
-- `app/web/`: static dependency-free HTML/CSS/JavaScript
+- `apps/demo/main.cpp`: native command line and loopback HTTP server
+- `apps/demo/web/`: static dependency-free HTML/CSS/JavaScript
 - `tests/demo_test.cpp` and `tests/demo_http_test.py`:
   local end-to-end regression checks
 

@@ -25,7 +25,7 @@ The core now implements a first standalone Ackermann search: six exact analytic 
 
 ## Interactive path planning demo
 
-A new [`app/` Planning Lab](app/README.md) provides a **browser-based
+A new [`apps/demo/` Planning Lab](apps/demo/README.md) provides a **browser-based
 interactive demo backed by the actual C++ Hybrid A* planner**. It runs locally
 on 127.0.0.1, does not depend on ROS and works without OMPL:
 
@@ -42,7 +42,7 @@ Forward/reverse sections and cost/expansion/time metrics are displayed.
 When the optional OMPL adapter is built, Reeds–Shepp connector controls
 are enabled automatically. The executable also supports
 `--once --scenario reverse` for machine-readable CLI JSON.
-See the [app README](app/README.md) for full usage, API and limitations.
+See the [app README](apps/demo/README.md) for full usage, API and limitations.
 No GitHub Actions workflow is required.
 
 ## Build and test the Ackermann vertical slice

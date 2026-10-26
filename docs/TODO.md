@@ -24,7 +24,7 @@ and steering actuator modeling remain future work.
 
 ## Demo application milestone — implemented 2026-10-26
 
-- [x] Create separate `app/` directory and opt-in `HYBRID_ASTAR_BUILD_APP`
+- [x] Create separate `apps/demo/` directory and opt-in `HYBRID_ASTAR_BUILD_APP`
   CMake target without changing core-only builds.
 - [x] Add local loopback C++ HTTP/CLI demo, five occupancy scenarios,
   start/goal yaw editing and interactive click-to-place world coordinates.
@@ -43,7 +43,7 @@ and steering actuator modeling remain future work.
   complete installed OMPL package and exact GitHub checkout.
 
 The standalone app is a **developer tool**, not a ROS/Nav2 integration or a
-certified safe vehicle execution controller. See [app/README.md](../app/README.md).
+certified safe vehicle execution controller. See [apps/demo/README.md](../apps/demo/README.md).
 
 # Implementation and architecture TODOs
 
