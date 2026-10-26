@@ -83,6 +83,7 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
     o.editGeneration=value;
   }
   if(auto it=params.find("scenario");it!=params.end())o.scenario=it->second;
+  if(auto it=params.find("model");it!=params.end())o.model=it->second;
   if(auto it=params.find("refine");it!=params.end())o.refine=flag(it->second);
   if(auto it=params.find("curved");it!=params.end())o.curvedRefinement=flag(it->second);
   if(auto it=params.find("performance");it!=params.end())o.performanceHeuristic=flag(it->second);
@@ -98,7 +99,7 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   };
   o.start=coords("start");o.goal=coords("goal");
   for(const auto& [name,_]:params) {
-    if(name!="scenario"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="curved"&&name!="performance"&&
+    if(name!="scenario"&&name!="model"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="curved"&&name!="performance"&&
        name!="improve"&&name!="ompl"&&name!="startx"&&name!="starty"&&
        name!="startyaw"&&name!="goalx"&&name!="goaly"&&name!="goalyaw")
       throw std::invalid_argument("Unknown option: "+name);
@@ -292,6 +293,9 @@ int main(int argc,char** argv) {
       } else if(arg=="--output") {
         if(i+1>=argc)throw std::invalid_argument("Missing output filename");
         outputFilename=argv[++i];
+      } else if(arg=="--model") {
+        if(i+1>=argc)throw std::invalid_argument("Missing kinematic model");
+        options.model=argv[++i];
       } else if(arg=="--scenario") {
         if(i+1>=argc)throw std::invalid_argument("Missing scenario");
         options.scenario=argv[++i];
