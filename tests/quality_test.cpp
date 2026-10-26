@@ -45,5 +45,24 @@ int main() {
   require(work.status==PlanStatus::Success,"validated incumbent kept at cap");
   require(work.terminationReason==TerminationReason::WorkBudgetExceeded,"work cap explicit");
   require(work.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,"no evidence downgrade");
+  // Cancellation during a later analytic motion check must retain only the
+  // previously validated incumbent, with explicit termination reason.
+  req.options.maxExpansions=200;
+  req.options.maxExtraExpansionsAfterFirst=150;
+  auto token=std::make_shared<std::atomic_bool>(false);
+  req.cancelled=token;
+  int attempts=0;
+  req.analyticConnector=[token,&attempts](const Pose2D& p,const Pose2D&) {
+    if (++attempts==1) {
+      auto reverse=makeSection(p,Gear::Reverse,0,1);
+      return std::vector<MotionSection>{reverse,makeSection(reverse.end,Gear::Forward,0,3)};
+    }
+    token->store(true);
+    return std::vector<MotionSection>{makeSection(p,Gear::Forward,0,.5)};
+  };
+  auto interrupted=plan(req);
+  require(interrupted.status==PlanStatus::Success,"validated incumbent on mid-motion cancellation");
+  require(interrupted.terminationReason==TerminationReason::CancelledAfterIncumbent,"cancellation reason");
+  require(interrupted.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,"cancelled search preserved checked path");
   std::cout << "QUALITY PASS\n";
 }
