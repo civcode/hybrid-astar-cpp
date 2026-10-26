@@ -6,7 +6,7 @@
 > slice and must not override the current contract. **Still pending:** OMPL-ON
 > integration verification and benchmarks for signed connector (W5),
 > performance-grid benchmarks and any reachability proof (W6),
-> optional EDT/disc proof (W7), clearance/quality refinement (W8),
+> optional EDT/disc proof review and broader benchmarks (W7),\n> clearance-weight tuning and downstream path refinement (W8),
 > future chassis/actuation and ROS adapters (W9). No swept/actuator safety
 > certification or validated global optimality is claimed.
 
