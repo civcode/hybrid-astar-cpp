@@ -1,5 +1,10 @@
 # W8 bounded geometric shortcut refiner — 2026-10-26
 
+**Update:** an additional opt-in native forward/reverse CSC candidate generator
+is now available; see [curvature-bounded W8 evidence](w8-csc-verification.md).
+The straight-only defaults and strict full-path acceptance gate below remain
+unchanged. CSC does **not** provide continuous curvature/steer-rate smoothing.
+
 **Status:** implemented opt-in C++20 core prototype; no continuous swept
 certificate or actuator feasibility guarantee. Read the
 [current implementation contract](current-implementation.md) for defaults
