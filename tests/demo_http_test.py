@@ -74,6 +74,9 @@ def main(exe):
             saved = json.loads(out.read_text())
             assert saved["original"]["status"] == "Success"
             assert saved["width"] == 160 and saved["height"] == 120
+            assert saved["sourceId"] == "imported-pgm"
+            assert saved["original"]["collisionEvidence"] == "FullFootprintBodyMotionAdaptiveSampled"
+            assert saved["original"]["actuatorFeasible"] is False
             malformed = Path(directory) / "bad.pgm"
             malformed.write_bytes(b"P5\n1200 1\n255\n")
             rejected = subprocess.run([exe, "--once", "--map", str(malformed)],
