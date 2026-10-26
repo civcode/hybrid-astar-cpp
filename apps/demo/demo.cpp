@@ -107,7 +107,14 @@ ackermann::PlanRequest makeRequest(std::string_view name) {
 
 Outcome run(const Options& opt) {
   Outcome out;
-  out.request=makeRequest(opt.scenario);
+  if(opt.scenario=="custom") {
+    if(!opt.customMap)throw std::invalid_argument("No custom PGM map has been loaded");
+    const auto& m=*opt.customMap;
+    out.request.map=opt.customMap;
+    out.request.start={m.width*m.resolutionMeters*.2,m.height*m.resolutionMeters*.5,0};
+    out.request.goal={m.width*m.resolutionMeters*.8,m.height*m.resolutionMeters*.5,0};
+    out.request.options.maxExpansions=25000;
+  } else out.request=makeRequest(opt.scenario);
   if(opt.start)out.request.start=*opt.start;
   if(opt.goal)out.request.goal=*opt.goal;
   for(auto p:{out.request.start,out.request.goal})
@@ -174,11 +181,11 @@ std::string toJson(const Outcome& out) {
   }
   os<<'}';return os.str();
 }
-std::string capabilitiesJson() {
+std::string capabilitiesJson(bool customMapAvailable) {
 #ifdef HYBRID_ASTAR_DEMO_WITH_OMPL
-  return "{\"ompl\":true}";
+  return customMapAvailable?"{\"ompl\":true,\"customMap\":true}":"{\"ompl\":true,\"customMap\":false}";
 #else
-  return "{\"ompl\":false}";
+  return customMapAvailable?"{\"ompl\":false,\"customMap\":true}":"{\"ompl\":false,\"customMap\":false}";
 #endif
 }
 } // namespace hybrid_astar::demo
