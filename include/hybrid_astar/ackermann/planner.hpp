@@ -67,11 +67,16 @@ enum class PlanStatus {
 };
 
 enum class HeuristicMode { CertifiedRegionEuclidean, PerformanceReedsSheppAndObstacleGrid };
+enum class SolutionPolicy { FirstStrictlyValidated, ImproveIncumbent };
+enum class SolutionQuality { FeasibleFirst, FeasibleAfterImprovement };
+enum class TerminationReason { None, FirstValidated, ImprovementBudgetExhausted, SearchExhausted, WorkBudgetExceeded, CancelledAfterIncumbent };
 
 struct PlanOptions {
   SearchConfig search;
   steering::AnalyticExpansionOptions analytic; // only used with connector
   HeuristicMode heuristicMode = HeuristicMode::CertifiedRegionEuclidean;
+  SolutionPolicy solutionPolicy = SolutionPolicy::FirstStrictlyValidated;
+  std::size_t maxExtraExpansionsAfterFirst = 2500; // optional, measured separately
   std::size_t gridMaxSettlementsPerQuery = 500; // finite lazy Dijkstra budget
   double minimumTurningRadiusMeters = 4.0;
   double goalXYToleranceMeters = 0.25;
@@ -104,6 +109,7 @@ struct PlanDiagnostics {
   std::size_t searchPoseChecks = 0, finalPoseChecks = 0;
   std::size_t analyticAttempts = 0, analyticAccepted = 0;
   std::size_t gridSettlements = 0, gridFallbacks = 0;
+  std::size_t validatedCandidates = 0, incumbentImprovements = 0;
 };
 
 struct PlanResult {
@@ -113,6 +119,8 @@ struct PlanResult {
   Gear finalGear = Gear::None;
   double goalXYErrorMeters = 0.0, goalYawErrorRadians = 0.0;
   double weightedCostMeters = 0.0;
+  SolutionQuality solutionQuality = SolutionQuality::FeasibleFirst;
+  TerminationReason terminationReason = TerminationReason::None;
   double geometricLengthMeters = 0.0, reverseLengthMeters = 0.0;
   std::vector<std::size_t> gearChangeSectionIndices; // cusp begins at this section
   CollisionEvidence collisionEvidence = CollisionEvidence::None;
