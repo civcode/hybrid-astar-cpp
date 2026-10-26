@@ -131,10 +131,10 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 ## M5 — Path representation and optional refinement
 
 **Current W8 increment:** `ackermann::refinePath` implements opt-in bounded
-section-boundary shortcuts, signed-provider injection, recomputed weighted
+section-boundary shortcuts, opt-in native fixed-gear CSC curves, signed-provider injection, recomputed weighted
 cost and independent strict full-path validation. Invalid proposals keep the
 verified original. See [W8 refinement verification](architecture/w8-refinement-verification.md).
-A curvature-continuous obstacle-aware smoother, real-map quality benchmarks,
+A curvature-continuous (steer-rate-aware) smoother, complete RS/CCC alternatives, real-map quality benchmarks,
 and actuator feasibility checks remain separate follow-up tasks.
 
 
