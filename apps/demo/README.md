@@ -65,6 +65,46 @@ strict adaptive-sampled validator can be labeled validated. There is **no
 continuous swept guarantee or steering-rate/actuator feasibility** claim.
 A budget-limited response is not proof of a geometric NoPath.
 
+## Import a PGM map and export a validated planning result
+
+An application-provided **PGM P2 or P5** grayscale occupancy map can be loaded
+at startup. This is a static, pinned C++ `MapSnapshot`; there is no browser
+file-upload endpoint. The map is read once, rather than accepting arbitrary
+filenames or data from an HTTP query.
+
+```bash
+./build-demo/hybrid_astar_demo --map apps/demo/maps/sample.pgm --resolution 0.5
+# Browse http://127.0.0.1:8765, then select Imported PGM map
+
+./build-demo/hybrid_astar_demo --once \
+  --map apps/demo/maps/sample.pgm --resolution 0.5 \
+  --start 8 15 0 --goal 32 15 0 \
+  --output /tmp/hybrid-plan.json
+```
+
+The browser exposes **Export path JSON** after a plan has completed; it
+downloads the full output including original and optionally refined exact
+path sections, gear, sampled visualization points, cost, planning diagnostics,
+effective start/goal and map occupancy runs. This is *not* a timed trajectory
+or a ROS Path publication.
+
+**PGM semantics:** P2 (ASCII) and P5 (8-bit binary), grayscale maxval 1–255,
+image **black = blocked** and **white = free** with a 50% threshold. For
+maxval=255, the shade 205 is interpreted as **unknown** (-1), matching
+common ROS map files. By default unknown cells are treated as occupied by
+the planner. The first PGM row is at the **top** of the image; the loader
+flips it to the map's bottom-left positive-Y convention. Resolution defaults
+to 0.25 metres/pixel and is set with `--resolution`. Origin and yaw are
+currently fixed to `(0,0,0)`; support for ROS map YAML metadata is future
+work. Files are limited to 1024×1024 dimensions, at most **262,144 pixels**
+and finite 0–2 metres/pixel resolution. The loader rejects malformed headers,
+truncated data, excess pixels, and unsupported formats.
+
+Imported map data is immutable for each request. Start and goal initial
+positions are chosen at 20% and 80% of map width along its vertical midpoint;
+they must be adjusted for maps where either footprint is blocked. Collision
+checking is still done by the core filled-footprint checker.
+
 ## CLI / simple JSON API
 
 To calculate a path and print a JSON document without starting the server:
