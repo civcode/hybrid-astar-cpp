@@ -10,7 +10,7 @@
 <label class="label" for="scenario">Environment</label><select id="scenario">
 <option value="open">Open field</option><option value="reverse">Reverse maneuver</option>
 <option value="parking">Parking approach</option><option value="warehouse">Warehouse obstacles</option>
-<option value="blocked">Unreachable wall</option></select>
+<option value="blocked">Unreachable wall</option><option value="custom" id="customOption" hidden>Imported PGM map</option></select>
 <div class="divider"></div><div class="section-label">START POSE <small>Click map to place</small></div>
 <div class="coords"><label>X (m)<input id="startx" type="number" step="0.25"/></label><label>Y (m)<input id="starty" type="number" step="0.25"/></label><label>Yaw (°)<input id="startyaw" type="number" step="5"/></label></div>
 <div class="section-label">GOAL POSE <small>Shift-click map to place</small></div>
@@ -21,7 +21,7 @@
 <label class="check"><input type="checkbox" id="improve"/><span>Bounded incumbent improvement</span></label>
 <label class="check"><input type="checkbox" id="refine"/><span>Strict post-path refinement</span></label>
 <label class="check nested"><input type="checkbox" id="curved"/><span>Native curved CSC candidates</span></label>
-<button id="planButton" class="primary">Plan path <span>↗</span></button>
+<button id="planButton" class="primary">Plan path <span>↗</span></button><button id="exportButton" class="secondary" disabled>Export path JSON ↓</button>
 <div class="hint">Runs the C++ planner locally. Only strictly validated paths are shown as successful. Motion remains sampled, not swept-certified.</div>
 </aside>
 <section class="visual">
