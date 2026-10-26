@@ -62,6 +62,25 @@ int main() {
     } catch(const std::invalid_argument&) {}
   }
   {
+    auto m=makeMap();
+    OccupancyPolicy p{25,UnknownPolicy::Occupied};
+    m.cells[100*m.width+100]=25;
+    expect(ExactCollisionChecker(m,p,{}).check({20,20,0})==PoseCollision::Clear,"threshold equality free");
+    p.maxTraversableOccupancy=24;
+    expect(ExactCollisionChecker(m,p,{}).check({20,20,0})==PoseCollision::Colliding,"threshold greater blocked");
+  }
+  {
+    // Nominal goal collides, but an actual in-tolerance pose is free.
+    auto m=std::make_shared<MapSnapshot>(makeMap());
+    m->cells[75*m->width+94]=100;
+    PlanRequest q;
+    q.map=m;q.start={15.12,15,0};q.goal={15.30,15,0};
+    expect(ExactCollisionChecker(*m,{},{}).check(q.goal)==PoseCollision::Colliding,"goal nominal blocked");
+    auto result=plan(q);
+    expect(result.status==PlanStatus::Success,"free tolerance pose accepted");
+    expect(result.sections.empty()&&std::abs(result.reached.x-q.start.x)<1e-12,"no fake nominal endpoint");
+  }
+  {
     auto m=std::make_shared<MapSnapshot>(makeMap());
     PlanRequest request;
     request.map=m;request.start={12,12,0};request.goal={15,12,0};
