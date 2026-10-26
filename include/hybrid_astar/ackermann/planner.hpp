@@ -113,6 +113,8 @@ struct PlanResult {
   Gear finalGear = Gear::None;
   double goalXYErrorMeters = 0.0, goalYawErrorRadians = 0.0;
   double weightedCostMeters = 0.0;
+  double geometricLengthMeters = 0.0, reverseLengthMeters = 0.0;
+  std::vector<std::size_t> gearChangeSectionIndices; // cusp begins at this section
   CollisionEvidence collisionEvidence = CollisionEvidence::None;
   bool modelGeometryValid = false;
   bool trajectoryActuatorFeasible = false; // external timing validator needed
