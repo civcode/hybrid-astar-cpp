@@ -84,6 +84,59 @@ struct PlanarPrimitive {
   motion::LocalPrimitive local;
 };
 
+// Optional public extension point for another rigid planar chassis.
+// A custom model can implement PlanarPolicy and call planWithPolicy()
+// without cloning the Hybrid A* search. It must still return evaluable
+// planar MotionSections, a complete rectangle footprint and finite costs.
+class PlanarPolicy {
+public:
+  using State=Pose2D;
+  using Key=ackermann::SearchKey;
+  using Hash=PlanarKeyHash;
+  using Mode=ackermann::Gear;
+  using Section=ackermann::MotionSection;
+  using Primitive=PlanarPrimitive;
+  virtual ~PlanarPolicy()=default;
+  virtual void validate() const=0;
+  virtual std::vector<Primitive> catalog(const motion::SampleLimits&) const=0;
+  virtual Key key(State,Mode) const=0;
+  virtual Section materialize(State,const Primitive&) const=0;
+  virtual Mode nextMode(Mode,const Primitive&) const=0;
+  virtual double edgeCost(Mode,const Primitive&,const Section&) const=0;
+  Hash keyHash(ackermann::PlanDiagnostics* diagnostics) const noexcept {
+    return {diagnostics};
+  }
+};
+
+template<PlanarSearchModel Policy>
+class PlanarPolicyAdapter final : public PlanarPolicy {
+public:
+  explicit PlanarPolicyAdapter(Policy policy):policy_(std::move(policy)) {
+    static_assert(std::same_as<typename Policy::State,State> &&
+                  std::same_as<typename Policy::Key,Key> &&
+                  std::same_as<typename Policy::Mode,Mode> &&
+                  std::same_as<typename Policy::Section,Section> &&
+                  std::same_as<typename Policy::Primitive,Primitive>,
+                  "The current runtime adapter accepts rigid SE2 search policies");
+  }
+  void validate() const override {policy_.validate();}
+  std::vector<Primitive> catalog(const motion::SampleLimits& s) const override {
+    return policy_.catalog(s);
+  }
+  Key key(State s,Mode m) const override {return policy_.key(s,m);}
+  Section materialize(State s,const Primitive& p) const override {
+    return policy_.materialize(s,p);
+  }
+  Mode nextMode(Mode m,const Primitive& p) const override {
+    return policy_.nextMode(m,p);
+  }
+  double edgeCost(Mode m,const Primitive& p,const Section& s) const override {
+    return policy_.edgeCost(m,p,s);
+  }
+private:
+  Policy policy_;
+};
+
 class AckermannPolicy {
 public:
   using State=Pose2D;
@@ -207,6 +260,7 @@ private:
   const ackermann::PlanRequest& request_;
 };
 
+static_assert(PlanarSearchModel<PlanarPolicy>);
 static_assert(PlanarSearchModel<AckermannPolicy>);
 static_assert(PlanarSearchModel<DifferentialDrivePolicy>);
 } // namespace hybrid_astar::planning
