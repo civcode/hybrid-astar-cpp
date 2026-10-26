@@ -31,6 +31,7 @@ struct RefinementResult {
   // with the request's pinned map/occupancy/footprint. Empty on invalid input.
   PlanResult path;
   std::size_t attempted = 0, accepted = 0, rejected = 0;
+  std::size_t prunedByCostLowerBound = 0;
   std::size_t exactPoseChecks = 0;
 };
 
