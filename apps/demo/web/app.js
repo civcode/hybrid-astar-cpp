@@ -7,7 +7,9 @@ const defaults = {
   warehouse: {name:'Warehouse obstacles',start:[8,20,0],goal:[43,20,0]},
   blocked:   {name:'Unreachable wall',start:[10,20,0],goal:[35,20,0]}
 };
-let snapshot=null, pending=null, animation=false, lastFrame=0;
+let snapshot=null, baseMap=null, baseCells=null, pending=null;
+let animation=false, lastFrame=0, routeValid=false, generation=0;
+let editMap=new Map(), pointerPainting=false, strokeChanged=false;
 let customOrigin=[0,0,0];
 const canvas=$('map'), ctx=canvas.getContext('2d');
 function setPose(prefix,v) {['x','y','yaw'].forEach((s,i)=>$(prefix+s).value=Number(v[i]).toFixed(i===2?3:2));}
@@ -24,14 +26,15 @@ function canvasGeometry() {
     canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
   }
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  const mw=(snapshot?.width||200)*(snapshot?.resolution||.25);
-  const mh=(snapshot?.height||160)*(snapshot?.resolution||.25);
+  const map=baseMap||snapshot;
+  const mw=(map?.width||200)*(map?.resolution||.25);
+  const mh=(map?.height||160)*(map?.resolution||.25);
   const scale=Math.min((w-42)/mw,(h-42)/mh);
   const ox=(w-mw*scale)/2,oy=(h-mh*scale)/2;
   return {w,h,mw,mh,scale,ox,oy};
 }
 function activeOrigin() {
-  return snapshot?.origin||($('scenario').value==='custom'?customOrigin:[0,0,0]);
+  return baseMap?.origin||snapshot?.origin||($('scenario').value==='custom'?customOrigin:[0,0,0]);
 }
 function localPoint(x,y,g) {return [g.ox+x*g.scale,g.oy+(g.mh-y)*g.scale];}
 function mapPoint(x,y,g) {
@@ -70,7 +73,7 @@ function drawSections(path,g,muted=false) {
   }
 }
 function activePath() {
-  if(!snapshot)return null;
+  if(!snapshot||!routeValid)return null;
   return snapshot.refinement?.path||snapshot.original;
 }
 function allPositions(path) {
@@ -82,25 +85,31 @@ function draw() {
   ctx.strokeStyle='#2c4157';ctx.lineWidth=.7;
   for(let x=0;x<=g.mw;x+=5){const [sx]=localPoint(x,0,g);ctx.beginPath();ctx.moveTo(sx,g.oy);ctx.lineTo(sx,g.oy+g.mh*g.scale);ctx.stroke();}
   for(let y=0;y<=g.mh;y+=5){const [,sy]=localPoint(0,y,g);ctx.beginPath();ctx.moveTo(g.ox,sy);ctx.lineTo(g.ox+g.mw*g.scale,sy);ctx.stroke();}
-  if(snapshot) {
-    for(const [x,y,length,value] of snapshot.mapRuns) {
-      const [sx,sy]=localPoint(x*snapshot.resolution,(y+1)*snapshot.resolution,g);
+  if(baseMap) {
+    for(const [x,y,length,value] of baseMap.mapRuns) {
+      const [sx,sy]=localPoint(x*baseMap.resolution,(y+1)*baseMap.resolution,g);
       ctx.fillStyle=value===-1?'#a58b61':'#71859e';
-      ctx.fillRect(sx,sy,Math.max(1,length*snapshot.resolution*g.scale),Math.max(1,snapshot.resolution*g.scale));
+      ctx.fillRect(sx,sy,Math.max(1,length*baseMap.resolution*g.scale),
+                   Math.max(1,baseMap.resolution*g.scale));
     }
-    const path=activePath();
-    if(snapshot.refinement?.path && $('showOriginal').checked)drawSections(snapshot.original,g,true);
-    drawSections(path,g);
-    drawPose(snapshot.start,'#5dd5ff',g);
-    drawPose(snapshot.goal,'#eac47d',g);
-    const samples=allPositions(path);
-    if(samples.length)drawPose(samples[Math.min(samples.length-1,Math.round(Number($('position').value)/1000*(samples.length-1)))],'#6ce8d3',g,true);
-  } else {
-    const start=['startx','starty','startyaw'].map(id=>Number($(id).value));
-    const goal=['goalx','goaly','goalyaw'].map(id=>Number($(id).value));
-    if(start.every(Number.isFinite))drawPose([start[0],start[1],start[2]*Math.PI/180],'#5dd5ff',g);
-    if(goal.every(Number.isFinite))drawPose([goal[0],goal[1],goal[2]*Math.PI/180],'#eac47d',g);
+    for(const [index,value] of editMap) {
+      const x=index%baseMap.width,y=Math.floor(index/baseMap.width);
+      const [sx,sy]=localPoint(x*baseMap.resolution,(y+1)*baseMap.resolution,g);
+      ctx.fillStyle=value===-1?'#a58b61':value===100?'#71859e':'#112238';
+      ctx.fillRect(sx,sy,Math.max(1,baseMap.resolution*g.scale),
+                   Math.max(1,baseMap.resolution*g.scale));
+    }
   }
+  const path=activePath();
+  if(path&&snapshot.refinement?.path&&$('showOriginal').checked)
+    drawSections(snapshot.original,g,true);
+  if(path)drawSections(path,g);
+  const start=['startx','starty','startyaw'].map(id=>Number($(id).value));
+  const goal=['goalx','goaly','goalyaw'].map(id=>Number($(id).value));
+  if(start.every(Number.isFinite))drawPose([start[0],start[1],start[2]*Math.PI/180],'#5dd5ff',g);
+  if(goal.every(Number.isFinite))drawPose([goal[0],goal[1],goal[2]*Math.PI/180],'#eac47d',g);
+  const samples=allPositions(path);
+  if(samples.length)drawPose(samples[Math.min(samples.length-1,Math.round(Number($('position').value)/1000*(samples.length-1)))],'#6ce8d3',g,true);
 }
 function stats(result) {
   const path=activePath(),valid=path?.status==='Success';
@@ -115,22 +124,74 @@ function stats(result) {
   $('expanded').textContent=result.original.expanded.toLocaleString();
   $('elapsed').textContent=result.milliseconds.toFixed(1)+' ms';
 }
+function invalidateRoute() {
+  routeValid=false;animation=false;
+  $('playButton').textContent='▶';
+  $('exportButton').disabled=true;
+  if(pending){pending.abort();pending=null;}
+  $('message').className='readout';
+  $('message').textContent='Map/pose changed · previous path is stale · replan required';
+  for(const id of ['cost','length','reverseLen','expanded','elapsed'])$(id).textContent='—';
+  draw();
+}
+function resetEditor() {
+  editMap.clear();generation=0;baseMap=null;baseCells=null;snapshot=null;routeValid=false;
+  $('resetMap').disabled=true;
+  $('editCount').textContent='0 changed cells';
+}
+function showEditCount() {
+  $('editCount').textContent=editMap.size+' changed cells · revision +'+generation;
+  $('resetMap').disabled=editMap.size===0;
+}
+function paintAt(event) {
+  if(!baseMap||!baseCells)return false;
+  const rect=canvas.getBoundingClientRect(),g=canvasGeometry();
+  const cell=MapEditor.cellFromCanvas(event.clientX-rect.left,event.clientY-rect.top,g,
+                                      baseMap.width,baseMap.height,baseMap.resolution);
+  if(!cell)return false;
+  let changed=false;
+  try {
+    for(const index of MapEditor.brushCells(cell[0],cell[1],Number($('brushSize').value),
+                                            baseMap.width,baseMap.height)) {
+      if(MapEditor.edit(editMap,baseCells,index,$('editMode').value))changed=true;
+    }
+  }catch(e){
+    $('message').className='readout bad';$('message').textContent=e.message;
+  }
+  if(changed) {generation++;strokeChanged=true;showEditCount();invalidateRoute();}
+  return changed;
+}
 async function replan() {
   if(pending)pending.abort();pending=new AbortController();
+  routeValid=false;draw();
   $('exportButton').disabled=true;
   $('planButton').disabled=true;$('overlay').classList.remove('hidden');$('overlay').textContent='Computing an exact-arc route…';
   animation=false;$('playButton').textContent='▶';
   const keys=['scenario','startx','starty','startyaw','goalx','goaly','goalyaw'];
   const params=new URLSearchParams();for(const key of keys)params.set(key,$(key).value);
   for(const key of ['ompl','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
-  const signal=pending.signal;
+  params.set('editRevision',String(generation));
+  params.set('edits',MapEditor.encode(editMap));
+  const signal=pending.signal, requestedRevision=generation;
   try {
-    const res=await fetch('/api/plan?'+params,{signal});
+    const res=await fetch('/api/plan',{method:'POST',body:params,signal});
+
     const result=await res.json();
     if(!res.ok)throw new Error(result.error||'Planning request failed');
-    snapshot=result;$('exportButton').disabled=false;$('position').value=0;stats(result);draw();
+    if(signal.aborted||requestedRevision!==generation)return;
+    if(!baseMap) {
+      baseMap={width:result.width,height:result.height,resolution:result.resolution,
+               origin:result.origin,mapRuns:result.mapRuns,revision:result.revision};
+      baseCells=new Int16Array(result.width*result.height);
+      for(const [x,y,length,value] of result.mapRuns)
+        baseCells.fill(value,y*result.width+x,y*result.width+x+length);
+    }
+    if(result.revision!==baseMap.revision+generation)
+      throw Error('Planner map revision differs from current brush revision');
+    snapshot=result;routeValid=true;$('exportButton').disabled=false;
+    $('position').value=0;stats(result);draw();
   } catch(e) {
-    if(e.name==='AbortError')return;
+    if(e.name==='AbortError'||signal.aborted)return;
     $('message').className='readout bad';$('message').textContent=e.message;
   } finally {
     if(pending?.signal===signal){pending=null;$('overlay').classList.add('hidden');$('planButton').disabled=false;}
@@ -150,10 +211,10 @@ $('playButton').addEventListener('click',()=>{
 });
 $('position').addEventListener('input',()=>{$('travel').textContent=(Number($('position').value)/10).toFixed(0)+'%';draw();});
 $('showOriginal').addEventListener('change',draw);
-$('scenario').addEventListener('change',()=>{snapshot=null;resetScenario();replan();});
+$('scenario').addEventListener('change',()=>{if(pending)pending.abort();resetEditor();resetScenario();replan();});
 $('planButton').addEventListener('click',replan);
 $('exportButton').addEventListener('click',()=>{
-  if(!snapshot)return;
+  if(!snapshot||!routeValid)return;
   const data=new Blob([JSON.stringify(snapshot,null,2)+'\n'],{type:'application/json'});
   const href=URL.createObjectURL(data);
   const link=document.createElement('a');
@@ -162,16 +223,41 @@ $('exportButton').addEventListener('click',()=>{
   setTimeout(()=>URL.revokeObjectURL(href),2000);
 });
 $('refine').addEventListener('change',()=>{$('curved').disabled=!$('refine').checked;});
-canvas.addEventListener('click',e=>{
-  const g=canvasGeometry();const rect=canvas.getBoundingClientRect();
+$('resetMap').addEventListener('click',()=>{
+  if(!editMap.size)return;
+  editMap.clear();generation++;showEditCount();invalidateRoute();replan();
+});
+canvas.addEventListener('pointerdown',e=>{
+  if(e.button!==0)return;
+  const mode=$('editMode').value;
+  if(['blocked','free','unknown','restore'].includes(mode)) {
+    if(!baseMap)return;
+    pointerPainting=true;strokeChanged=false;
+    canvas.setPointerCapture(e.pointerId);
+    paintAt(e);e.preventDefault();return;
+  }
+  const g=canvasGeometry(),rect=canvas.getBoundingClientRect();
   const px=e.clientX-rect.left,py=e.clientY-rect.top;
   const lx=(px-g.ox)/g.scale,ly=g.mh-(py-g.oy)/g.scale;
-  if(lx<0||lx>g.mw||ly<0||ly>g.mh)return;
+  if(lx<0||lx>=g.mw||ly<0||ly>=g.mh)return;
   const [x,y]=worldPoint(px,py,g);
-  const prefix=e.shiftKey?'goal':'start';
+  const prefix=mode==='goal'||e.shiftKey?'goal':'start';
   $(prefix+'x').value=x.toFixed(2);$(prefix+'y').value=y.toFixed(2);
-  snapshot=null;draw();replan();
+  invalidateRoute();replan();e.preventDefault();
 });
+canvas.addEventListener('pointermove',e=>{
+  if(pointerPainting) {paintAt(e);e.preventDefault();}
+});
+function finishStroke(e) {
+  if(!pointerPainting)return;
+  pointerPainting=false;
+  if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);
+  if(strokeChanged)replan();
+  strokeChanged=false;
+}
+canvas.addEventListener('pointerup',finishStroke);
+canvas.addEventListener('pointercancel',finishStroke);
+
 new ResizeObserver(draw).observe(canvas);
 (async()=>{
   resetScenario();$('curved').disabled=true;
