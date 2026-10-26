@@ -16,7 +16,7 @@ provides the C++20 `planning::PlanarSearchModel` concept. A model specifies:
 | Method / type | Responsibility |
 | --- | --- |
 | `State`, `Key`, `Hash`, `Mode`, `Section`, `Primitive` | Search state, discretization, label-hash, mode and exact-motion types |
-| `validate()` | Validate model-specific bounds and unsupported capabilities before search |
+| `validate()` and `footprint()` | Validate model-specific options and provide its actual rigid collision geometry |
 | `catalog(SampleLimits)` | Precompute reusable local-frame primitives **once per request** |
 | `key(State, Mode)` and `keyHash(diagnostics)` | Model-dependent state indexing and hash instrumentation |
 | `materialize(State, Primitive)` | Transform a local primitive into an evaluable world-frame section |
@@ -31,7 +31,7 @@ successor loop contains no `if(model==...)` branch, no direct call
 to `buildPrimitiveCatalog`/`differential_drive::buildCatalog`,
 and no hardcoded spin-versus-arc edge-cost switch.
 
-The policy also supplies the search-key type and hash, while the kernel
+The policy also supplies its collision footprint, search-key type and hash, while the kernel
 owns queue scheduling, one-label dominance/reopening, strict end
 validation, cancellation/work budgets, path reconstruction, and
 result provenance. Node storage uses a typed
@@ -108,7 +108,13 @@ New `w11_model_policy_test` Catch2 target:
 3. Third `PivotOnlyPolicy` must produce strictly checked
    zero-translation positive-cost rotation, repeat deterministically,
    and preserve the immutable map revision.
-4. Unsupported differential wheel/rotation configurations must report
+4. A deliberately large Ackermann request footprint must **not** override
+   a smaller third-party model's declared collision footprint; actual
+   independent body checking must use the model geometry.
+5. Zero-cost custom transitions, incompatible legacy analytic/clearance
+   hooks and a deliberately **forged section endpoint** must be rejected;
+   accepted paths must pass exact evaluator-based join and terminal checks.
+6. Unsupported differential wheel/rotation configurations must report
    `InvalidRequest` for both policy-based and standard entry points.
 
 Existing W3/W6/W10 scenario, priority-queue, HTTP and OMPL/Catch2
