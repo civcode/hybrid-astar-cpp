@@ -5,6 +5,7 @@ The baseline and ADRs are historical architecture proposals; the first C++20 Ack
 | Document | Focus |
 | --- | --- |
 | [Current implementation](current-implementation.md) | Normative shipped behavior, evidence, open W0–W9 work packages |
+| [Real OMPL 2.0.2 verification](w5-ompl-source-verification.md) | Offline genuine RS-source runtime tests, 12k pairs, plan/refine and strict-budget evidence, package gate still pending |
 | [W3–W5 verification](w3-w5-verification-notes.md) | Signed section decoder, parking fixtures, strict budget and explicit unverified OMPL-ON gate |
 | [W8 CSC verification](w8-csc-verification.md) | Opt-in forward/reverse curvature-bounded connectors, certified cost pruning, local randomized tests and benchmark tradeoffs |
 | [W8 refinement verification](w8-refinement-verification.md) | Bounded post-search exact-arc shortcutting, independent whole-path SAT checking, safe fallback and 7-suite local evidence |
