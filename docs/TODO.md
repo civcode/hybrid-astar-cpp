@@ -22,6 +22,29 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Demo application milestone — implemented 2026-10-26
+
+- [x] Create separate `app/` directory and opt-in `HYBRID_ASTAR_BUILD_APP`
+  CMake target without changing core-only builds.
+- [x] Add local loopback C++ HTTP/CLI demo, five occupancy scenarios,
+  start/goal yaw editing and interactive click-to-place world coordinates.
+- [x] Visualize the real exact-arc Hybrid A* path, forward/reverse sections,
+  sampled footprint animation, weighted cost, search effort, planning time,
+  strict success/failure, and optional original/refined comparison.
+- [x] Support optional real OMPL RS and noncertified performance heuristic,
+  bounded validated-incumbent search and post-search refinement.
+- [x] Add native demo regression and no-dependency optional Python localhost
+  API smoke test for scenarios, HTTP assets/errors and invalid input.
+- [ ] Add file-based map import and exporting structured path results when a
+  real application map schema is chosen.
+- [ ] Add downstream timed trajectory and steering-actuator visualization
+  only after those models are actually implemented and validated.
+- [ ] Verify the browser UI on target operating systems and build against a
+  complete installed OMPL package and exact GitHub checkout.
+
+The standalone app is a **developer tool**, not a ROS/Nav2 integration or a
+certified safe vehicle execution controller. See [app/README.md](../app/README.md).
+
 # Implementation and architecture TODOs
 
 A prioritized, incremental checklist. **All tasks unchecked as of initial documentation baseline**; this is a proposed plan, not a report of completed code. See [architecture index](architecture/README.md) and [open questions](architecture/open-questions.md).
