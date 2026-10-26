@@ -105,7 +105,12 @@ cmake --build build-hard --parallel
 
 Add `-DHYBRID_ASTAR_ENABLE_OMPL=ON` with an installed OMPL package for
 signed analytic steering rows. See [hard-scenario evidence and W6
-tradeoffs](docs/architecture/w3-w6-hard-scenarios.md). Benchmarks are opt-in
+tradeoffs](docs/architecture/w3-w6-hard-scenarios.md). The [failure investigation](docs/architecture/w3-w6-failure-investigation.md)
+identified an invalid dead-end fixture goal and a long-wall heuristic work
+budget that was too small. The corrected reverse escape succeeds; an opt-in
+`performanceHeuristicWeight=1.2` with 20k grid settlements also recovers
+the detour within 8k expansions, with a measurable first-path cost penalty.
+Default certified search and default heuristic weight are unchanged. Benchmarks are opt-in
 and never run through GitHub Actions.
 
 ## Build and test the Ackermann vertical slice

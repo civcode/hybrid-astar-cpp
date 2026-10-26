@@ -19,7 +19,7 @@ a path does not geometrically exist.
 | `three_point_turn` | Multiple direction changes | Success | Success |
 | `parallel_parking` | Bounded slot near parked objects | Success | Success |
 | `narrow_corridor` | Whole-body clearance and heading | Success | Success |
-| `dead_end` | U-shaped obstacle / reverse escape | BudgetExceeded | BudgetExceeded |
+| `dead_end` | U-shaped obstacle / reverse escape (corrected feasible goal) | Success | Success |
 | `obstacle_detour` | Route around long wall | BudgetExceeded | BudgetExceeded |
 | `sub_vehicle_width_gap` | Impassable 0.25m opening | BudgetExceeded | BudgetExceeded |
 
@@ -89,13 +89,15 @@ per fixture (not a representative benchmark or performance guarantee):
 | Three-point turn | 613 | 575 | 870 |
 | Parallel parking | 293 | 254 | 1,698 |
 | Narrow corridor | 327 | 46 | 5,271 |
-| Dead end | 3,500 | 3,500 | 7,000 (cap) |
+| Dead end (corrected) | 671 | 671 | Not rebenchmarked after fixture repair |
 | Long obstacle detour | 8,000 | 8,000 | 7,000 (cap) |
 | Impassable gap | 1,600 | 1,600 | 7,000 (cap) |
 
+**Correction to the earlier fixture:** the old dead-end goal (31,17) intersected the closed wall. It has been replaced with a reachable reverse escape (24,17)→(16,17), which succeeds in 671 primitive expansions. See [root-cause investigation](w3-w6-failure-investigation.md). The long detour remains budget-limited under the original 7k grid cap, but a 20k grid budget and explicit noncertified 1.2 heuristic weight recover it within 8k expansions. The original table's dead-end failure is superseded.
+
 These data show improvement **only in some maps**: corridor expansions
 decreased 327→46 (~86%), but the difficult failures still exhausted
-their expansion budgets and extra grid work may increase latency.
+their expansion budgets under the **original** configuration, and extra grid work may increase latency.
 Do not enable the noncertified heuristic globally on this evidence.
 
 ## Repeatable commands
@@ -115,7 +117,9 @@ project's Dockerfile provisions this) and add
 `-DHYBRID_ASTAR_ENABLE_OMPL=ON`. The manual benchmark then includes
 `ompl_rs`, `ompl_rs_grid` and `ompl_rs_grid_refined` alongside
 `primitive`, `primitive_grid`, `primitive_grid_legacy_diagonals` and
-`primitive_grid_refined`. The legacy diagonal row is an explicit
+`primitive_grid_refined`, `primitive_grid_funded`,
+`primitive_grid_weighted_1_2`, and `primitive_grid_weighted_1_5`.
+The legacy diagonal row is an explicit
 **noncertified controlled A/B mode**, not the default.
 
 CSV provides status, success count, p50/p95/p99 latency, expansions,
@@ -137,7 +141,7 @@ full official OMPL/Docker matrix on an OMPL-equipped host.
 
 - Collect multi-seed/representative benchmark distributions and control CPU
   governor, warmups, compiler and host when setting latency targets.
-- Explain failures in the dead-end and long-detour scenes (single-label
+- Follow up on the now-corrected dead-end fixture and recovered detour; investigate harder independently proven feasible narrow-passage scenes (single-label
   approximation, motion primitive reachability and reverse/gear penalties)
   before changing search-state dominance or gear-cost policy.
 - Separate swept-path collision proof and actuator-steering-rate feasibility

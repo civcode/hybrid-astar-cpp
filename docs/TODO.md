@@ -40,11 +40,19 @@ and steering actuator modeling remain future work.
 - [ ] Run exact-checkout Catch2 and full installed OMPL/Docker matrix, then
   gather representative multi-run p50/p95/p99 performance data before
   enabling the noncertified heuristic by default.
-- [ ] Investigate dead-end and long-detour search-budget failures; compare
-  quantized one-label dominance and gear/reverse cost choices without
-  sacrificing independently verified feasibility.
+- [x] Investigate both failures: dead-end's original goal collided with
+  its back wall; corrected reverse-escape fixture succeeds. The long detour's
+  7k grid-work cap exhausted before producing useful search guidance; 20k
+  grid settlements plus opt-in heuristic weight 1.2 recover a strictly
+  validated route within the original 8k expansion limit.
+- [x] Check 18 XY-bin/primitive-length/gear-switch variants; none solved
+  detour under the original 7k grid cap. Do not infer one-label dominance
+  is globally harmless from this narrow diagnostic.
+- [ ] Design independent feasible narrow-passage fixtures and diagnose
+  single-label dominance with a multi-arrival reference under bounded
+  memory/time constraints before considering a search-state change.
 
-See [W3/W6 hard-scenario evidence](architecture/w3-w6-hard-scenarios.md).
+See [W3/W6 failure root-cause investigation](architecture/w3-w6-failure-investigation.md) and [W3/W6 hard-scenario evidence](architecture/w3-w6-hard-scenarios.md).
 
 ## Planning Lab obstacle editor — implemented 2026-10-26
 

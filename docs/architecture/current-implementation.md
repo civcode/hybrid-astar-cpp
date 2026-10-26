@@ -184,6 +184,10 @@ The relocated core-only demo has been compiled and smoke-tested locally.
   Unavailable, disconnected and over-budget grid values use a finite fallback;
   there is **no** graph-based `NoPath` or footprint-aware reachability proof.
   New diagnostics count seed candidates, actual seeds and budget fallbacks.
+  `performanceHeuristicWeight` defaults to 1.0 (valid [1,3]); setting it
+  above 1.0 explicitly inflates **only** the noncertified heuristic to seek
+  a quicker first path, potentially increasing cost. No weighted-A* solution
+  bound is asserted due to grid relaxation and single-label pruning.
   One-label dominance and gear/reverse cost semantics are unchanged.
 - **W7:** Conservative request-local blocked-center Euclidean distance transform
   and constructive whole-body disc covers are implemented as an optional
@@ -233,7 +237,7 @@ The relocated core-only demo has been compiled and smoke-tested locally.
 | W3 Minimal search | Deterministic difficult-map suite implemented | Seven reverse/parking/corridor/dead-end/detour/blocked-gap fixtures; certified and performance modes run repeatable finite tests, successful paths independently rechecked, budget outcomes explicit; exhaustive feasibility and global optimum still unproved |
 | W4 Final validation | Independent per-section and cumulative strict budgets | Stricter exact resampling, weakened search fixture, final per-section and total pose-check budgets; validated incumbent retained on validation-budget exhaustion; failure location and swept proof pending |
 | W5 Analytic RS | Genuine 2.0.2 source-runtime integration passes, package install unverified | Offline CMake state-space subset, 12000 randomized OMPL pose pairs, signed cusps, wall/heuristic integration, plan/refine workflow and sanitizer runs pass locally; complete OMPL CMake package/export and exact repository checkout remain pending |
-| W6 Obstacle heuristic | Bounded goal seeding and cumulative-work controls implemented | Tolerance-box seed indexing, default diagonal corner prevention, blocked-query early fallback and 20k total settlement cap; seven-case manual A/B matrix documents cases helped and budgets still exhausted; admissibility/reachability unproved |
+| W6 Obstacle heuristic | Detour failure diagnosed and opt-in weighting added | Original long-wall cap of 7k settlements offered no useful relaxed-grid values; 20k plus weight 1.2 recovers validated detour in 3530 expansions at higher cost; zero-weight-change certified mode, bounded seeding/corner handling preserved; optimality unproved |
 | W7 Disc/EDT | Opt-in prototype, disabled by default | Blocked-center exact EDT, conservative rectangle disc cover, strict exact fallback; 3/4/5-disc randomized differential tests and staged end-to-end benchmarks; proof review and further map/geometry testing pending |
 | W8 Quality/refiner | Optional CSC shortcut extension implemented | Validated incumbent continuation, exact-oriented clearance weighting, strict section-boundary refinement, and opt-in forward/reverse CSC candidates with cost lower-bound pruning; 2000 seeded pose tests and local benchmark pass. Steering-rate smoothing, broader benchmarks and final retry remain pending |
 | W9 Other models | Deferred | Add only after a second real model exists; actuator/ROS contracts independent |
@@ -254,6 +258,7 @@ The relocated core-only demo has been compiled and smoke-tested locally.
 | Refinement | Explicit `refinePath()`; straight-only default; opt-in CSC or signed provider; optional real-OMPL combined plan/refine; strict cheaper full-path revalidation and original fallback | CCC/RS completeness, curvature-continuous steering smoothing, multi-seed cost/latency benchmarks |
 | Result | Geometric sampled evidence, no actuator guarantee | Consumer execution assurance policy |
 
+See [W3/W6 failure investigation](w3-w6-failure-investigation.md) for the corrected dead-end fixture, detour heuristic-budget root cause and optional weight tradeoffs.
 See [hard-scenario regression and W6 A/B evidence](w3-w6-hard-scenarios.md) for current test fixtures, counters and remaining search-efficiency limitations.
 See [real OMPL 2.0.2 source integration evidence](w5-ompl-source-verification.md) for the offline 10-suite Release/sanitizer matrix and remaining official-package gate.
 See [W8 curvature-bounded CSC verification](w8-csc-verification.md) for geometric construction, safe cost pruning and local performance limits.
