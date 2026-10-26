@@ -10,7 +10,8 @@ add_library(hybrid_astar_core STATIC
   src/ackermann/planner.cpp
   src/ackermann/cover_prefilter.cpp
   src/ackermann/clearance.cpp
-  src/steering/analytic_expansion.cpp)
+  src/steering/analytic_expansion.cpp
+  src/steering/signed_sections.cpp)
 add_library(hybrid_astar::core ALIAS hybrid_astar_core)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
 target_include_directories(hybrid_astar_core PUBLIC
@@ -43,6 +44,9 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   add_executable(hybrid_astar_planner_test tests/planner_test.cpp)
   target_link_libraries(hybrid_astar_planner_test PRIVATE hybrid_astar::core)
   add_test(NAME planner_test COMMAND hybrid_astar_planner_test)
+  add_executable(hybrid_astar_signed_sections_test tests/signed_sections_test.cpp)
+  target_link_libraries(hybrid_astar_signed_sections_test PRIVATE hybrid_astar::core)
+  add_test(NAME signed_sections_test COMMAND hybrid_astar_signed_sections_test)
   add_executable(hybrid_astar_quality_test tests/quality_test.cpp)
   target_link_libraries(hybrid_astar_quality_test PRIVATE hybrid_astar::core)
   add_test(NAME quality_test COMMAND hybrid_astar_quality_test)
