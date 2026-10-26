@@ -209,7 +209,7 @@ See [W3/W6 failure root-cause investigation](architecture/w3-w6-failure-investig
 - [x] Expose separate manual Docker `demo` and `test` targets with host
   loopback-only port publication; retain native loopback binding as default.
 - [x] Wire Catch2 v3 as the actual C++ test runner; default CMake builds
-  now use pinned v3.8.1 via `FetchContent`, with explicit opt-in
+  now use pinned v3.16.1 via `FetchContent`, with explicit opt-in
   `HYBRID_ASTAR_USE_SYSTEM_CATCH2=ON` for an installed CMake package.
   Native tests use Catch2 cases and `INFO`/`REQUIRE` assertions.
 - [x] Add native Catch2 `SECTION` fixtures for kinematic propagation and

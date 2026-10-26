@@ -258,7 +258,7 @@ and never run through GitHub Actions.
 ## Build and test the Ackermann vertical slice
 
 When tests are enabled (the default), CMake **automatically fetches and
-builds Catch2 v3.8.1** using `FetchContent` (Git + network required on
+builds Catch2 v3.16.1** using `FetchContent` (Git + network required on
 the first configure). No preinstalled Catch2 package is required.
 Use `-DHYBRID_ASTAR_USE_SYSTEM_CATCH2=ON` to select a system-installed
 Catch2 v3 package instead, or

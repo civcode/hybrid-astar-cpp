@@ -16,7 +16,7 @@ if(HYBRID_ASTAR_BUILD_TESTS)
     include(FetchContent)
     FetchContent_Declare(Catch2
       GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-      GIT_TAG        v3.8.1
+      GIT_TAG        v3.16.1
       GIT_SHALLOW    TRUE)
     FetchContent_MakeAvailable(Catch2)
   endif()

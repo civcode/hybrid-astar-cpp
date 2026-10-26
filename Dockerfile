@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Reproducible Linux development/test/demo environment. No GitHub Actions.
-# Catch2 v3.8.1 is downloaded by CMake FetchContent by default; OMPL is
+# Catch2 v3.16.1 is downloaded by CMake FetchContent by default; OMPL is
 # built from the exact 2.0.2 upstream tag for signed-path integration.
 FROM ubuntu:24.04 AS dependencies
 ENV DEBIAN_FRONTEND=noninteractive

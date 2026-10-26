@@ -3,7 +3,7 @@
 The root [Dockerfile](../Dockerfile) provides a reproducible Ubuntu 24.04
 environment for **building, testing and running** the real C++20 Hybrid A*
 planner. Dependencies include GCC, Git, CMake, Ninja, Python 3,
-Eigen3, Boost, FLANN, ODE and yaml-cpp. **Catch2 v3.8.1 is built by
+Eigen3, Boost, FLANN, ODE and yaml-cpp. **Catch2 v3.16.1 is built by
 CMake FetchContent by default**, not installed from Ubuntu's packages.
 It builds **OMPL 2.0.2 from its
 official tagged source**, with VAMP and Python bindings disabled; this avoids
@@ -127,7 +127,7 @@ Benchmarks are manual; they are not stable product latency promises.
 
 ## Build without Docker
 
-Catch2 **v3.8.1 is fetched automatically by CMake** when tests are enabled
+Catch2 **v3.16.1 is fetched automatically by CMake** when tests are enabled
 (the default). The initial configuration requires Git and HTTPS access to
 `github.com/catchorg/Catch2`; later configurations reuse the downloaded
 FetchContent source tree. An installed Catch2 package is not required.
@@ -151,7 +151,7 @@ ctest --test-dir build-system-catch2 --output-on-failure
 ```
 
 Alternatively, keep FetchContent enabled and supply an **existing** unpacked
-Catch2 v3.8.1 source checkout with
+Catch2 v3.16.1 source checkout with
 `-DFETCHCONTENT_SOURCE_DIR_CATCH2=/absolute/path/to/Catch2`. This is
 useful for offline builds and does not change the default behavior.
 
