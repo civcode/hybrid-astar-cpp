@@ -2,6 +2,8 @@
 """No-dependency localhost server smoke; invoked by CTest only for the demo target."""
 import json
 import socket
+import tempfile
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -61,6 +63,47 @@ def main(exe):
             assert code == 400 and "error" in json.loads(body), invalid
         code, _, body = get(base + "/api/plan", method="POST")
         assert code == 405 and "error" in json.loads(body)
+        with tempfile.TemporaryDirectory() as directory:
+            pgm = Path(directory) / "open-field.pgm"
+            pgm.write_bytes(b"P5\n160 120\n255\n" + bytes([255]) * (160 * 120))
+            out = Path(directory) / "plan.json"
+            once = subprocess.run([exe, "--once", "--map", str(pgm),
+                                   "--output", str(out)], capture_output=True,
+                                  text=True, timeout=20)
+            assert once.returncode == 0, once.stderr
+            saved = json.loads(out.read_text())
+            assert saved["original"]["status"] == "Success"
+            assert saved["width"] == 160 and saved["height"] == 120
+            malformed = Path(directory) / "bad.pgm"
+            malformed.write_bytes(b"P5\n1200 1\n255\n")
+            rejected = subprocess.run([exe, "--once", "--map", str(malformed)],
+                                      capture_output=True, text=True, timeout=10)
+            assert rejected.returncode != 0
+            with socket.socket() as sock:
+                sock.bind(("127.0.0.1", 0))
+                custom_port = sock.getsockname()[1]
+            child = subprocess.Popen([exe, "--port", str(custom_port), "--map", str(pgm)],
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            try:
+                origin = f"http://127.0.0.1:{custom_port}"
+                for _ in range(60):
+                    try:
+                        state = json.loads(get(origin + "/api/capabilities")[2])
+                        break
+                    except (URLError, ConnectionError):
+                        time.sleep(.05)
+                else:
+                    raise AssertionError("Imported-map server unavailable")
+                assert state["customMap"] is True
+                assert state["mapWidthMeters"] == 40
+                code, _, response = get(origin + "/api/plan?scenario=custom")
+                assert code == 200
+                imported = json.loads(response)
+                assert imported["original"]["status"] == "Success"
+                assert imported["width"] == 160
+            finally:
+                child.terminate()
+                child.wait(timeout=3)
         print("DEMO HTTP PASS")
     finally:
         proc.terminate()
