@@ -50,6 +50,7 @@ request-local options. It performs:
 7. An **independent, stricter final resampling pass** on reconstructed actual
    motion sections: default 0.05 m reference and 0.05 m body-point movement
    ceiling, with its own `maxFinalSamplesPerSection` budget (default 10000)
+   and cumulative `maxTotalFinalPoseChecks` budget (default 250000), both
    independent of the search sampler's limit. It calls exact collision directly and never trusts cached
    search classifications. Only a completed strict pass permits `Success`.
 8. Optional scheduled signed analytic connector supplied as a native callback.
@@ -63,15 +64,18 @@ request-local options. It performs:
    The OMPL adapter now delegates signed section normalization to a core-native,
    independently regression-tested `decodeSignedSections()`, and provides
    `steering::planWithReedsShepp()` as an explicit opt-in complete-planning entry
-   point with safely scoped provider callbacks. Actual OMPL-ON compilation
-   and execution are **still unverified**.
+   point with safely scoped provider callbacks. A focused true-OMPL-2.0.2
+   source build now executes the actual RS implementation, passing 12000
+   randomized pairs. A full installed OMPL CMake package build remains
+   **unverified**. The additional `planAndRefineWithReedsShepp()` entry point
+   reuses one evaluator for planning and independently checked refinement.
 9. Optional `ImproveIncumbent` quality mode retains only strictly validated
    lower-weighted-cost paths for a bounded extra-expansion budget (illustrative
    default 2500; not benchmark-ratified). First-validated remains the default.
    The result reports solution quality, candidate/improvement counts, and the
    reason for terminating continued search. A previously verified incumbent
-   can be returned on count-budget exhaustion or post-incumbent cancellation
-   with explicit termination metadata.
+   can be returned on count-budget exhaustion, validation-budget exhaustion,
+   or post-incumbent cancellation with explicit termination metadata.
 10. Optional **exact-oriented-rectangle** nearest blocked-cell-square/map-edge
     clearance score is integrated using nonnegative trapezoidal arc-progress
     penalties. It applies equally to ordinary primitives and signed analytic
@@ -109,8 +113,10 @@ boundary-only diagnostic mode cannot be used by `plan()`.
   An application can explicitly supply its own `analyticConnector`, or use
   `steering::planWithReedsShepp()` from the optional OMPL target. Its second
   parameter optionally selects the noncertified RS-plus-grid heuristic.
-  The provider-neutral signed decoder has passed local tests, but **OMPL-ON
-  build and real OMPL tests remain unverified** in this environment.
+  The native signed decoder and real OMPL 2.0.2 state-space code have now
+  passed 12000 randomized configurations and integration tests through an
+  offline source-subset harness. `steering::planAndRefineWithReedsShepp()`
+  also passes. The full official **OMPL-ON package build remains unverified**.
 - **W6:** Request-local raw-occupancy lazy reverse Dijkstra is an optional
   noncertified performance provider with deterministic count-based settlements,
   goal-region seeds and finite fallback; it is **not** a separately proved
@@ -140,9 +146,10 @@ boundary-only diagnostic mode cannot be used by `plan()`.
   ROS/Nav2 adapter, articulated/self-collision or alternative chassis model.
 - Cooperative request-local atomic cancellation is implemented and polled
   during search, sample checks and strict validation. Strict final validation
-  now has a **separately metered per-section sample budget**, but there is no
-  wall-clock budget, global final-work budget, or allocator-level memory
-  budget in this initial interface.
+  now has both a **separately metered per-section sample budget** and a
+  cumulative global strict pose-check budget; any incomplete required
+  checking without an incumbent prevents success. There is no wall-clock
+  or allocator-level memory budget in this initial interface.
 - Named tests cover open field, reverse costs, tolerance-region goals,
   unknown/boundary policy, adaptive-budget/cancellation and a deliberately
   missed between-sample obstacle rejected by strict validation. An opt-in
@@ -160,8 +167,8 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 | W1 Map/exact geometry | Implemented for filled Ackermann rectangle | `MapSnapshot`, `ExactCollisionChecker`, tests for rotated/boundary/unknown/interior; expand contact/property cases |
 | W2 Ackermann motion | Implemented for fixed curvature | `MotionSection` analytic evaluator; test more numerical extreme values/equivariance |
 | W3 Minimal search | Initial vertical slice, additional acceptance fixtures | Immutable nodes/reopen/base costs/region Euclidean and cancellation; primitive-only reverse and two-cusp parking, narrow-gap and revision tests now pass locally; further negative/large-map scenarios pending |
-| W4 Final validation | Strict sampled gate with separate section budget | Stricter exact resampling, weakened search fixture and independent final sample cap with incomplete-on-budget test pass; failure location, global work cap and swept guarantee pending |
-| W5 Analytic RS | Native decoder and wrapper added, OMPL-ON unverified | Signed native decoder and two-cusp cost/fallback tests pass locally; adapter and `planWithReedsShepp` wired, real OMPL build/integration matrix remains an explicit required gate |
+| W4 Final validation | Independent per-section and cumulative strict budgets | Stricter exact resampling, weakened search fixture, final per-section and total pose-check budgets; validated incumbent retained on validation-budget exhaustion; failure location and swept proof pending |
+| W5 Analytic RS | Genuine 2.0.2 source-runtime integration passes, package install unverified | Offline CMake state-space subset, 12000 randomized OMPL pose pairs, signed cusps, wall/heuristic integration, plan/refine workflow and sanitizer runs pass locally; complete OMPL CMake package/export and exact repository checkout remain pending |
 | W6 Obstacle heuristic | Initial performance mode | Goal-region-seeded request-local lazy reverse Dijkstra, optional RS metric, finite fallback; compare maps/settlement budgets and no unproven `NoPath` |
 | W7 Disc/EDT | Opt-in prototype, disabled by default | Blocked-center exact EDT, conservative rectangle disc cover, strict exact fallback; 3/4/5-disc randomized differential tests and staged end-to-end benchmarks; proof review and further map/geometry testing pending |
 | W8 Quality/refiner | Optional CSC shortcut extension implemented | Validated incumbent continuation, exact-oriented clearance weighting, strict section-boundary refinement, and opt-in forward/reverse CSC candidates with cost lower-bound pruning; 2000 seeded pose tests and local benchmark pass. Steering-rate smoothing, broader benchmarks and final retry remain pending |
@@ -179,11 +186,15 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 | Cost | F=1.0, R=1.10, switch=0.50m; optional clearance lambda=0, influence=0.40m | Clearance/routing objective and safe settings for constrained maps |
 | Heuristic | Certified region Euclidean default; optional noncertified lazy grid plus injected RS exact-goal distance | Benchmark performance and separate reachability proof |
 | Termination | First strictly validated default, opt-in bounded `ImproveIncumbent` with explicit reasons | Improve-mode expansion budget and strict retry policy |
-| RS | First-node/search-bin scheduler; signed native hook; optional reusable OMPL evaluator | OMPL-ON build, integration and scheduling/quality benchmarks |
-| Refinement | Explicit `refinePath()`; straight-only default; opt-in fixed-gear CSC candidates or signed callback; strict cheaper full-path revalidation and original fallback | CCC/RS completeness, curvature-continuous steering smoothing, multi-seed cost/latency benchmarks |
+| RS | First-node/search-bin scheduler; signed native hook, reused real OMPL evaluator, native combined plan/refine wrapper | Full OMPL-ON package build, exact checkout and scheduling/quality benchmarks |
+| Refinement | Explicit `refinePath()`; straight-only default; opt-in CSC or signed provider; optional real-OMPL combined plan/refine; strict cheaper full-path revalidation and original fallback | CCC/RS completeness, curvature-continuous steering smoothing, multi-seed cost/latency benchmarks |
 | Result | Geometric sampled evidence, no actuator guarantee | Consumer execution assurance policy |
 
-See [W8 curvature-bounded CSC verification](w8-csc-verification.md) for geometric construction, safe cost pruning and local performance limits.\nSee [W3–W5 verification notes](w3-w5-verification-notes.md) for new acceptance fixtures and explicit OMPL verification limits.\n\nSee synthesis §1.3, §17 and §18 for alternative approaches and mathematical
+See [real OMPL 2.0.2 source integration evidence](w5-ompl-source-verification.md) for the offline 10-suite Release/sanitizer matrix and remaining official-package gate.
+See [W8 curvature-bounded CSC verification](w8-csc-verification.md) for geometric construction, safe cost pruning and local performance limits.
+See [W3–W5 verification notes](w3-w5-verification-notes.md) for new acceptance fixtures and explicit OMPL verification limits.
+
+See synthesis §1.3, §17 and §18 for alternative approaches and mathematical
 proof obligations. **All settings are provisional; initial measurements are exploratory and not release benchmarks.** A
 successful sampled plan is a static-map geometric initializer, not an
 execution-safe timed trajectory, proof of swept collision freedom, globally
