@@ -76,7 +76,19 @@ request-local options. It performs:
     clearance score is integrated using nonnegative trapezoidal arc-progress
     penalties. It applies equally to ordinary primitives and signed analytic
     sections, is computed before active-label relaxation, and defaults to zero.
-11. Explicit statuses for input/map/unknown errors, cooperative cancellation, start collision,
+11. Opt-in post-search `refinePath(request, validatedPlan)` in
+    `ackermann/refinement.{hpp,cpp}` tries deterministic exact straight
+    section-boundary shortcuts, or an injected analytic signed-section provider.
+    It independently revalidates the original against the pinned request,
+    reconstructs/rechecks every candidate arc and the full candidate path
+    using exact filled-footprint collision and the independent strict sampling
+    limits, and accepts only reduced configured weighted cost. Finite attempt,
+    accepted-replacement and total pose-check budgets bound work. On bad
+    candidate, cancellation or budget limit AFTER original validation, the
+    last strictly verified path remains available. Failed original validation
+    cannot yield a purported success. New quality metadata distinguishes
+    `FeasibleAfterRefinement`. This is not a time-continuous swept proof.
+12. Explicit statuses for input/map/unknown errors, cooperative cancellation, start collision,
    work budgets, incomplete/failed final checking and approximate
    search exhaustion; true terminal pose/error/gear, weighted path cost,
    effective map provenance, counts and achieved *sampled* collision
@@ -110,8 +122,12 @@ boundary-only diagnostic mode cannot be used by `plan()`.
   Adaptive samples still control *density*, not the continuous swept set.
 - **W8:** Optional nonnegative oriented-footprint clearance integration,
   cost-gated analytic candidates and bounded validated incumbent improvement
-  are implemented, defaulting to disabled/first-feasible. A post-path refiner
-  and a bounded strict-validation retry remain deferred. The clearance
+  are implemented, defaulting to disabled/first-feasible. A separately callable
+  **bounded post-path shortcut refiner** is now available, also opt-in, with
+  exact obstacle-aware strict revalidation and raw-path fallback. It currently
+  proposes aligned straight shortcuts by itself; curved/nontrivial signed
+  alternatives require an injected provider. A bounded strict-validation
+  retry and more sophisticated continuous-curvature smoothing remain deferred. The clearance
   experiment `lambda=0.15` caused a distant-doorway regression under the
   tested work budget: do not adopt it as a product default.
 - **W9:** No timed steering/actuator checks, dynamic-obstacle predictions,
@@ -142,7 +158,7 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 | W5 Analytic RS | Native decoder and wrapper added, OMPL-ON unverified | Signed native decoder and two-cusp cost/fallback tests pass locally; adapter and `planWithReedsShepp` wired, real OMPL build/integration matrix remains an explicit required gate |
 | W6 Obstacle heuristic | Initial performance mode | Goal-region-seeded request-local lazy reverse Dijkstra, optional RS metric, finite fallback; compare maps/settlement budgets and no unproven `NoPath` |
 | W7 Disc/EDT | Opt-in prototype, disabled by default | Blocked-center exact EDT, conservative rectangle disc cover, strict exact fallback; 3/4/5-disc randomized differential tests and staged end-to-end benchmarks; proof review and further map/geometry testing pending |
-| W8 Quality/refiner | Initial opt-in quality increments | Strictly validated incumbent continuation and oriented exact-square clearance weight implemented; quality regression suite passes; objective tuning and full refiner/retry pending |
+| W8 Quality/refiner | Optional bounded shortcut refiner implemented | Validated incumbent continuation, exact-oriented clearance weighting, and independently validated post-search section-boundary shortcuts; original/obstacle/cancellation/limit fixtures pass. More capable obstacle-aware smoothers, objective tuning, whole-pipeline benchmarks and final retry still pending |
 | W9 Other models | Deferred | Add only after a second real model exists; actuator/ROS contracts independent |
 
 ## Provisional configuration / decision log
@@ -158,6 +174,7 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 | Heuristic | Certified region Euclidean default; optional noncertified lazy grid plus injected RS exact-goal distance | Benchmark performance and separate reachability proof |
 | Termination | First strictly validated default, opt-in bounded `ImproveIncumbent` with explicit reasons | Improve-mode expansion budget and strict retry policy |
 | RS | First-node/search-bin scheduler; signed native hook; optional reusable OMPL evaluator | OMPL-ON build, integration and scheduling/quality benchmarks |
+| Refinement | Explicit `refinePath()` only, original revalidated, strict cheaper full-path replacement, optional signed provider | More capable continuous-curvature smoothing, cost/latency benchmarks |
 | Result | Geometric sampled evidence, no actuator guarantee | Consumer execution assurance policy |
 
 See [W3–W5 verification notes](w3-w5-verification-notes.md) for new acceptance fixtures and explicit OMPL verification limits.\n\nSee synthesis §1.3, §17 and §18 for alternative approaches and mathematical
