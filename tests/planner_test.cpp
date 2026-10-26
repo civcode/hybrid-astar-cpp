@@ -134,6 +134,16 @@ int main() {
     request.cancelled=std::make_shared<std::atomic_bool>(true);
     expect(plan(request).status==PlanStatus::Cancelled,"cancelled status");
     request.cancelled.reset();
+    request.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+    request.options.gridMaxSettlementsPerQuery=0;
+    auto partial=plan(request);
+    expect(partial.status==PlanStatus::Success,"limited lazy grid falls back");
+    expect(!partial.heuristicCertifiedAdmissible,"grid performance not certified");
+    expect(partial.diagnostics.gridFallbacks>0,"budget uses fallback");
+    request.options.gridMaxSettlementsPerQuery=500;
+    auto settled=plan(request);
+    expect(settled.status==PlanStatus::Success && settled.diagnostics.gridSettlements>0,"grid Dijkstra settlement");
+    request.options.heuristicMode=HeuristicMode::CertifiedRegionEuclidean;
     request.options.maxExpansions=1;
     expect(plan(request).status==PlanStatus::BudgetExceeded,"bounded work not no path");
     request.options.maxExpansions=15000;
