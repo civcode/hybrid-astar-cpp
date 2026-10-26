@@ -78,6 +78,8 @@ struct PlanOptions {
   SolutionPolicy solutionPolicy = SolutionPolicy::FirstStrictlyValidated;
   std::size_t maxExtraExpansionsAfterFirst = 2500; // optional, measured separately
   std::size_t gridMaxSettlementsPerQuery = 500;
+  std::size_t gridMaxTotalSettlements = 20000; // performance grid, entire request
+  bool gridPreventDiagonalCornerCutting = true; // false only for controlled A/B trials
   double clearanceWeight = 0.0; // zero by default: equivalent-meter integral
   double clearanceInfluenceRadiusMeters = 0.40;
   std::size_t discPrefilterCount = 0; // 0=off, optionally benchmark 4 or 5 // finite lazy Dijkstra budget
@@ -114,6 +116,8 @@ struct PlanDiagnostics {
   std::size_t searchPoseChecks = 0, finalPoseChecks = 0;
   std::size_t analyticAttempts = 0, analyticAccepted = 0;
   std::size_t gridSettlements = 0, gridFallbacks = 0;
+  std::size_t gridSeedCellsExamined = 0, gridSeedCellsAccepted = 0;
+  std::size_t gridBlockedQueryFallbacks = 0, gridWorkBudgetFallbacks = 0;
   std::size_t validatedCandidates = 0, incumbentImprovements = 0;
   std::size_t discDefinitelyClear = 0, discExactFallback = 0;
   std::size_t clearanceSamples = 0;
