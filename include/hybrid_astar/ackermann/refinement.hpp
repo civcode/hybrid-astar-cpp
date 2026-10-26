@@ -1,0 +1,43 @@
+#pragma once
+#include "hybrid_astar/ackermann/planner.hpp"
+#include <functional>
+#include <vector>
+
+namespace hybrid_astar::ackermann {
+// A bounded, POST-search path refiner. Does not modify the core planner's
+// default behavior. Only exact kinematic sections are ever substituted.
+// Optional connector can supply signed Reeds-Shepp arcs; when not supplied,
+// the refiner attempts feasible same-heading straight shortcuts only.
+using RefinementConnector =
+    std::function<std::vector<MotionSection>(const Pose2D&, const Pose2D&)>;
+
+struct RefinementOptions {
+  std::size_t maxAttempts = 64;           // candidate windows, not map queries
+  std::size_t maxAccepted = 4;            // full-path replacements
+  std::size_t maxReplacementSections = 32;
+  std::size_t maxTotalPoseChecks = 100000; // includes original revalidation
+  double minimumCostReductionMeters = 1e-6;
+};
+
+enum class RefinementStatus {
+  InvalidInput, OriginalNotVerified, Unchanged, Improved,
+  WorkBudgetExceeded, Cancelled
+};
+
+struct RefinementResult {
+  RefinementStatus status = RefinementStatus::InvalidInput;
+  // Only populated if the returned sections passed INDEPENDENT strict validation
+  // with the request's pinned map/occupancy/footprint. Empty on invalid input.
+  PlanResult path;
+  std::size_t attempted = 0, accepted = 0, rejected = 0;
+  std::size_t exactPoseChecks = 0;
+};
+
+// Rejects stale input and revalidates the original under this request before
+// trying shortcuts. Failed/over-budget proposals can never erase that original.
+// The result remains sampled, never swept- or actuator-certified.
+RefinementResult refinePath(const PlanRequest& request, const PlanResult& original,
+                            RefinementConnector connector = {},
+                            RefinementOptions options = {});
+
+} // namespace hybrid_astar::ackermann
