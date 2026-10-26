@@ -96,7 +96,7 @@ void pathJson(std::ostream& os,const PlanResult& path) {
     // Rotation is parameterized by radians; drawing must retain heading
     // samples even though all reference positions coincide.
     const std::size_t steps=std::max<std::size_t>(1,static_cast<std::size_t>(
-        std::ceil(extent/(spin?.07:.13))));
+        std::ceil(extent/(spin ? .07 : .13))));
     // Visualization samples are separate from strict collision evidence.
     os<<"{\"gear\":"<<quoted(spin?"rotate":section.gear==Gear::Reverse?"reverse":"forward")
       <<",\"kind\":"<<quoted(spin?"rotation":"translation")
