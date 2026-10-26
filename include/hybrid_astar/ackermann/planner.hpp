@@ -68,7 +68,7 @@ enum class PlanStatus {
 
 enum class HeuristicMode { CertifiedRegionEuclidean, PerformanceReedsSheppAndObstacleGrid };
 enum class SolutionPolicy { FirstStrictlyValidated, ImproveIncumbent };
-enum class SolutionQuality { FeasibleFirst, FeasibleAfterImprovement };
+enum class SolutionQuality { FeasibleFirst, FeasibleAfterImprovement, FeasibleAfterRefinement };
 enum class TerminationReason { None, FirstValidated, ImprovementBudgetExhausted, SearchExhausted, WorkBudgetExceeded, CancelledAfterIncumbent };
 
 struct PlanOptions {
