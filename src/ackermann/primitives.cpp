@@ -1,6 +1,7 @@
 #include "hybrid_astar/ackermann/primitives.hpp"
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 namespace hybrid_astar::ackermann {
 PrimitiveCatalog buildPrimitiveCatalog(const SearchConfig& search,
