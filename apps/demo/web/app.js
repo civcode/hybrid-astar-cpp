@@ -54,7 +54,8 @@ function drawPose(p,color,g,body=false) {
   const [tx,ty]=mapPoint(p[0]+headLength*Math.cos(p[2]),p[1]+headLength*Math.sin(p[2]),g);
   ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
   if(!body)return;
-  const [rear,frontX,halfWidth]=snapshot?.footprint||
+  const [rear,frontX,halfWidth]=(snapshot?.model===$('model').value
+      ? snapshot.footprint : null) ||
       (isDiff?[-.35,.35,.25]:[-1,3.6,.9]);
   const corners=[[rear,-halfWidth],[frontX,-halfWidth],
                  [frontX,halfWidth],[rear,halfWidth]];

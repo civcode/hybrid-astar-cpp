@@ -37,12 +37,17 @@ and steering actuator modeling remain future work.
   sampled rotating-body collision and Ackermann search regression tests.
 - [ ] Complete official dependency-provisioned Catch2/Docker regression
   matrix on an exact checkout (not available in this environment).
-- [ ] Refactor search/pruning and angular-positive cost for differential
-  drive; validate pure-rotation full-footprint motion on the pinned map.
-- [ ] Integrate differential-drive mode, body footprint and angular
-  sample playback into Planning Lab.
+- [x] Integrate differential-drive primitive catalog into the existing
+  Hybrid A* successor loop, carry the incoming gear across turns, and add
+  positive angular effort cost with stricter independent rotation checks.
+- [x] Expose the model in Planning Lab and CLI, with a distinct rectangular
+  footprint, spin-marker drawing, heading animation and HTTP regressions.
+- [ ] Generalize the remaining Ackermann-shaped API/types into a
+  model-parametric state/collision/motion policy, then extend beyond
+  planar rigid chassis and circle/rectangle geometry as needed.
 
-See [W10 primitives contract](architecture/w10-differential-primitives.md).
+See [W10 primitives contract](architecture/w10-differential-primitives.md)
+ and [W10 search and demo integration](architecture/w10-differential-search.md).
 
 ## W6 hash/collision/queue hotpath instrumentation — 2026-10-26
 

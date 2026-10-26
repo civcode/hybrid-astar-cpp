@@ -102,11 +102,15 @@ cmake -S . -B build-w10 -DCMAKE_BUILD_TYPE=Release \
 cmake --build build-w10 --parallel
 ```
 
-The differential-drive **model and primitive provider** are implemented,
-but **not yet connected to the search, strict-validation pipeline or demo**.
-That is the next W10 milestone and requires positive costs and complete
-footprint checks for zero-translation rotations. See
-[W10 primitives contract](docs/architecture/w10-differential-primitives.md)
+The differential-drive **model, primitive provider, Hybrid A* successor
+expansion, angular effort costs, strict sampled body-motion validation and
+Planning Lab selector are implemented**. This is a second end-to-end
+geometric model, not yet a fully generic state-space abstraction.
+Positive-cost spins preserve the incoming drive mode and independently
+sample the whole moving footprint; the existing Ackermann Reeds–Shepp
+connector and refinement are explicitly unsupported for differential mode. See
+[W10 primitives contract](docs/architecture/w10-differential-primitives.md) and
+[search/demo integration](docs/architecture/w10-differential-search.md)
 for the API, limitations and Catch2/RK4 tests.
 
 ## W6 label hashing, exact collision and CPU hotpath profiling

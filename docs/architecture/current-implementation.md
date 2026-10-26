@@ -282,9 +282,15 @@ The final full-footprint validator still independently re-evaluates the
 exact analytic section with its own stricter sampling configuration.
 A new isolated differential-drive `Model` and eight-local-primitive catalog
 supports exact constant body twist and stationary in-place turns, including
-sample points and bounded wheel-rate controls. **The generic search,
-model-dependent cost/collision, and demo integration are not yet done.**
-See [W10 differential-drive primitive status](w10-differential-primitives.md).
+sample points and bounded wheel-rate controls. **The same native Hybrid A* loop now runs differential drive** with
+eight cached SE(2) local primitives, explicit positive-cost angular
+sections, wheel-rate configuration checking, rotated map-aware exact
+footprint collision sampling and independent strict validation.
+The localhost Planning Lab supports model selection and animates
+stationary turns. This reuses planar pose/gear indexing; a fully generic
+model-parametric core and broad shape registry are still deferred.
+See [W10 differential-drive primitive status](w10-differential-primitives.md)
+and [working search/demo contract](w10-differential-search.md).
 
 See [W6 priority queue verification](w6-priority-queue-verification.md) for both-heap instrumentation, indexed and four-ary A/B timings, memory costs and unchanged defaults.
 See [W3/W6 failure investigation](w3-w6-failure-investigation.md) for the corrected dead-end fixture, detour heuristic-budget root cause and optional weight tradeoffs.

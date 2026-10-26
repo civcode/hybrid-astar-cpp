@@ -65,6 +65,34 @@ strict adaptive-sampled validator can be labeled validated. There is **no
 continuous swept guarantee or steering-rate/actuator feasibility** claim.
 A budget-limited response is not proof of a geometric NoPath.
 
+## Choose the vehicle model — Ackermann or differential drive
+
+Planning Lab's **Kinematic model** selector chooses the existing
+Ackermann rear-axle planner or the ideal differential-drive chassis.
+Differential mode uses a center-referenced **0.70 m × 0.50 m** rectangle,
+eight precomputed local trajectories, and real **in-place rotations**.
+Rotations have zero traveled metres but positive angular effort cost;
+the browser animates their heading samples and displays a violet turn
+marker at the fixed reference position.
+
+```bash
+./build-demo/hybrid_astar_demo --once --model differential \
+  --scenario open --start 10 15 0 --goal 10 15 90
+```
+
+HTTP planning accepts `model=differential` or `model=ackermann` in
+GET/POST, and export JSON includes `model`, `footprint` and the
+`sections[].kind`/`sections[].turnRadians` fields. Sampled poses
+remain map-frame world coordinates, including for rotated YAML origins.
+Changing models invalidates the old path and triggers replanning.
+
+Differential mode deliberately rejects Ackermann-only
+`ompl`/`refine`/`curved` options and is not a ROS robot controller.
+Both models independently validate pose-sampled full-footprint geometry
+after search. **No continuous swept collision or actuator feasibility
+certificate is supplied.** See
+[W10 search integration](../../docs/architecture/w10-differential-search.md).
+
 ## Interactive obstacle editing (immutable map revisions)
 
 Planning Lab can now edit the occupancy map **in the browser**, without
