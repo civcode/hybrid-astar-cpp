@@ -148,6 +148,9 @@ Outcome run(const Options& opt) {
     out.request.goal=toWorld(m.width*m.resolutionMeters*.8,m.height*m.resolutionMeters*.5);
     out.request.options.maxExpansions=25000;
   } else out.request=makeRequest(opt.scenario);
+  // The map is never modified in-place. All search, strict validation and
+  // optional refinement use the same request-local edited revision.
+  out.request.map=applyCellEdits(out.request.map,opt.edits,opt.editGeneration);
   if(opt.start)out.request.start=*opt.start;
   if(opt.goal)out.request.goal=*opt.goal;
   for(auto p:{out.request.start,out.request.goal})
