@@ -289,6 +289,12 @@ PlanResult plan(const PlanRequest& r) {
   if (!r.map || !finite(r.start) || !finite(r.goal)) return result;
   try { validateOptions(r.options); validateFootprint(r.footprint); }
   catch (const std::exception&) { result.status=PlanStatus::InvalidRequest; return result; }
+  if (r.occupancy.maxTraversableOccupancy<0 || r.occupancy.maxTraversableOccupancy>100 ||
+      (r.occupancy.unknown!=UnknownPolicy::Occupied &&
+       r.occupancy.unknown!=UnknownPolicy::Free &&
+       r.occupancy.unknown!=UnknownPolicy::Reject)) {
+    result.status=PlanStatus::InvalidRequest;return result;
+  }
   try { validateMap(*r.map,r.occupancy); }
   catch (const std::exception&) { result.status=PlanStatus::InvalidMap; return result; }
   if (r.occupancy.unknown==UnknownPolicy::Reject &&
