@@ -101,9 +101,10 @@ double goalErrorYaw(const Pose2D& p,const Pose2D& g) { return std::abs(wrap(p.ya
 double heuristic(const Pose2D& p,const Pose2D& goal,double tolerance) {
   return std::max(0.0,goalErrorXY(p,goal)-tolerance);
 }
-enum class MotionStatus { Clear, Colliding, Incomplete };
+enum class MotionStatus { Clear, Colliding, Incomplete, Cancelled };
 MotionStatus checkMotion(const MotionSection& section, const ExactCollisionChecker& checker,
-                         double step, double bodyStep, std::size_t limit, std::size_t& checks) {
+                         double step, double bodyStep, std::size_t limit, std::size_t& checks,
+                         const std::atomic_bool* cancel) {
   if (!std::isfinite(section.lengthMeters) || section.lengthMeters<0) return MotionStatus::Incomplete;
   // Upper bound on translation+rotation of EVERY body point per interval.
   const double factor=1.0+checker.maxBodyRadius()*std::abs(section.curvature);
@@ -111,6 +112,7 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
   if (!std::isfinite(divisions) || divisions > static_cast<double>(limit-1)) return MotionStatus::Incomplete;
   const std::size_t n=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(divisions)));
   for (std::size_t i=0;i<=n;++i) {
+    if (cancel && cancel->load(std::memory_order_relaxed)) return MotionStatus::Cancelled;
     if (checker.check(section.evaluate(section.lengthMeters*static_cast<double>(i)/n))==PoseCollision::Colliding)
       return MotionStatus::Colliding;
     ++checks;
@@ -209,6 +211,9 @@ PlanResult plan(const PlanRequest& r) {
       std::find(r.map->cells.begin(),r.map->cells.end(),static_cast<std::int8_t>(-1))!=r.map->cells.end()) {
     result.status=PlanStatus::RejectedUnknownMap; return result;
   }
+  if (r.cancelled && r.cancelled->load(std::memory_order_relaxed)) {
+    result.status=PlanStatus::Cancelled;return result;
+  }
   try {
     const ExactCollisionChecker checker(*r.map,r.occupancy,r.footprint);
     if (checker.check(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
@@ -226,6 +231,9 @@ PlanResult plan(const PlanRequest& r) {
     result.diagnostics.generated=1;
     bool strictFailure=false;
     while (!open.empty()) {
+      if (r.cancelled && r.cancelled->load(std::memory_order_relaxed)) {
+        result.status=PlanStatus::Cancelled;return result;
+      }
       const Entry item=open.top();open.pop();
       const Node current=nodes[item.node]; // copy: nodes may grow while expanding
       auto label=active.find(current.key);
@@ -247,7 +255,8 @@ PlanResult plan(const PlanRequest& r) {
           if (!valid) break;
           const auto status=checkMotion(sec,checker,opt.finalSampleSpacingMeters,
                          opt.finalMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
-                         result.diagnostics.finalPoseChecks);
+                         result.diagnostics.finalPoseChecks,r.cancelled.get());
+          if (status==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
           if (status==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
           valid=status==MotionStatus::Clear;
         }
@@ -278,7 +287,8 @@ PlanResult plan(const PlanRequest& r) {
           }
           const auto check=checkMotion(sec,checker,opt.searchSampleSpacingMeters,
                      opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
-                     result.diagnostics.searchPoseChecks);
+                     result.diagnostics.searchPoseChecks,r.cancelled.get());
+          if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
           if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
           if (check==MotionStatus::Colliding) continue;
           if (nodes.size()>=opt.maxGeneratedNodes) {result.status=PlanStatus::BudgetExceeded;return result;}
