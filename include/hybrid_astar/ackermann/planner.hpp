@@ -5,6 +5,8 @@
 #include "hybrid_astar/steering/analytic_expansion.hpp"
 #include <atomic>
 #include <cstddef>
+#include <cmath>
+#include "hybrid_astar/differential_drive/primitives.hpp"
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -51,15 +53,24 @@ private:
 
 // Progress is NONNEGATIVE reference-axle arc length; curvature is signed
 // steering curvature, not direction-adjusted yaw rate. Endpoints are analytic.
+enum class MotionKind { Translate, RotateInPlace };
 struct MotionSection {
   Pose2D start, end;
   Gear gear = Gear::None;
   double curvature = 0.0;
   double lengthMeters = 0.0;
-  Pose2D evaluate(double progressMeters) const;
+  // Rotation is represented in radians, never conflated with travel metres.
+  MotionKind kind = MotionKind::Translate;
+  double turnRadians = 0.0; // signed for pure spin; lengthMeters remains zero
+  double progressExtent() const noexcept {
+    return kind==MotionKind::RotateInPlace?std::abs(turnRadians):lengthMeters;
+  }
+  // Progress is measured in metres for translation, radians for rotation.
+  Pose2D evaluate(double progress) const;
 };
 MotionSection makeSection(const Pose2D& start, Gear gear,
                           double curvature, double lengthMeters);
+MotionSection makeRotationSection(const Pose2D& start,double signedTurnRadians);
 
 enum class CollisionEvidence { None, FullFootprintBodyMotionAdaptiveSampled };
 enum class PlanStatus {
@@ -75,6 +86,10 @@ enum class TerminationReason { None, FirstValidated, ImprovementBudgetExhausted,
 
 struct PlanOptions {
   SearchConfig search;
+  enum class Model { Ackermann, DifferentialDrive } model = Model::Ackermann;
+  differential_drive::Parameters diffParameters{};
+  differential_drive::PrimitiveConfig diffPrimitives{};
+  double rotationCostMetersPerRadian = 0.40; // must be strictly positive
   steering::AnalyticExpansionOptions analytic; // only used with connector
   HeuristicMode heuristicMode = HeuristicMode::CertifiedRegionEuclidean;
   SolutionPolicy solutionPolicy = SolutionPolicy::FirstStrictlyValidated;
