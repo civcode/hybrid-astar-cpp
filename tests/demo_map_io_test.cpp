@@ -73,5 +73,8 @@ TEST_CASE("Imported occupancy map uses real planner and provenance", "[app][pgm]
   const auto json=toJson(result);
   REQUIRE(json.find("\"width\":160")!=std::string::npos);
   REQUIRE(json.find("\"validated\":true")!=std::string::npos);
+  REQUIRE(json.find("\"sourceId\":\"imported-pgm\"")!=std::string::npos);
+  REQUIRE(json.find("\"collisionEvidence\":\"FullFootprintBodyMotionAdaptiveSampled\"")!=std::string::npos);
+  REQUIRE(json.find("\"actuatorFeasible\":false")!=std::string::npos);
   REQUIRE(capabilitiesJson(o.customMap.get()).find("\"customMap\":true")!=std::string::npos);
 }
