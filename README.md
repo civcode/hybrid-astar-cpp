@@ -35,7 +35,7 @@ cmake --build build-demo --parallel --target hybrid_astar_demo
 ./build-demo/hybrid_astar_demo
 ```
 
-Open **http://127.0.0.1:8765**. To explore a custom occupancy map,
+Open **http://127.0.0.1:8765**. The demo now also offers **interactive occupancy-grid editing**: drag obstacle/free/unknown/restore brushes directly on the map, with bounded sparse edits, fresh immutable map revisions and automatic strict replanning on stroke completion. Changing the map immediately hides the earlier validated route. See [brush editing semantics](apps/demo/README.md#interactive-obstacle-editing-immutable-map-revisions). To explore a custom occupancy map,
 start the app with `--map apps/demo/maps/sample.pgm --resolution 0.5`,
 or use **`--map-yaml apps/demo/maps/sample.yaml`** for ROS-style resolution,
 occupancy thresholds and a translated/rotated origin.
