@@ -22,6 +22,27 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Docker and Catch2 test framework — implemented 2026-10-26
+
+- [x] Reorganize developer applications under `apps/demo/`; remove the legacy
+  root `app/` directory and update all CMake/includes/docs references.
+- [x] Add multi-stage Ubuntu 24.04 Dockerfile and Compose configuration,
+  with pinned **OMPL 2.0.2**, Eigen3, Boost, FLANN, ODE, Python, Ninja and
+  **Catch2 v3** dependencies.
+- [x] Expose separate manual Docker `demo` and `test` targets with host
+  loopback-only port publication; retain native loopback binding as default.
+- [x] Make `find_package(Catch2 3 CONFIG REQUIRED)` part of the C++ test
+  build; move all existing native tests from custom `main()` executables
+  to Catch2 test cases, and assertion helpers to `INFO`/`REQUIRE`.
+- [x] Add native Catch2 `SECTION` fixtures for kinematic propagation and
+  strict validated path evidence.
+- [ ] Run a full Docker image build/CTest matrix on a machine with Docker
+  and network access; Docker is unavailable in the assistant's container.
+- [ ] Continue splitting larger legacy Catch2-wrapped test bodies into
+  independently named `TEST_CASE`/`SECTION` fixtures for finer diagnostics.
+
+See [Docker/testing guide](docker.md) and [demo usage](../apps/demo/README.md).
+
 ## Demo application milestone — implemented 2026-10-26
 
 - [x] Create separate `apps/demo/` directory and opt-in `HYBRID_ASTAR_BUILD_APP`
