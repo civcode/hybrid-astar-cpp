@@ -201,8 +201,10 @@ PlanResult plan(const PlanRequest& r) {
   if (r.map) { result.mapRevision=r.map->revision; result.mapFrameId=r.map->frameId; result.mapSourceId=r.map->sourceId; }
   result.effectiveOccupancy=r.occupancy;
   if (!r.map || !finite(r.start) || !finite(r.goal)) return result;
-  try { validateOptions(r.options); validateFootprint(r.footprint); validateMap(*r.map,r.occupancy); }
+  try { validateOptions(r.options); validateFootprint(r.footprint); }
   catch (const std::exception&) { result.status=PlanStatus::InvalidRequest; return result; }
+  try { validateMap(*r.map,r.occupancy); }
+  catch (const std::exception&) { result.status=PlanStatus::InvalidMap; return result; }
   if (r.occupancy.unknown==UnknownPolicy::Reject &&
       std::find(r.map->cells.begin(),r.map->cells.end(),static_cast<std::int8_t>(-1))!=r.map->cells.end()) {
     result.status=PlanStatus::RejectedUnknownMap; return result;
