@@ -9,6 +9,7 @@ add_library(hybrid_astar_core STATIC
   src/ackermann/search_config.cpp
   src/ackermann/planner.cpp
   src/ackermann/cover_prefilter.cpp
+  src/ackermann/clearance.cpp
   src/steering/analytic_expansion.cpp)
 add_library(hybrid_astar::core ALIAS hybrid_astar_core)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
@@ -48,6 +49,9 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   add_executable(hybrid_astar_prefilter_test tests/prefilter_test.cpp)
   target_link_libraries(hybrid_astar_prefilter_test PRIVATE hybrid_astar::core)
   add_test(NAME prefilter_test COMMAND hybrid_astar_prefilter_test)
+  add_executable(hybrid_astar_clearance_test tests/clearance_test.cpp)
+  target_link_libraries(hybrid_astar_clearance_test PRIVATE hybrid_astar::core)
+  add_test(NAME clearance_test COMMAND hybrid_astar_clearance_test)
   if(HYBRID_ASTAR_ENABLE_OMPL)
     add_executable(hybrid_astar_ompl_smoke tests/ompl_smoke.cpp)
     target_link_libraries(hybrid_astar_ompl_smoke PRIVATE hybrid_astar::ompl)
