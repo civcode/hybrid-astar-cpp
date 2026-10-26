@@ -77,6 +77,25 @@ the initial Catch2 FetchContent download or complete installed OMPL test
 dependencies. Catch2 v3.16.1 is now automatically provisioned through CMake
 on machines with Git and network access. No GitHub Actions workflow is run or created.
 
+### Focused local verification with Catch2 v3.16.1 (2026-10-26)
+
+Using the user-supplied upstream `Catch2-3.16.1.zip` as
+`FETCHCONTENT_SOURCE_DIR_CATCH2`, a **separate local CMake harness**
+successfully compiled the six exact repository source/header blobs required
+by the standalone mecanum kinematics and cached-primitive modules
+(the local files' Git blob SHA-1 hashes matched the linked branch).
+Three targeted Catch2 test cases passed: four wheel limits, combined
+constant-body-twist integration, and the 14-template catalog.
+**102 assertions / 3 cases passed**, and the same focused code compiled
+with AddressSanitizer + UndefinedBehaviorSanitizer passed without findings.
+
+**Scope limitation:** This was not an invocation of the repository's full
+`tests/w12_mecanum_test.cpp` or root-project `ctest` matrix. The exact
+repository checkout cannot be cloned directly in this sandbox, and
+the focused local harness does not link the planner/search, validation,
+demo or OMPL components. The W11/W12 exact-checkout gates remain unchecked.
+The default CMake FetchContent pin is updated to `v3.16.1`.
+
 ### Manual verification on a provisioned host
 
 ```bash
