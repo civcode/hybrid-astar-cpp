@@ -23,6 +23,28 @@ The [consolidated external-review specification](docs/architecture/Hybrid_AStar_
 
 The core now implements a first standalone Ackermann search: six exact analytic primitives, continuous states with gear-aware one-label keys, append-only parent records/reopening, full-body rectangle-versus-closed-grid-square collision, request-pinned occupancy snapshots, and an independent stricter full-path sampled validation pass. This is a geometric initializer; sampling does not prove full continuous swept safety or timed actuation feasibility.
 
+## Interactive path planning demo
+
+A new [`app/` Planning Lab](app/README.md) provides a **browser-based
+interactive demo backed by the actual C++ Hybrid A* planner**. It runs locally
+on 127.0.0.1, does not depend on ROS and works without OMPL:
+
+```bash
+cmake -S . -B build-demo -DCMAKE_BUILD_TYPE=Release -DHYBRID_ASTAR_BUILD_APP=ON
+cmake --build build-demo --parallel --target hybrid_astar_demo
+./build-demo/hybrid_astar_demo
+```
+
+Open **http://127.0.0.1:8765**. Change maps, click to set start
+(Shift-click sets goal), adjust headings, replan, compare strict validated
+original/refined routes, and animate the full Ackermann footprint.
+Forward/reverse sections and cost/expansion/time metrics are displayed.
+When the optional OMPL adapter is built, Reeds–Shepp connector controls
+are enabled automatically. The executable also supports
+`--once --scenario reverse` for machine-readable CLI JSON.
+See the [app README](app/README.md) for full usage, API and limitations.
+No GitHub Actions workflow is required.
+
 ## Build and test the Ackermann vertical slice
 
 ```bash
