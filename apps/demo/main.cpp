@@ -170,7 +170,8 @@ void handle(int client,const std::shared_ptr<const hybrid_astar::ackermann::MapS
   }
   const auto method=line.substr(0,methodEnd);
   const auto url=line.substr(methodEnd+1,urlEnd-methodEnd-1);
-  const auto queryAt=url.find('?'),route=url.substr(0,queryAt);
+  const auto queryAt=url.find('?');
+  const std::string route(url.substr(0,queryAt)); // remains valid while POST body grows
   if(method!="GET"&&method!="POST") {
     sendReply(client,405,"application/json",jsonError("Only GET and planning POST are supported"));return;
   }
