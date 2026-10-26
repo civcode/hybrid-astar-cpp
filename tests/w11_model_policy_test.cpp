@@ -58,7 +58,12 @@ struct PivotOnlyPolicy {
     return .3*std::abs(section.turnRadians);
   }
 };
+struct ZeroCostPivotPolicy : PivotOnlyPolicy {
+  explicit ZeroCostPivotPolicy(const a::PlanRequest& r):PivotOnlyPolicy{r} {}
+  double edgeCost(Mode,const Primitive&,const Section&) const {return 0;}
+};
 static_assert(p::PlanarSearchModel<PivotOnlyPolicy>);
+static_assert(p::PlanarSearchModel<ZeroCostPivotPolicy>);
 static_assert(p::PlanarSearchModel<p::AckermannPolicy>);
 static_assert(p::PlanarSearchModel<p::DifferentialDrivePolicy>);
 static_assert(p::PlanarSearchModel<p::PlanarPolicy>);
@@ -140,4 +145,24 @@ TEST_CASE("Policy validation failures become explicit invalid requests",
   const p::PlanarPolicyAdapter<p::DifferentialDrivePolicy> model{p::DifferentialDrivePolicy{r}};
   REQUIRE(a::planWithPolicy(r,model).status==a::PlanStatus::InvalidRequest);
   REQUIRE(a::plan(r).status==a::PlanStatus::InvalidRequest);
+}
+
+TEST_CASE("External policy rejects unsupported analytic and nonpositive edges",
+          "[w11][policy][safety]") {
+  auto r=openRequest();
+  r.goal={10,15,.5*std::numbers::pi_v<double>};
+  r.footprint={-.35,.35,.25};
+  p::PlanarPolicyAdapter<PivotOnlyPolicy> pivot{PivotOnlyPolicy{r}};
+  r.analyticConnector=[](const Pose2D&,const Pose2D&) {
+    return std::vector<a::MotionSection>{};
+  };
+  const auto rejected=a::planWithPolicy(r,pivot);
+  REQUIRE(rejected.status==a::PlanStatus::InvalidRequest);
+  REQUIRE(rejected.mapRevision==51);
+  r.analyticConnector={};
+  r.options.clearanceWeight=1.;
+  REQUIRE(a::planWithPolicy(r,pivot).status==a::PlanStatus::InvalidRequest);
+  r.options.clearanceWeight=0.;
+  p::PlanarPolicyAdapter<ZeroCostPivotPolicy> zero{ZeroCostPivotPolicy{r}};
+  REQUIRE(a::planWithPolicy(r,zero).status==a::PlanStatus::InvalidRequest);
 }
