@@ -22,6 +22,28 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## W10 differential-drive and precomputed primitives — 2026-10-26
+
+- [x] Introduce shared local SE2 constant-twist primitives with model-aware
+  translating/metres and stationary-rotation/radians extents, normalized
+  progress, complete Pose2D samples and continuous analytic evaluation.
+- [x] Implement a differential-drive `(x,y,yaw)` model with independent
+  commanded `v,omega`, wheel-rate feasibility and eight precomputed
+  straight/arc/spin templates.
+- [x] Build six Ackermann relative primitives once per plan and transform
+  their **cached local endpoints and collision samples** at each search
+  expansion, retaining independent analytic strict final validation.
+- [x] Add Catch2 analytic-vs-independent-RK4, SE2 transform, wheel-limit,
+  sampled rotating-body collision and Ackermann search regression tests.
+- [ ] Complete official dependency-provisioned Catch2/Docker regression
+  matrix on an exact checkout (not available in this environment).
+- [ ] Refactor search/pruning and angular-positive cost for differential
+  drive; validate pure-rotation full-footprint motion on the pinned map.
+- [ ] Integrate differential-drive mode, body footprint and angular
+  sample playback into Planning Lab.
+
+See [W10 primitives contract](architecture/w10-differential-primitives.md).
+
 ## W6 hash/collision/queue hotpath instrumentation — 2026-10-26
 
 - [x] Instrument label map finds/hits/inserts/updates/rehashes, hash calls,

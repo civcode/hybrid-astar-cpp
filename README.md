@@ -78,6 +78,37 @@ build and test are manual, not GitHub Actions automation. See the
 **Docker execution has not yet been validated in this assistant environment**
 because no Docker engine is installed here.
 
+## W10 — cached Ackermann primitives and differential-drive kinematics
+
+The C++ core now includes **two exact constant-control planar models**:
+the existing Ackermann geometric bicycle and the new ideal
+differential-drive (unicycle) model with validated wheel-rate limits.
+Both have **precomputed local SE(2) motion-primitive catalogs**, storing
+normalized progress and full pose samples.
+
+For Ackermann, six local forward/reverse left/straight/right templates
+are built **once per plan** and transformed at every Hybrid A* expansion.
+Search samples are taken from the precomputed template; independent final
+validation still evaluates exact continuous arc sections at stricter
+sampling settings. For differential drive, eight local templates include
+forward/reverse straight and curves, plus **in-place rotation** with
+angular extent and nonzero intermediate-body movement. An analytic
+constant-twist evaluator handles straight, curved and stationary turning
+without RK4 in the hot path; tests compare an independent RK4 oracle.
+
+```bash
+cmake -S . -B build-w10 -DCMAKE_BUILD_TYPE=Release \
+  -DHYBRID_ASTAR_BUILD_TESTS=OFF
+cmake --build build-w10 --parallel
+```
+
+The differential-drive **model and primitive provider** are implemented,
+but **not yet connected to the search, strict-validation pipeline or demo**.
+That is the next W10 milestone and requires positive costs and complete
+footprint checks for zero-translation rotations. See
+[W10 primitives contract](docs/architecture/w10-differential-primitives.md)
+for the API, limitations and Catch2/RK4 tests.
+
 ## W6 label hashing, exact collision and CPU hotpath profiling
 
 The planner now counts **search-label hash-table lookups/inserts/rehashes,

@@ -239,7 +239,7 @@ The relocated core-only demo has been compiled and smoke-tested locally.
 | --- | --- | --- |
 | W0 Baseline/tests | In progress | Contract, imported synthesis, named tests, manual `bench/planner_bench.cpp`; add reference hardware/Release and additional geometry fixtures |
 | W1 Map/exact geometry | Implemented for filled Ackermann rectangle | `MapSnapshot`, `ExactCollisionChecker`, tests for rotated/boundary/unknown/interior; expand contact/property cases |
-| W2 Ackermann motion | Implemented for fixed curvature | `MotionSection` analytic evaluator; test more numerical extreme values/equivariance |
+| W2 Ackermann motion | Exact arcs and reusable local templates implemented | `MotionSection` analytic evaluator, six request-local sampled templates transformed per search pose; independent final evaluation preserved; stress test numerical contacts/equivariance |
 | W3 Minimal search | Deterministic difficult-map suite implemented | Seven reverse/parking/corridor/dead-end/detour/blocked-gap fixtures; certified and performance modes run repeatable finite tests, successful paths independently rechecked, budget outcomes explicit; exhaustive feasibility and global optimum still unproved |
 | W4 Final validation | Independent per-section and cumulative strict budgets | Stricter exact resampling, weakened search fixture, final per-section and total pose-check budgets; validated incumbent retained on validation-budget exhaustion; failure location and swept proof pending |
 | W5 Analytic RS | Genuine 2.0.2 source-runtime integration passes, package install unverified | Offline CMake state-space subset, 12000 randomized OMPL pose pairs, signed cusps, wall/heuristic integration, plan/refine workflow and sanitizer runs pass locally; complete OMPL CMake package/export and exact repository checkout remain pending |
@@ -274,6 +274,17 @@ pre-reservation is opt-in (`searchLabelReserve=0` baseline), not
 a new benchmark-ratified default. See [hotpath profiling
 contract](w6-hotpath-profiling.md). A complete profiled toolchain run is
 still pending.
+
+**W10 model layer update:** Ackermann ordinary search now builds its six
+constant-curvature local motion templates **once per request**, then rigidly
+transforms cached endpoints and search samples at each continuous node.
+The final full-footprint validator still independently re-evaluates the
+exact analytic section with its own stricter sampling configuration.
+A new isolated differential-drive `Model` and eight-local-primitive catalog
+supports exact constant body twist and stationary in-place turns, including
+sample points and bounded wheel-rate controls. **The generic search,
+model-dependent cost/collision, and demo integration are not yet done.**
+See [W10 differential-drive primitive status](w10-differential-primitives.md).
 
 See [W6 priority queue verification](w6-priority-queue-verification.md) for both-heap instrumentation, indexed and four-ary A/B timings, memory costs and unchanged defaults.
 See [W3/W6 failure investigation](w3-w6-failure-investigation.md) for the corrected dead-end fixture, detour heuristic-budget root cause and optional weight tradeoffs.

@@ -6,6 +6,7 @@ The baseline and ADRs are historical architecture proposals; the first C++20 Ack
 | --- | --- |
 | [Current implementation](current-implementation.md) | Normative shipped behavior, evidence, open W0–W9 work packages |
 | [Interactive Planning Lab app](../../apps/demo/README.md) | Loopback C++20 demo, live map/start/goal editing, exact path visualization and optional OMPL/refinement |
+| [W10 differential-drive and cached primitives](w10-differential-primitives.md) | Analytic differential model, stationary angular primitives, Ackermann SE2 template reuse, RK4 oracle and integration scope |
 | [W6 label hashing and collision profiling](w6-hotpath-profiling.md) | Opt-in per-stage timing for hashing, label lookup, collision and queues, label reserve/prefilter A/B and acceptance gate |
 | [W6 priority queue tuning](w6-priority-queue-verification.md) | Binary/4-ary/indexed open and reverse-grid queues, deterministic equivalence, end-to-end p50/p95 and storage diagnostics |
 | [W3/W6 failure root-cause analysis](w3-w6-failure-investigation.md) | Invalid dead-end goal correction, insufficient detour grid budget, 18 alternative probes and opt-in heuristic inflation tradeoffs |
