@@ -172,8 +172,10 @@ int main(int argc,char** argv) {
       if(arg=="--once")once=true;
       else if(arg=="--port"){
         if(i+1>=argc)throw std::invalid_argument("Missing port");
-        const auto n=number(argv[++i]);
-        if(n<1024||n>65535||n!=std::floor(n))throw std::invalid_argument("Port must be 1024..65535");
+        const std::string raw=argv[++i];
+        std::size_t parsed=0;const auto n=std::stoul(raw,&parsed);
+        if(parsed!=raw.size()||n<1024||n>65535)
+          throw std::invalid_argument("Port must be 1024..65535");
         port=static_cast<unsigned int>(n);
       } else if(arg=="--scenario") {
         if(i+1>=argc)throw std::invalid_argument("Missing scenario");
