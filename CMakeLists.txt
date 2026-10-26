@@ -28,6 +28,12 @@ target_compile_features(hybrid_astar_differential_drive PUBLIC cxx_std_20)
 target_include_directories(hybrid_astar_differential_drive PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
 add_library(hybrid_astar::differential_drive ALIAS hybrid_astar_differential_drive)
+add_library(hybrid_astar_mecanum STATIC
+  src/mecanum/model.cpp src/mecanum/primitives.cpp)
+target_compile_features(hybrid_astar_mecanum PUBLIC cxx_std_20)
+target_include_directories(hybrid_astar_mecanum PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/include")
+add_library(hybrid_astar::mecanum ALIAS hybrid_astar_mecanum)
 # Core search invokes differential primitive generation when that model is selected.
 target_link_libraries(hybrid_astar_core PUBLIC hybrid_astar_differential_drive)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
