@@ -1,9 +1,11 @@
 #pragma once
 
 #include "hybrid_astar/ackermann/search_config.hpp"
+#include "hybrid_astar/steering/analytic_expansion.hpp"
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -66,6 +68,7 @@ enum class PlanStatus {
 
 struct PlanOptions {
   SearchConfig search;
+  steering::AnalyticExpansionOptions analytic; // only used with connector
   double minimumTurningRadiusMeters = 4.0;
   double goalXYToleranceMeters = 0.25;
   double goalYawToleranceRadians = 0.17453292519943295; // 10 degrees
@@ -85,12 +88,16 @@ struct PlanRequest {
   Pose2D start, goal;
   PlanOptions options;
   std::shared_ptr<const std::atomic_bool> cancelled; // optional request-local token
+  // Optional signed analytic connector; must return complete evaluable sections.
+  // The planner independently checks kinematics, cost, collision and final path.
+  std::function<std::vector<MotionSection>(const Pose2D&,const Pose2D&)> analyticConnector;
 };
 
 struct PlanDiagnostics {
   std::size_t expanded = 0, generated = 0, reopened = 0;
   std::size_t staleHeapPops = 0, prunedByKey = 0;
   std::size_t searchPoseChecks = 0, finalPoseChecks = 0;
+  std::size_t analyticAttempts = 0, analyticAccepted = 0;
 };
 
 struct PlanResult {
