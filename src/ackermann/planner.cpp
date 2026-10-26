@@ -1,5 +1,6 @@
 #include "hybrid_astar/ackermann/planner.hpp"
 #include "hybrid_astar/ackermann/cover_prefilter.hpp"
+#include "hybrid_astar/ackermann/clearance.hpp"
 
 #include <algorithm>
 #include <array>
@@ -71,6 +72,8 @@ void validateOptions(const PlanOptions& o) {
       !std::isfinite(o.finalMaxBodyPointMotionMeters) || o.finalMaxBodyPointMotionMeters<=0 ||
       o.maxSamplesPerSection<2 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
       o.discPrefilterCount>64 ||
+      !std::isfinite(o.clearanceWeight) || o.clearanceWeight<0 ||
+      !std::isfinite(o.clearanceInfluenceRadiusMeters) || o.clearanceInfluenceRadiusMeters<=0 ||
       (o.solutionPolicy!=SolutionPolicy::FirstStrictlyValidated &&
        o.solutionPolicy!=SolutionPolicy::ImproveIncumbent))
     throw std::invalid_argument("Invalid planning options");
@@ -87,7 +90,7 @@ struct Node {
   Pose2D pose;
   SearchKey key;
   Gear gear;
-  double g, h;
+  double g, h, clearanceCost;
   std::size_t parent;
   MotionSection via;
 };
@@ -321,6 +324,10 @@ PlanResult plan(const PlanRequest& r) {
     if (r.options.discPrefilterCount)
       prefilter=std::make_unique<ConservativeDiscPrefilter>(
            *r.map,r.occupancy,r.footprint,r.options.discPrefilterCount);
+    std::unique_ptr<ClearanceScorer> clearance;
+    if(r.options.clearanceWeight>0)
+      clearance=std::make_unique<ClearanceScorer>(*r.map,r.occupancy,r.footprint,
+                 r.options.clearanceWeight,r.options.clearanceInfluenceRadiusMeters);
     if (checker.check(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
     ++result.diagnostics.searchPoseChecks;
     const auto& opt=r.options;
@@ -349,7 +356,7 @@ PlanResult plan(const PlanRequest& r) {
     };
     const auto startKey=quantize(r.start,Gear::None,opt.search);
     const double initialH=estimate(r.start);
-    nodes.push_back({r.start,startKey,Gear::None,0.0,initialH,0,{}});
+    nodes.push_back({r.start,startKey,Gear::None,0.0,initialH,0.0,0,{}});
     active.emplace(startKey,Label{0,0.0,false});
     open.push({initialH,initialH,0});
     result.diagnostics.generated=1;
@@ -358,7 +365,7 @@ PlanResult plan(const PlanRequest& r) {
     bool hasIncumbent=false;
     std::size_t firstValidatedExpansion=0;
     const auto saveCandidate=[&](const std::vector<MotionSection>& sections,
-                                 const Pose2D& reached,Gear gear,double cost) {
+                                 const Pose2D& reached,Gear gear,double cost,double clearCost) {
       ++result.diagnostics.validatedCandidates;
       if (hasIncumbent && cost>=incumbent.weightedCostMeters-1e-12) return;
       if (hasIncumbent) ++result.diagnostics.incumbentImprovements;
@@ -368,6 +375,7 @@ PlanResult plan(const PlanRequest& r) {
       incumbent.reached=reached;
       incumbent.finalGear=gear;
       incumbent.weightedCostMeters=cost;
+      incumbent.clearanceCostMeters=clearCost;
       incumbent.goalXYErrorMeters=goalErrorXY(reached,r.goal);
       incumbent.goalYawErrorRadians=goalErrorYaw(reached,r.goal);
       incumbent.collisionEvidence=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
@@ -426,7 +434,7 @@ PlanResult plan(const PlanRequest& r) {
           valid=status==MotionStatus::Clear;
         }
         if (valid) {
-          saveCandidate(reverse,current.pose,current.gear,current.g);
+          saveCandidate(reverse,current.pose,current.gear,current.g,current.clearanceCost);
           if (opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
             return finishIncumbent(TerminationReason::FirstValidated);
         }
@@ -444,6 +452,7 @@ PlanResult plan(const PlanRequest& r) {
           Pose2D expected=current.pose;
           Gear prior=current.gear;
           double weighted=current.g;
+          double analyticClearance=current.clearanceCost;
           bool valid=true;
           for (const auto& part:proposed) {
             if (!finite(part.start)||!finite(part.end)||!std::isfinite(part.curvature)||
@@ -456,14 +465,24 @@ PlanResult plan(const PlanRequest& r) {
             const auto normalized=makeSection(expected,part.gear,part.curvature,part.lengthMeters);
             if (goalErrorXY(normalized.end,part.end)>1e-5 ||
                 goalErrorYaw(normalized.end,part.end)>1e-5) {valid=false;break;}
-            weighted+=edgeCost(normalized.lengthMeters,part.gear,prior,opt.search);
-            if (!std::isfinite(weighted)) {valid=false;break;}
+            const double baseCost=edgeCost(normalized.lengthMeters,part.gear,prior,opt.search);
+            if (!std::isfinite(weighted+baseCost)) {valid=false;break;}
             const auto check=checkMotion(normalized,checker,opt.searchSampleSpacingMeters,
                   opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
                   result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics);
             if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
             if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
             if (check==MotionStatus::Colliding) {valid=false;break;}
+            double extra=0;
+            if(clearance) {
+              try {extra=clearance->sectionCost(normalized,opt.searchSampleSpacingMeters,
+                    opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
+                    result.diagnostics.clearanceSamples);}
+              catch(const std::invalid_argument&) {result.status=PlanStatus::ValidationIncomplete;return result;}
+            }
+            weighted+=baseCost+extra;
+            analyticClearance+=extra;
+            if(!std::isfinite(weighted)) {valid=false;break;}
             tail.push_back(normalized);
             expected=normalized.end;prior=part.gear;
           }
@@ -489,7 +508,7 @@ PlanResult plan(const PlanRequest& r) {
             }
             if (finalValid) {
               ++result.diagnostics.analyticAccepted;
-              saveCandidate(candidate,expected,prior,weighted);
+              saveCandidate(candidate,expected,prior,weighted,analyticClearance);
               if (opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
                 return finishIncumbent(TerminationReason::FirstValidated);
             }
@@ -503,10 +522,10 @@ PlanResult plan(const PlanRequest& r) {
           const auto sec=makeSection(current.pose,gear,k,opt.search.primitiveLengthMeters);
           const auto key=quantize(sec.end,gear,opt.search);
           const double cost=edgeCost(sec.lengthMeters,gear,current.gear,opt.search);
-          const double g=current.g+cost;
-          if (!std::isfinite(g)) {result.status=PlanStatus::InternalError;return result;}
+          const double lowerG=current.g+cost;
+          if (!std::isfinite(lowerG)) {result.status=PlanStatus::InternalError;return result;}
           auto found=active.find(key);
-          if (found!=active.end()&&found->second.bestG<=g) {
+          if (found!=active.end()&&found->second.bestG<=lowerG) {
             ++result.diagnostics.prunedByKey;continue;
           }
           const auto check=checkMotion(sec,checker,opt.searchSampleSpacingMeters,
@@ -515,6 +534,18 @@ PlanResult plan(const PlanRequest& r) {
           if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
           if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
           if (check==MotionStatus::Colliding) continue;
+          double extra=0;
+          if (clearance) {
+            try {extra=clearance->sectionCost(sec,opt.searchSampleSpacingMeters,
+                      opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
+                      result.diagnostics.clearanceSamples);}
+            catch(const std::invalid_argument&) {result.status=PlanStatus::ValidationIncomplete;return result;}
+          }
+          const double g=lowerG+extra;
+          if (!std::isfinite(g)) {result.status=PlanStatus::InternalError;return result;}
+          if (found!=active.end()&&found->second.bestG<=g) {
+            ++result.diagnostics.prunedByKey;continue;
+          }
           if (hasIncumbent && g>=incumbent.weightedCostMeters) {
             ++result.diagnostics.prunedByKey;continue; // nonnegative remaining cost
           }
@@ -525,7 +556,7 @@ PlanResult plan(const PlanRequest& r) {
           if (found!=active.end() && found->second.expanded) ++result.diagnostics.reopened;
           const double h=estimate(sec.end);
           const auto id=nodes.size();
-          nodes.push_back({sec.end,key,gear,g,h,item.node,sec});
+          nodes.push_back({sec.end,key,gear,g,h,current.clearanceCost+extra,item.node,sec});
           active[key]={id,g,false};
           open.push({g+h,h,id});
           ++result.diagnostics.generated;
