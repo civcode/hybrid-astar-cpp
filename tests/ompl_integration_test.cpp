@@ -63,6 +63,20 @@ int main() {
   const auto improved=planWithReedsShepp(q,true);
   require(improved.status==PlanStatus::Success&&!improved.heuristicCertifiedAdmissible,
           "bounded incumbent with real optional RS ordering");
+  // The combined workflow must preserve a validated original even when
+  // postprocessing is unable to spend the required independent check budget.
+  auto combined=planAndRefineWithReedsShepp(q);
+  require(combined.original.status==PlanStatus::Success&&combined.refinement.has_value(),
+          "one-evaluator plan/refine entry point");
+  require(combined.refinement->path.status==PlanStatus::Success&&
+          combined.refinement->path.weightedCostMeters<=combined.original.weightedCostMeters+1e-9,
+          "postprocessor does not worsen the original");
+  RefinementOptions tooSmall;tooSmall.maxTotalPoseChecks=1;
+  auto bounded=planAndRefineWithReedsShepp(q,tooSmall,true);
+  require(bounded.original.status==PlanStatus::Success&&bounded.refinement.has_value()&&
+          bounded.refinement->status==RefinementStatus::OriginalNotVerified&&
+          bounded.refinement->path.sections.empty(),
+          "failed postprocessing cannot erase separately returned validated original");
   // Interposed obstacle: no analytic candidate can bypass the strict validator.
   for(std::size_t y=0;y<300;++y)
     if(y<115||y>135)map->cells[y*300+150]=100;
