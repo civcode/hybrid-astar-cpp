@@ -22,6 +22,23 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Planning Lab obstacle editor — implemented 2026-10-26
+
+- [x] Add blocked/free/unknown/restore brushes, configurable radius and
+  drag painting on built-in/PGM/YAML maps, with rotated local-cell indexing.
+- [x] Invalidate old path evidence on map or pose changes and trigger fresh
+  planning on pointer release or edit reset.
+- [x] Apply bounded sorted edit records to a **new** request-local
+  `MapSnapshot` at a new revision; retain original map and previous
+  validated results without mutation.
+- [x] Add a bounded `POST /api/plan` form endpoint (64 KiB body, maximum
+  4096 changes) while keeping GET planning backward compatible.
+- [x] Register Catch2 edit/revision/collision tests, Node brush math tests,
+  and HTTP regression coverage for collision, restoration and malformed input.
+- [ ] Execute the newly registered Catch2 + HTTP CTest suites with a
+  Docker-provisioned build; the local source/parser and Node probes alone
+  are not full integration certification.
+
 ## Next Planning Lab increment — rotated ROS YAML (2026-10-26)
 
 - [x] Load flat ROS map-server YAML with a sibling/relative PGM image.
