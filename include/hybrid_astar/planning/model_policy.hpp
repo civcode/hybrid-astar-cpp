@@ -2,8 +2,12 @@
 
 #include "hybrid_astar/ackermann/planner.hpp"
 #include "hybrid_astar/ackermann/primitives.hpp"
+#include "hybrid_astar/ackermann/hotpath_profiler.hpp"
 #include <cmath>
 #include <concepts>
+#include <cstdint>
+#include <functional>
+#include <algorithm>
 #include <limits>
 #include <numbers>
 #include <stdexcept>
@@ -18,6 +22,30 @@ namespace hybrid_astar::planning {
 // The existing native search works on SE(2) rigid bodies and rectangle
 // footprints. State dimensions and multibody geometry are separate future
 // generalizations; no Ackermann-specific steering belongs in the search loop.
+struct PlanarKeyHash {
+  ackermann::PlanDiagnostics* diagnostics = nullptr;
+  std::size_t operator()(const ackermann::SearchKey& key) const noexcept {
+#if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
+    if(diagnostics) {
+      ++diagnostics->hashCalls;
+      ackermann::HotPathTimer timer(diagnostics->hashNanoseconds);
+      return hash(key);
+    }
+#endif
+    return hash(key);
+  }
+private:
+  static std::size_t hash(const ackermann::SearchKey& k) noexcept {
+    std::size_t h=std::hash<std::int64_t>{}(k.xBin);
+    const auto mix=[&](std::size_t v) {
+      h^=v+0x9e3779b97f4a7c15ULL+(h<<6)+(h>>2);
+    };
+    mix(std::hash<std::int64_t>{}(k.yBin));
+    mix(k.yawBin);mix(static_cast<unsigned>(k.incomingGear));
+    return h;
+  }
+};
+
 template <class Policy>
 concept PlanarSearchModel = requires(
     const Policy& policy,
@@ -27,6 +55,10 @@ concept PlanarSearchModel = requires(
     const typename Policy::Section& section,
     const motion::SampleLimits& limits) {
   typename Policy::Key;
+  typename Policy::Hash;
+  { policy.keyHash(nullptr) } -> std::same_as<typename Policy::Hash>;
+  { std::declval<typename Policy::Hash>()(std::declval<typename Policy::Key>()) }
+    -> std::convertible_to<std::size_t>;
   requires std::equality_comparable<typename Policy::Key>;
   { policy.validate() } -> std::same_as<void>;
   { policy.catalog(limits) } -> std::same_as<std::vector<typename Policy::Primitive>>;
@@ -56,6 +88,10 @@ class AckermannPolicy {
 public:
   using State=Pose2D;
   using Key=ackermann::SearchKey;
+  using Hash=PlanarKeyHash;
+  Hash keyHash(ackermann::PlanDiagnostics* diagnostics) const noexcept {
+    return {diagnostics};
+  }
   using Mode=ackermann::Gear;
   using Section=ackermann::MotionSection;
   using Primitive=PlanarPrimitive;
