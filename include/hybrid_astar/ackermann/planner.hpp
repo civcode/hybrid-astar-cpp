@@ -88,7 +88,8 @@ struct PlanOptions {
   double searchMaxBodyPointMotionMeters = 0.15;
   double finalSampleSpacingMeters = 0.05;
   double finalMaxBodyPointMotionMeters = 0.05;
-  std::size_t maxSamplesPerSection = 10000;
+  std::size_t maxSamplesPerSection = 10000; // search only
+  std::size_t maxFinalSamplesPerSection = 10000; // independent strict validator
   std::size_t maxExpansions = 100000;
   std::size_t maxGeneratedNodes = 400000;
 };
