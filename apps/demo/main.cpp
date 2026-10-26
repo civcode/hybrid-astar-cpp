@@ -143,29 +143,31 @@ void handle(int client) {
     } else sendReply(client,404,"application/json",jsonError("Not found"));
   } catch(const std::exception& e) {sendReply(client,400,"application/json",jsonError(e.what()));}
 }
-void serve(unsigned int port) {
+void serve(unsigned int port,bool allowContainerInterface) {
   const int server=::socket(AF_INET,SOCK_STREAM,0);
   if(server<0)throw std::runtime_error("Failed to create socket");
   const int reuse=1;::setsockopt(server,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
   sockaddr_in addr{};addr.sin_family=AF_INET;addr.sin_port=htons(static_cast<std::uint16_t>(port));
-  addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+  addr.sin_addr.s_addr=htonl(allowContainerInterface?INADDR_ANY:INADDR_LOOPBACK);
   if(::bind(server,reinterpret_cast<sockaddr*>(&addr),sizeof(addr))!=0 || ::listen(server,16)!=0) {
     ::close(server);throw std::runtime_error("Cannot bind demo localhost port");
   }
-  std::cout<<"Hybrid A* demo: http://127.0.0.1:"<<port<<"\nPress Ctrl-C to stop.\n"<<std::flush;
+  std::cout<<"Hybrid A* demo: http://127.0.0.1:"<<port<<"\nPress Ctrl-C to stop.\n";
+  if(allowContainerInterface) std::cerr<<"WARNING: listening on all container interfaces; publish Docker ports on 127.0.0.1 only.\n";
+  std::cout<<std::flush;
   for(;;) {
     const int client=::accept(server,nullptr,nullptr);
     if(client>=0){handle(client);::close(client);}
   }
 }
 #endif
-void usage(){std::cout<<"Usage: hybrid_astar_demo [--port 8765] [--once --scenario open|reverse|parking|warehouse|blocked]"
+void usage(){std::cout<<"Usage: hybrid_astar_demo [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
   " [--start x y yawDeg] [--goal x y yawDeg] [--ompl] [--refine] [--curved] [--performance] [--improve]\n"
   "Default: serve interactive UI on 127.0.0.1 only. --once prints machine-readable JSON.\n";}
 }
 int main(int argc,char** argv) {
   try {
-    Options options;unsigned int port=8765;bool once=false;
+    Options options;unsigned int port=8765;bool once=false;bool allowContainerInterface=false;
     for(int i=1;i<argc;++i) {
       const std::string arg=argv[i];
       if(arg=="--help"||arg=="-h"){usage();return 0;}
@@ -177,6 +179,12 @@ int main(int argc,char** argv) {
         if(parsed!=raw.size()||n<1024||n>65535)
           throw std::invalid_argument("Port must be 1024..65535");
         port=static_cast<unsigned int>(n);
+      } else if(arg=="--bind") {
+        if(i+1>=argc)throw std::invalid_argument("Missing bind address");
+        const std::string bind=argv[++i];
+        if(bind=="127.0.0.1")allowContainerInterface=false;
+        else if(bind=="0.0.0.0")allowContainerInterface=true;
+        else throw std::invalid_argument("Bind address must be 127.0.0.1 or 0.0.0.0");
       } else if(arg=="--scenario") {
         if(i+1>=argc)throw std::invalid_argument("Missing scenario");
         options.scenario=argv[++i];
@@ -193,7 +201,7 @@ int main(int argc,char** argv) {
     }
     if(once) {std::cout<<hybrid_astar::demo::toJson(hybrid_astar::demo::run(options))<<'\n';return 0;}
 #ifdef __unix__
-    serve(port);
+    serve(port,allowContainerInterface);
 #else
     throw std::runtime_error("Local demo HTTP server requires POSIX sockets; use --once on this platform");
 #endif
