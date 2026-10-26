@@ -181,11 +181,16 @@ std::string toJson(const Outcome& out) {
   }
   os<<'}';return os.str();
 }
-std::string capabilitiesJson(bool customMapAvailable) {
+std::string capabilitiesJson(const ackermann::MapSnapshot* customMap) {
 #ifdef HYBRID_ASTAR_DEMO_WITH_OMPL
-  return customMapAvailable?"{\"ompl\":true,\"customMap\":true}":"{\"ompl\":true,\"customMap\":false}";
+  const char* ompl="true";
 #else
-  return customMapAvailable?"{\"ompl\":false,\"customMap\":true}":"{\"ompl\":false,\"customMap\":false}";
+  const char* ompl="false";
 #endif
+  std::ostringstream os;
+  os<<"{\"ompl\":"<<ompl<<",\"customMap\":"<<(customMap?"true":"false");
+  if(customMap) os<<",\"mapWidthMeters\":"<<customMap->width*customMap->resolutionMeters
+                  <<",\"mapHeightMeters\":"<<customMap->height*customMap->resolutionMeters;
+  os<<'}';return os.str();
 }
 } // namespace hybrid_astar::demo
