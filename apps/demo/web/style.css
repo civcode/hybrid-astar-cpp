@@ -26,3 +26,5 @@ footer{font-size:11px;color:#647b93;text-align:right;padding:23px 4px}
 .edit-row .secondary{width:auto;flex:0 0 auto;padding:9px 11px;margin:0}
 .edit-row span{font-size:11px;color:#93b9cb}
 .map-wrap canvas{touch-action:none}
+
+.legend i.rotate{background:#b69eff}
