@@ -1,5 +1,6 @@
 #include "hybrid_astar/ackermann/refinement.hpp"
 #include "hybrid_astar/ackermann/clearance.hpp"
+#include "hybrid_astar/ackermann/curved_shortcuts.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -184,31 +185,44 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
           ++result.attempted;
           const auto& before=result.path.sections;
           const Pose2D from=before[i].start,to=before[j-1].end;
-          std::vector<MotionSection> replacement;
-          try {replacement=connector?connector(from,to):straightShortcut(from,to);}
-          catch(const std::exception&) {++result.rejected;continue;}
-          if(replacement.empty()||replacement.size()>options.maxReplacementSections) {
-            ++result.rejected;continue;
+          std::vector<std::vector<MotionSection>> proposals;
+          try {
+            if (connector) proposals.push_back(connector(from,to));
+            else if (options.useCurvatureBoundedShortcuts)
+              proposals=generateCurvatureBoundedShortcuts(
+                  from,to,req.options.minimumTurningRadiusMeters);
+            else proposals.push_back(straightShortcut(from,to));
+          } catch(const std::exception&) {++result.rejected;continue;}
+          bool accepted=false;
+          // Every geometric proposal gets the SAME independently exact,
+          // complete-path validation. Work is bounded by total pose checks;
+          // the native CSC provider returns at most eight alternatives.
+          for(const auto& replacement:proposals) {
+            if(cancelled(req)) {result.status=RefinementStatus::Cancelled;return result;}
+            if(replacement.empty()||replacement.size()>options.maxReplacementSections) {
+              ++result.rejected;continue;
+            }
+            std::vector<MotionSection> candidate;
+            candidate.reserve(before.size()-(j-i)+replacement.size());
+            candidate.insert(candidate.end(),before.begin(),before.begin()+i);
+            candidate.insert(candidate.end(),replacement.begin(),replacement.end());
+            candidate.insert(candidate.end(),before.begin()+j,before.end());
+            Evaluated evaluated;
+            const auto check=validate(req,candidate,checker,clearance.get(),
+                                     result.exactPoseChecks,options.maxTotalPoseChecks,evaluated);
+            if(check==Check::Cancelled) {result.status=RefinementStatus::Cancelled;return result;}
+            if(check==Check::Incomplete) {limit=true;break;}
+            if(check!=Check::Valid || evaluated.weighted>=
+               result.path.weightedCostMeters-options.minimumCostReductionMeters) {
+              ++result.rejected;continue;
+            }
+            result.path=makeVerified(req,result.path,evaluated);
+            result.path.solutionQuality=SolutionQuality::FeasibleAfterRefinement;
+            ++result.accepted;
+            changed=true;accepted=true;
+            break;
           }
-          std::vector<MotionSection> candidate;
-          candidate.reserve(before.size()-(j-i)+replacement.size());
-          candidate.insert(candidate.end(),before.begin(),before.begin()+i);
-          candidate.insert(candidate.end(),replacement.begin(),replacement.end());
-          candidate.insert(candidate.end(),before.begin()+j,before.end());
-          Evaluated evaluated;
-          const auto check=validate(req,candidate,checker,clearance.get(),
-                                   result.exactPoseChecks,options.maxTotalPoseChecks,evaluated);
-          if(check==Check::Cancelled) {result.status=RefinementStatus::Cancelled;return result;}
-          if(check==Check::Incomplete) {limit=true;break;}
-          if(check!=Check::Valid || evaluated.weighted>=
-             result.path.weightedCostMeters-options.minimumCostReductionMeters) {
-            ++result.rejected;continue;
-          }
-          result.path=makeVerified(req,result.path,evaluated);
-          result.path.solutionQuality=SolutionQuality::FeasibleAfterRefinement;
-          ++result.accepted;
-          changed=true;
-          break;
+          if(limit||accepted) break;
         }
         if(limit) break;
       }
