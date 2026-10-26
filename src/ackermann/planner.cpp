@@ -68,7 +68,9 @@ void validateOptions(const PlanOptions& o) {
       !std::isfinite(o.finalSampleSpacingMeters) || o.finalSampleSpacingMeters<=0 ||
       !std::isfinite(o.searchMaxBodyPointMotionMeters) || o.searchMaxBodyPointMotionMeters<=0 ||
       !std::isfinite(o.finalMaxBodyPointMotionMeters) || o.finalMaxBodyPointMotionMeters<=0 ||
-      o.maxSamplesPerSection<2 || o.maxExpansions==0 || o.maxGeneratedNodes==0)
+      o.maxSamplesPerSection<2 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
+      (o.solutionPolicy!=SolutionPolicy::FirstStrictlyValidated &&
+       o.solutionPolicy!=SolutionPolicy::ImproveIncumbent))
     throw std::invalid_argument("Invalid planning options");
 }
 struct KeyHash {
@@ -339,8 +341,46 @@ PlanResult plan(const PlanRequest& r) {
     open.push({initialH,initialH,0});
     result.diagnostics.generated=1;
     bool strictFailure=false;
+    PlanResult incumbent;
+    bool hasIncumbent=false;
+    std::size_t firstValidatedExpansion=0;
+    const auto saveCandidate=[&](const std::vector<MotionSection>& sections,
+                                 const Pose2D& reached,Gear gear,double cost) {
+      ++result.diagnostics.validatedCandidates;
+      if (hasIncumbent && cost>=incumbent.weightedCostMeters-1e-12) return;
+      if (hasIncumbent) ++result.diagnostics.incumbentImprovements;
+      incumbent=PlanResult{};
+      incumbent.status=PlanStatus::Success;
+      incumbent.sections=sections;
+      incumbent.reached=reached;
+      incumbent.finalGear=gear;
+      incumbent.weightedCostMeters=cost;
+      incumbent.goalXYErrorMeters=goalErrorXY(reached,r.goal);
+      incumbent.goalYawErrorRadians=goalErrorYaw(reached,r.goal);
+      incumbent.collisionEvidence=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
+      incumbent.modelGeometryValid=true;
+      incumbent.heuristicCertifiedAdmissible=result.heuristicCertifiedAdmissible;
+      incumbent.mapRevision=result.mapRevision;
+      incumbent.mapFrameId=result.mapFrameId;
+      incumbent.mapSourceId=result.mapSourceId;
+      incumbent.effectiveOccupancy=result.effectiveOccupancy;
+      incumbent.solutionQuality=result.diagnostics.incumbentImprovements
+                             ?SolutionQuality::FeasibleAfterImprovement:SolutionQuality::FeasibleFirst;
+      summarizePath(incumbent);
+      if (!hasIncumbent) firstValidatedExpansion=result.diagnostics.expanded;
+      hasIncumbent=true;
+    };
+    const auto finishIncumbent=[&](TerminationReason reason) {
+      incumbent.terminationReason=reason;
+      incumbent.diagnostics=result.diagnostics;
+      return incumbent;
+    };
     while (!open.empty()) {
+      if (hasIncumbent &&
+          result.diagnostics.expanded-firstValidatedExpansion >= opt.maxExtraExpansionsAfterFirst)
+        return finishIncumbent(TerminationReason::ImprovementBudgetExhausted);
       if (r.cancelled && r.cancelled->load(std::memory_order_relaxed)) {
+        if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
         result.status=PlanStatus::Cancelled;return result;
       }
       const Entry item=open.top();open.pop();
@@ -349,7 +389,10 @@ PlanResult plan(const PlanRequest& r) {
       if (label==active.end()||label->second.node!=item.node||label->second.expanded) {
         ++result.diagnostics.staleHeapPops;continue;
       }
-      if (result.diagnostics.expanded>=opt.maxExpansions) {result.status=PlanStatus::BudgetExceeded;return result;}
+      if (result.diagnostics.expanded>=opt.maxExpansions) {
+        if (hasIncumbent) return finishIncumbent(TerminationReason::WorkBudgetExceeded);
+        result.status=PlanStatus::BudgetExceeded;return result;
+      }
       label->second.expanded=true;
       ++result.diagnostics.expanded;
       if (goalErrorXY(current.pose,r.goal)<=opt.goalXYToleranceMeters &&
@@ -370,16 +413,9 @@ PlanResult plan(const PlanRequest& r) {
           valid=status==MotionStatus::Clear;
         }
         if (valid) {
-          result.status=PlanStatus::Success;
-          result.sections=std::move(reverse);
-          result.reached=current.pose;result.finalGear=current.gear;
-          result.weightedCostMeters=current.g;
-          result.goalXYErrorMeters=goalErrorXY(current.pose,r.goal);
-          result.goalYawErrorRadians=goalErrorYaw(current.pose,r.goal);
-          result.collisionEvidence=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
-          result.modelGeometryValid=true;
-          summarizePath(result);
-          return result;
+          saveCandidate(reverse,current.pose,current.gear,current.g);
+          if (opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
+            return finishIncumbent(TerminationReason::FirstValidated);
         }
         strictFailure=true; // Never report an invalid candidate as Success.
       }
@@ -439,17 +475,10 @@ PlanResult plan(const PlanRequest& r) {
               finalValid=check==MotionStatus::Clear;
             }
             if (finalValid) {
-              result.status=PlanStatus::Success;
-              result.sections=std::move(candidate);
-              result.reached=expected;result.finalGear=prior;
-              result.weightedCostMeters=weighted;
-              result.goalXYErrorMeters=goalErrorXY(expected,r.goal);
-              result.goalYawErrorRadians=goalErrorYaw(expected,r.goal);
-              result.collisionEvidence=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
-              result.modelGeometryValid=true;
               ++result.diagnostics.analyticAccepted;
-              summarizePath(result);
-              return result;
+              saveCandidate(candidate,expected,prior,weighted);
+              if (opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
+                return finishIncumbent(TerminationReason::FirstValidated);
             }
             strictFailure=true;
           }
@@ -473,7 +502,13 @@ PlanResult plan(const PlanRequest& r) {
           if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
           if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
           if (check==MotionStatus::Colliding) continue;
-          if (nodes.size()>=opt.maxGeneratedNodes) {result.status=PlanStatus::BudgetExceeded;return result;}
+          if (hasIncumbent && g>=incumbent.weightedCostMeters) {
+            ++result.diagnostics.prunedByKey;continue; // nonnegative remaining cost
+          }
+          if (nodes.size()>=opt.maxGeneratedNodes) {
+            if (hasIncumbent) return finishIncumbent(TerminationReason::WorkBudgetExceeded);
+            result.status=PlanStatus::BudgetExceeded;return result;
+          }
           if (found!=active.end() && found->second.expanded) ++result.diagnostics.reopened;
           const double h=estimate(sec.end);
           const auto id=nodes.size();
@@ -484,6 +519,7 @@ PlanResult plan(const PlanRequest& r) {
         }
       }
     }
+    if (hasIncumbent) return finishIncumbent(TerminationReason::SearchExhausted);
     result.status=strictFailure?PlanStatus::StrictValidationFailed:PlanStatus::NoPath;
   } catch (const std::exception&) {
     result.status=PlanStatus::InternalError;
