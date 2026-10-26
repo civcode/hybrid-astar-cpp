@@ -105,6 +105,10 @@ if(HYBRID_ASTAR_BUILD_APP)
     target_link_libraries(hybrid_astar_demo_test PRIVATE hybrid_astar_demo_logic)
     add_test(NAME demo_test COMMAND hybrid_astar_demo_test)
     add_test(NAME demo_cli_open COMMAND hybrid_astar_demo --once --scenario open)
+    if(HYBRID_ASTAR_ENABLE_OMPL)
+      add_test(NAME demo_cli_ompl COMMAND hybrid_astar_demo
+        --once --scenario parking --ompl --refine)
+    endif()
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND AND UNIX)
       add_test(NAME demo_http_test COMMAND ${Python3_EXECUTABLE}
