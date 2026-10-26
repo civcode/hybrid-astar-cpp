@@ -95,7 +95,7 @@ endif()
 # Developer demo only: standalone browser UI served exclusively on loopback.
 # No ROS dependency, no externally hosted service, no GitHub Actions.
 if(HYBRID_ASTAR_BUILD_APP)
-  add_library(hybrid_astar_demo_logic STATIC apps/demo/demo.cpp apps/demo/map_io.cpp apps/demo/map_yaml.cpp)
+  add_library(hybrid_astar_demo_logic STATIC apps/demo/demo.cpp apps/demo/map_io.cpp apps/demo/map_yaml.cpp apps/demo/map_edits.cpp)
   target_compile_features(hybrid_astar_demo_logic PUBLIC cxx_std_20)
   target_include_directories(hybrid_astar_demo_logic PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(hybrid_astar_demo_logic PUBLIC hybrid_astar::core)
