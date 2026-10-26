@@ -10,6 +10,7 @@ add_library(hybrid_astar_core STATIC
   src/ackermann/planner.cpp
   src/ackermann/cover_prefilter.cpp
   src/ackermann/clearance.cpp
+  src/ackermann/refinement.cpp
   src/steering/analytic_expansion.cpp
   src/steering/signed_sections.cpp)
 add_library(hybrid_astar::core ALIAS hybrid_astar_core)
@@ -50,6 +51,9 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   add_executable(hybrid_astar_scenarios_test tests/scenarios_test.cpp)
   target_link_libraries(hybrid_astar_scenarios_test PRIVATE hybrid_astar::core)
   add_test(NAME scenarios_test COMMAND hybrid_astar_scenarios_test)
+  add_executable(hybrid_astar_refinement_test tests/refinement_test.cpp)
+  target_link_libraries(hybrid_astar_refinement_test PRIVATE hybrid_astar::core)
+  add_test(NAME refinement_test COMMAND hybrid_astar_refinement_test)
   add_executable(hybrid_astar_quality_test tests/quality_test.cpp)
   target_link_libraries(hybrid_astar_quality_test PRIVATE hybrid_astar::core)
   add_test(NAME quality_test COMMAND hybrid_astar_quality_test)
