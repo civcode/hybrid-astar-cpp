@@ -289,7 +289,27 @@ public:
     config.sampling={o.searchSampleSpacingMeters,o.searchMaxBodyPointMotionMeters,
         std::hypot(std::max(std::abs(f.rearX),std::abs(f.frontX)),f.halfWidth),
         std::numeric_limits<double>::max(),o.maxSamplesPerSection};
-    (void)mecanum::buildCatalog(model,config);
+    const auto& c=config;
+    if(!std::isfinite(c.translationMeters)||c.translationMeters<=0||
+       !std::isfinite(c.translationSpeed)||c.translationSpeed<=0||
+       !std::isfinite(c.arcTurnRadians)||c.arcTurnRadians<=0||
+       !std::isfinite(c.spinRadians)||c.spinRadians<=0||
+       !std::isfinite(c.rotationSpeed)||c.rotationSpeed<=0)
+      throw std::invalid_argument("Invalid mecanum primitive options");
+    const double duration=c.translationMeters/c.translationSpeed;
+    const double spinTime=c.spinRadians/c.rotationSpeed;
+    if(!std::isfinite(duration)||duration<=0||
+       !std::isfinite(spinTime)||spinTime<=0)
+      throw std::invalid_argument("Invalid mecanum primitive duration");
+    if(!model.valid({c.translationSpeed,0,c.arcTurnRadians/duration})||
+       !model.valid({0,c.translationSpeed,c.arcTurnRadians/duration})||
+       !model.valid({c.translationSpeed/std::sqrt(2.0),
+                     c.translationSpeed/std::sqrt(2.0),0})||
+       !model.valid({0,0,c.rotationSpeed}))
+      throw std::invalid_argument("Mecanum wheel speed bounds exceeded");
+    (void)motion::sampleIntervals(c.translationMeters,c.arcTurnRadians,
+                                  config.sampling);
+    (void)motion::sampleIntervals(0,c.spinRadians,config.sampling);
   }
   ackermann::Footprint footprint() const {return request_.footprint;}
   std::vector<Primitive> catalog(const motion::SampleLimits& limits) const {

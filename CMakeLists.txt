@@ -64,6 +64,10 @@ endif()
 
 if(HYBRID_ASTAR_BUILD_TESTS)
   enable_testing()
+  add_executable(hybrid_astar_w12_mecanum_test tests/w12_mecanum_test.cpp)
+  target_link_libraries(hybrid_astar_w12_mecanum_test PRIVATE
+    hybrid_astar::core hybrid_astar::mecanum Catch2::Catch2WithMain)
+  add_test(NAME w12_mecanum_test COMMAND hybrid_astar_w12_mecanum_test)
   add_executable(hybrid_astar_w11_model_policy_test tests/w11_model_policy_test.cpp)
   target_link_libraries(hybrid_astar_w11_model_policy_test PRIVATE
     hybrid_astar::core Catch2::Catch2WithMain)
