@@ -78,7 +78,7 @@ double ClearanceScorer::sectionCost(const MotionSection& part,double step,double
   const auto count=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(divisions)));
   double integral=0;
   for(std::size_t j=0;j<=count;++j) {
-    const auto p=part.evaluate(len*double(j)/double(count));
+    const auto p=part.evaluate(j==count ? len : len*double(j)/double(count));
     const double distance=poseClearanceMeters(p);
     const double pen=std::max(0.0,1.0-distance/influence_);
     integral+=(j==0||j==count?.5:1.0)*pen*pen;
