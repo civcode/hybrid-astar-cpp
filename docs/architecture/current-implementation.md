@@ -129,6 +129,22 @@ integration or remote/public HTTP service. It advertises only the core's
 static-map **adaptive-sampled geometric evidence**, not certified swept
 clearance, timed steering/actuator feasibility or global optimum.
 
+## Test framework and Docker development environment
+
+C++ test executables now use **Catch2 v3** as their actual CTest-backed
+runner and assertion framework; they are no longer individual handwritten
+`main()` tests. The earlier raw-assertion vertical slice was dependency-minimal
+but did not conform to the documented Catch2 selection. New core contract
+tests use `TEST_CASE`/`SECTION`/`REQUIRE`; legacy suites retain their
+existing checks through registered Catch2 cases and assertion helpers.
+
+The root [Dockerfile](../../Dockerfile) and [Compose services](../../compose.yaml)
+provision the compiler, **OMPL 2.0.2**, Catch2 3, Boost and Eigen for a
+developer image. The default demo is now in `apps/demo/`; the `test`
+service runs only when requested. See [Docker guide](../docker.md).
+**Docker has not yet been executed here** because the engine is unavailable.
+The relocated core-only demo has been compiled and smoke-tested locally.
+
 ## Important limitations (never advertise as implemented)
 
 - **W5:** The signed connector and reusable OMPL evaluator are implemented.
