@@ -1,7 +1,9 @@
 #pragma once
 
 #include "hybrid_astar/ackermann/planner.hpp"
+#include "hybrid_astar/ackermann/refinement.hpp"
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace hybrid_astar::steering {
@@ -35,5 +37,17 @@ private:
 // Throws invalid_argument for an invalid OMPL turning radius.
 ackermann::PlanResult planWithReedsShepp(ackermann::PlanRequest request,
                                         bool usePerformanceHeuristic=false);
+
+// Opt-in complete planning and post-search refinement with one reusable
+// OMPL evaluator and strictly scoped callbacks. Refinement is attempted only
+// after planning succeeds; the original validated path always remains visible.
+struct ReedsSheppRefinementResult {
+  ackermann::PlanResult original;
+  std::optional<ackermann::RefinementResult> refinement;
+};
+ReedsSheppRefinementResult planAndRefineWithReedsShepp(
+    ackermann::PlanRequest request,
+    ackermann::RefinementOptions refinementOptions = {},
+    bool usePerformanceHeuristic = false);
 
 } // namespace hybrid_astar::steering
