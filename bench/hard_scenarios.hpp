@@ -17,10 +17,14 @@ struct HardCase {
 inline void fillRect(ackermann::MapSnapshot& map,double x0,double y0,
                      double x1,double y1) {
   const double r=map.resolutionMeters;
-  const auto left=static_cast<std::size_t>(std::max(0.,std::floor(x0/r)));
-  const auto right=static_cast<std::size_t>(std::min(double(map.width),std::ceil(x1/r)));
-  const auto bottom=static_cast<std::size_t>(std::max(0.,std::floor(y0/r)));
-  const auto top=static_cast<std::size_t>(std::min(double(map.height),std::ceil(y1/r)));
+  const auto clampIndex=[&](double v,std::size_t bound,bool upper) {
+    return static_cast<std::size_t>(std::clamp(upper?std::ceil(v/r):std::floor(v/r),
+                                               0.0,double(bound)));
+  };
+  const auto left=clampIndex(x0,map.width,false);
+  const auto right=clampIndex(x1,map.width,true);
+  const auto bottom=clampIndex(y0,map.height,false);
+  const auto top=clampIndex(y1,map.height,true);
   for(std::size_t y=bottom;y<top;++y)
     for(std::size_t x=left;x<right;++x)map.cells[y*map.width+x]=100;
 }
