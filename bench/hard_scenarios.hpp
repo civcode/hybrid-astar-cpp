@@ -59,7 +59,9 @@ inline std::vector<HardCase> hardCases() {
   fillRect(*hallway,6,12,37,15.5);
   fillRect(*hallway,6,19.5,37,23);
   corridor.request.map=hallway;cases.push_back(corridor);
-  // The earlier goal x=31 was embedded inside the closed x=[29,31]\n  // wall. This pose faces the wall and must reverse out of the U.\n  auto dead=make("dead_end",{24,17,0},{16,17,0},3500,true);
+  // The earlier goal x=31 was embedded inside the closed x=[29,31]
+  // wall. This pose faces the wall and must reverse out of the U.
+  auto dead=make("dead_end",{24,17,0},{16,17,0},3500,true);
   auto culdesac=std::make_shared<MapSnapshot>(*dead.request.map);
   fillRect(*culdesac,13,11,31,13);
   fillRect(*culdesac,13,22,31,24);
