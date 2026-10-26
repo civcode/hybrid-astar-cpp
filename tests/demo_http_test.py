@@ -41,7 +41,8 @@ def main(exe):
         assert headers.get("X-Content-Type-Options") == "nosniff"
         for resource, content in [("/", "Planning Lab"),
                                   ("/style.css", "map-wrap"),
-                                  ("/app.js", "replan")]:
+                                  ("/app.js", "replan"),
+                                  ("/map_geometry.js", "MapGeometry")]:
             code, _, body = get(base + resource)
             assert code == 200 and content in body, resource
         code, _, body = get(base + "/api/plan?scenario=reverse&startx=10&starty=15"
@@ -107,6 +108,45 @@ def main(exe):
             finally:
                 child.terminate()
                 child.wait(timeout=3)
+        # A real map-server YAML with nonzero translation and 90-degree yaw:
+        # test both the CLI world-frame output and the hosted map transform.
+        yaml_path = Path(__file__).resolve().parents[1] / "apps/demo/maps/sample.yaml"
+        rotated = subprocess.run([exe, "--once", "--map-yaml", str(yaml_path)],
+                                 capture_output=True, text=True, timeout=25)
+        assert rotated.returncode == 0, rotated.stderr
+        rotated_data = json.loads(rotated.stdout)
+        assert rotated_data["original"]["status"] == "Success"
+        assert rotated_data["sourceId"] == "ros-map-yaml"
+        assert rotated_data["origin"][:2] == [5, -2]
+        assert abs(rotated_data["start"][0] + 10) < 1e-8
+        assert abs(rotated_data["start"][1] - 6) < 1e-8
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            yaml_port = sock.getsockname()[1]
+        child = subprocess.Popen([exe, "--port", str(yaml_port),
+                                  "--map-yaml", str(yaml_path)],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        try:
+            origin = f"http://127.0.0.1:{yaml_port}"
+            for _ in range(60):
+                try:
+                    state = json.loads(get(origin + "/api/capabilities")[2])
+                    break
+                except (URLError, ConnectionError):
+                    time.sleep(.05)
+            else:
+                raise AssertionError("YAML map server unavailable")
+            assert state["customMap"] is True
+            assert abs(state["origin"][2] - 1.5707963267948966) < 1e-10
+            code, _, response = get(origin + "/api/plan?scenario=custom")
+            assert code == 200
+            assert json.loads(response)["original"]["status"] == "Success"
+        finally:
+            child.terminate()
+            child.wait(timeout=3)
+        invalid = subprocess.run([exe, "--once", "--map-yaml", str(yaml_path),
+                                  "--resolution", "1.0"], capture_output=True, text=True)
+        assert invalid.returncode != 0
         print("DEMO HTTP PASS")
     finally:
         proc.terminate()
