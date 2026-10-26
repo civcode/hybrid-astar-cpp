@@ -91,18 +91,22 @@ boundary-only diagnostic mode cannot be used by `plan()`.
   during search, sample checks and strict validation. There is no wall-clock
   budget, separately metered final-check budget, or allocator-level memory
   budget in this initial interface.
-- The initial test set exercises open-field feasibility and correctness
-  corner cases, **not** full wall/parking/benchmark, randomized property,
-  sanitizer-matrix, or proven SAT/EDT/sweep assurance release gates.
+- Named tests cover open field, reverse costs, tolerance-region goals,
+  unknown/boundary policy, adaptive-budget/cancellation and a deliberately
+  missed between-sample obstacle rejected by strict validation. An opt-in
+  **manual** scenario benchmark covers forward/reverse and distant-doorway
+  (region-Euclidean versus obstacle-grid ordering); neither is a complete
+  parking/regression matrix, randomized geometric proof, validated latency
+  threshold, full toolchain matrix or swept/actuator certification.
 
 ## Work-package traceability
 
 | Package | State | Code and next exit gate |
 | --- | --- | --- |
-| W0 Baseline/tests | In progress | This contract + imported synthesis, named `planner_test`; reconcile further ADR prose and add benchmark harness |
+| W0 Baseline/tests | In progress | Contract, imported synthesis, named tests, manual `bench/planner_bench.cpp`; add reference hardware/Release and additional geometry fixtures |
 | W1 Map/exact geometry | Implemented for filled Ackermann rectangle | `MapSnapshot`, `ExactCollisionChecker`, tests for rotated/boundary/unknown/interior; expand contact/property cases |
 | W2 Ackermann motion | Implemented for fixed curvature | `MotionSection` analytic evaluator; test more numerical extreme values/equivariance |
-| W3 Minimal search | Initial vertical slice | Immutable nodes/reopen/base costs/region Euclidean and cancellation; add wall detour, parking and negative tests |
+| W3 Minimal search | Initial vertical slice | Immutable nodes/reopen/base costs/region Euclidean and cancellation; benchmark doorway variants, add parking and further negative tests |
 | W4 Final validation | Initial adaptive-sampled gate | Stricter exact resampling; independently inject weaker search path and verify failure, verify separate resource budget |
 | W5 Analytic RS | Implemented, OMPL-ON unverified | Native signed provider hook, reusable OMPL evaluator, cusps/cost/scheduler; run OMPL-ON integration matrix and benchmark |
 | W6 Obstacle heuristic | Initial performance mode | Goal-region-seeded request-local lazy reverse Dijkstra, optional RS metric, finite fallback; compare maps/settlement budgets and no unproven `NoPath` |
