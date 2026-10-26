@@ -65,6 +65,47 @@ strict adaptive-sampled validator can be labeled validated. There is **no
 continuous swept guarantee or steering-rate/actuator feasibility** claim.
 A budget-limited response is not proof of a geometric NoPath.
 
+## Interactive obstacle editing (immutable map revisions)
+
+Planning Lab can now edit the occupancy map **in the browser**, without
+changing your original PGM/YAML file or built-in scenario:
+
+1. Choose **Paint obstacle**, **Paint free**, **Paint unknown**, or
+   **Restore original cell** in *Map interaction*.
+2. Choose a 1-, 3-, 5- or 7-cell brush diameter and drag on the map.
+   Drawing is in map-local cells even when the loaded YAML map is rotated.
+3. The displayed old route is **immediately hidden** when a cell changes.
+   On pointer release, the page sends the changed cells to the C++ planner
+   and displays a path only after a fresh planning/strict-validation result.
+4. **Reset map edits** restores the complete original map and requests a
+   fresh plan with a new revision. Switch scenarios to clear pending edits.
+
+The editor stores at most **4096 changed cells** (relative to the loaded
+base snapshot). Requests use `POST /api/plan` with a maximum 64 KiB
+URL-encoded body. The `edits` field is a canonical, ascending, unique list
+`cellIndex:occupancy` (e.g., `12040:100,12041:-1`).
+Permitted values are 100 blocked, 0 free, and -1 unknown;
+`editRevision` is a monotonically increasing browser generation.
+Even a full reset sends a new generation with an empty edit list.
+
+Each request copies the original map into a **new immutable MapSnapshot**,
+retaining frame/source and assigning `baseRevision + editRevision`.
+The planner, its optional Reeds–Shepp adapter, strict final validation and
+the refiner all receive that *same* snapshot. Earlier results remain pinned
+to their old revisions; the browser never reuses their collision evidence
+after a map change. The server does not persist edited maps between reloads.
+The revision counter is request-supplied in this local demo, not a
+multiuser transactional map database.
+
+The prior **GET /api/plan** endpoint remains supported for older clients
+and unedited examples. POST is only accepted for the planning endpoint with
+`application/x-www-form-urlencoded` and an explicit bounded Content-Length.
+Unsupported methods, duplicate/sortedness errors, out-of-bounds indices and
+invalid occupancy values are rejected.
+
+**Collision evidence remains adaptive sampled full-footprint geometry, not
+a continuous swept-body or actuator feasibility certificate.**
+
 ## Import a PGM map and export a validated planning result
 
 An application-provided **PGM P2 or P5** grayscale occupancy map can be loaded
