@@ -3,9 +3,23 @@ project(hybrid_astar_cpp VERSION 0.1.0 LANGUAGES CXX)
 
 option(HYBRID_ASTAR_ENABLE_OMPL "Build OMPL-backed steering adapter" OFF)
 option(HYBRID_ASTAR_BUILD_TESTS "Build Catch2 v3 unit and integration tests" ON)
+option(HYBRID_ASTAR_USE_SYSTEM_CATCH2
+  "Use installed Catch2 v3 instead of the default CMake FetchContent dependency" OFF)
 
 if(HYBRID_ASTAR_BUILD_TESTS)
-  find_package(Catch2 3 CONFIG REQUIRED)
+  if(HYBRID_ASTAR_USE_SYSTEM_CATCH2)
+    find_package(Catch2 3 CONFIG REQUIRED)
+  else()
+    # Pinned upstream version. CMake downloads and builds this automatically
+    # on first configure; existing FetchContent caches are reused.
+    # Offline users may set FETCHCONTENT_SOURCE_DIR_CATCH2 to a local source tree.
+    include(FetchContent)
+    FetchContent_Declare(Catch2
+      GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+      GIT_TAG        v3.8.1
+      GIT_SHALLOW    TRUE)
+    FetchContent_MakeAvailable(Catch2)
+  endif()
 endif()
 option(HYBRID_ASTAR_BUILD_BENCHMARKS "Build optional manually run planner benchmark" OFF)
 option(HYBRID_ASTAR_PROFILE_HOTPATHS "Collect opt-in timing of planner hot paths (adds clock overhead)" OFF)
