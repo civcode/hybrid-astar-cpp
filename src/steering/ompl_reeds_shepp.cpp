@@ -1,6 +1,7 @@
 #include "hybrid_astar/steering/reeds_shepp.hpp"
 #include "hybrid_astar/steering/reeds_shepp_evaluator.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <numbers>
