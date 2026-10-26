@@ -19,6 +19,8 @@ struct Scenario {
   Pose2D start,goal;
   bool performance=false;
   std::size_t expansionBudget=10000;
+  std::size_t discs=0;
+  double clearanceWeight=0.0;
 };
 static std::shared_ptr<MapSnapshot> emptyMap() {
   auto map=std::make_shared<MapSnapshot>();
@@ -36,9 +38,13 @@ static std::vector<Scenario> cases() {
     wall->cells[y*wall->width+200]=100;
   }
   return {{"free_forward",empty,{20,20,0},{26,20,0}},
+          {"free_forward_discs4",empty,{20,20,0},{26,20,0},false,10000,4},
+          {"free_forward_discs5",empty,{20,20,0},{26,20,0},false,10000,5},
           {"free_reverse",empty,{20,20,0},{14,20,0}},
           {"distant_doorway_euclidean",wall,{32,40,0},{48,40,0},false,10000},
-          {"distant_doorway_grid",wall,{32,40,0},{48,40,0},true,50000}};
+          {"distant_doorway_grid",wall,{32,40,0},{48,40,0},true,50000},
+          {"distant_doorway_grid_discs4",wall,{32,40,0},{48,40,0},true,50000,4},
+          {"distant_doorway_grid_clearance",wall,{32,40,0},{48,40,0},true,50000,0,.15}};
 }
 static double quantile(const std::vector<double>& sorted,double fraction) {
   if (sorted.empty()) throw std::runtime_error("No observations");
@@ -57,6 +63,8 @@ int main(int argc,char** argv) {
         PlanRequest request;
         request.map=scenario.map;request.start=scenario.start;request.goal=scenario.goal;
         request.options.maxExpansions=scenario.expansionBudget;
+        request.options.discPrefilterCount=scenario.discs;
+        request.options.clearanceWeight=scenario.clearanceWeight;
         if(scenario.performance)
           request.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
         const auto start=std::chrono::steady_clock::now();
@@ -71,6 +79,8 @@ int main(int argc,char** argv) {
       std::sort(milliseconds.begin(),milliseconds.end());
       std::cout << scenario.name << ",runs=" << repeats
                 << ",heuristic=" << (scenario.performance?"performance_grid":"certified_euclidean")
+                << ",disc_count=" << scenario.discs
+                << ",clearance_lambda=" << scenario.clearanceWeight
                 << ",expansion_budget=" << scenario.expansionBudget << ",success=" << success
                 << ",p50_ms=" << quantile(milliseconds,.50)
                 << ",p95_ms=" << quantile(milliseconds,.95)
