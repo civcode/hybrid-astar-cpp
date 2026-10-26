@@ -292,14 +292,22 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
   const double divisions=std::max(section.lengthMeters/step,section.lengthMeters*factor/bodyStep);
   if (!std::isfinite(divisions) || divisions > static_cast<double>(limit-1)) return MotionStatus::Incomplete;
   const std::size_t n=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(divisions)));
+  const bool useTemplate=templateMotion && templateMotion->samples.size()==n+1;
+  // A single SE(2) anchor rotation suffices for every cached local sample.
+  const double anchorCos=useTemplate?std::cos(section.start.yaw):0.0;
+  const double anchorSin=useTemplate?std::sin(section.start.yaw):0.0;
   for (std::size_t i=0;i<=n;++i) {
     if (cancel && cancel->load(std::memory_order_relaxed)) return MotionStatus::Cancelled;
     if (checks>=maxTotalChecks) return MotionStatus::Incomplete;
-    const bool useTemplate=templateMotion && templateMotion->samples.size()==n+1;
-    const auto pose=useTemplate
-        ? motion::compose(section.start,templateMotion->samples[i].localPose)
-        : section.evaluate(i==n ? section.lengthMeters :
-                            section.lengthMeters*static_cast<double>(i)/n);
+    const auto pose=[&]() -> Pose2D {
+      if(!useTemplate)
+        return section.evaluate(i==n ? section.lengthMeters :
+                                section.lengthMeters*static_cast<double>(i)/n);
+      const auto& relative=templateMotion->samples[i].localPose;
+      return {section.start.x+anchorCos*relative.x-anchorSin*relative.y,
+              section.start.y+anchorSin*relative.x+anchorCos*relative.y,
+              motion::wrapAngle(section.start.yaw+relative.yaw)};
+    }();
     if(useTemplate && stats)++stats->primitiveTemplatePoseChecks;
     if (prefilter && prefilter->definitelyClear(pose)) {
       if (stats) ++stats->discDefinitelyClear;
