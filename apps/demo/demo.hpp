@@ -10,6 +10,7 @@
 namespace hybrid_astar::demo {
 struct Options {
   std::string scenario = "open";
+  std::string model = "ackermann";
   std::shared_ptr<const ackermann::MapSnapshot> customMap;
   std::vector<CellEdit> edits;
   std::uint64_t editGeneration = 0;
