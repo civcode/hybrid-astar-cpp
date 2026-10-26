@@ -1,6 +1,7 @@
 #include "apps/demo/demo.hpp"
 #include "apps/demo/map_io.hpp"
 #include "apps/demo/map_yaml.hpp"
+#include <algorithm>
 #include <charconv>
 #include <cstdint>
 #include <limits>
@@ -17,6 +18,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 #endif
 #ifndef HYBRID_ASTAR_DEMO_WEB_ROOT
