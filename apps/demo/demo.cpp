@@ -221,7 +221,7 @@ std::string capabilitiesJson(const ackermann::MapSnapshot* customMap) {
 #else
   const char* ompl="false";
 #endif
-  std::ostringstream os;
+  std::ostringstream os;os<<std::setprecision(15);
   os<<"{\"ompl\":"<<ompl<<",\"customMap\":"<<(customMap?"true":"false");
   if(customMap) os<<",\"mapWidthMeters\":"<<customMap->width*customMap->resolutionMeters
                   <<",\"mapHeightMeters\":"<<customMap->height*customMap->resolutionMeters
