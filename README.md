@@ -66,7 +66,23 @@ if (original.status == hybrid_astar::ackermann::PlanStatus::Success) {
 }
 ```
 
-The built-in proposal is a same-heading straight section shortcut.
+The default built-in proposal is a same-heading straight section shortcut.
+To try native **curvature-bounded** forward/reverse CSC arcs without an OMPL
+dependency, explicitly pass:
+
+```cpp
+hybrid_astar::ackermann::RefinementOptions options;
+options.useCurvatureBoundedShortcuts = true;
+auto refined = hybrid_astar::ackermann::refinePath(request, original, {}, options);
+```
+
+This enumerates fixed-gear LSL/LSR/RSL/RSR candidates and applies the same
+strict full-path validator. It is **not** a complete Dubins/Reeds–Shepp solver,
+a curvature-continuous smoother, or an actuator validator. A nonnegative
+base-cost lower bound avoids exact collision checks for candidates that cannot
+improve the incumbent. The optional manual benchmark
+`./build-bench/hybrid_astar_refinement_bench 12` compares both modes.
+See [CSC design and benchmark evidence](docs/architecture/w8-csc-verification.md).
 A third `RefinementConnector` argument may supply exact signed analytic
 arcs, including from an externally owned Reeds–Shepp evaluator. Every
 accepted replacement is strictly less costly under the configured weights
