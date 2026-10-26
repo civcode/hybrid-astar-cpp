@@ -1,0 +1,26 @@
+# Do not send local build outputs, large OMPL archives or VCS internals.
+.git
+.gitignore
+build/
+build-*/
+build_*/
+cmake-build-*/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/CTestTestfile.cmake
+Testing/
+*.o
+*.a
+*.so
+*.so.*
+*.zip
+*.tar.gz
+*.log
+*.png
+*.jpg
+*.jpeg
+*.webp
+__pycache__/
+.pytest_cache/
+.vscode/
+.idea/
