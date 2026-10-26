@@ -217,6 +217,7 @@ int main(int argc,char** argv) {
       else if(arg=="--improve")options.improve=true;
       else throw std::invalid_argument("Unknown flag: "+arg);
     }
+    if(!mapFilename.empty()||!mapYamlFilename.empty())options.scenario="custom";
     if(!mapFilename.empty()&&!mapYamlFilename.empty())
       throw std::invalid_argument("--map and --map-yaml are mutually exclusive");
     if(!mapYamlFilename.empty()) {
