@@ -96,6 +96,28 @@ TEST_CASE("Hard scenarios have reproducible finite validated planner results",
     }
   }
 }
+TEST_CASE("Goal-tolerance region seeds avoid full-map grid scans",
+          "[hard-scenarios][w6]") {
+  auto request=bench::hardCases().front().request;
+  request.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+  // Goal center is occupied, but cells on the tolerance disk are free.
+  // No graph-only NoPath or falsely certified heuristic is permitted.
+  auto map=std::make_shared<MapSnapshot>(*request.map);
+  const auto x=static_cast<std::size_t>(request.goal.x/map->resolutionMeters);
+  const auto y=static_cast<std::size_t>(request.goal.y/map->resolutionMeters);
+  map->cells[y*map->width+x]=100;
+  request.map=map;
+  request.options.goalXYToleranceMeters=.50;
+  const auto result=plan(request);
+  REQUIRE(result.status!=PlanStatus::InternalError);
+  REQUIRE_FALSE(result.heuristicCertifiedAdmissible);
+  REQUIRE(result.diagnostics.gridSeedCellsExamined<50);
+  REQUIRE(result.diagnostics.gridSeedCellsAccepted>0);
+  REQUIRE(result.diagnostics.gridSettlements<=request.options.gridMaxTotalSettlements);
+  // Changes in relaxed XY graph do not certify (un)reachability for the
+  // orientation- and whole-footprint-constrained search.
+  if(result.status==PlanStatus::Success)independentlyVerified(request,result);
+}
 TEST_CASE("W6 cumulative grid budget preserves bounded finite fallback",
           "[hard-scenarios][w6]") {
   auto q=bench::hardCases().front().request;
