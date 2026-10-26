@@ -37,11 +37,13 @@ double quantile(std::vector<double> v,double q) {
   std::sort(v.begin(),v.end());
   return v[std::min(v.size()-1,static_cast<std::size_t>(std::ceil(q*v.size()))-1)];
 }
-struct Variant {const char* name;bool performance,ompl,refine,allowCornerCut=false;};
+struct Variant {const char* name;bool performance,ompl,refine,allowCornerCut=false; double weight=1.0; std::size_t gridBudget=0;};
 PlanResult run(PlanRequest q,const Variant& variant) {
   if(variant.performance)
     q.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
   q.options.gridPreventDiagonalCornerCutting=!variant.allowCornerCut;
+  q.options.performanceHeuristicWeight=variant.weight;
+  if(variant.gridBudget)q.options.gridMaxTotalSettlements=variant.gridBudget;
   PlanResult path;
 #ifdef HYBRID_ASTAR_HARD_CASES_WITH_OMPL
   if(variant.ompl)path=steering::planWithReedsShepp(q,variant.performance);
@@ -68,11 +70,15 @@ int main(int argc,char** argv) {
     const std::vector<Variant> variants={
       {"primitive",false,false,false},
       {"primitive_grid",true,false,false},
+      {"primitive_grid_funded",true,false,false,false,1.0,20000},
+      {"primitive_grid_weighted_1_2",true,false,false,false,1.2,20000},
+      {"primitive_grid_weighted_1_5",true,false,false,false,1.5,20000},
       {"primitive_grid_legacy_diagonals",true,false,false,true},
       {"primitive_grid_refined",true,false,true},
 #ifdef HYBRID_ASTAR_HARD_CASES_WITH_OMPL
       {"ompl_rs",false,true,false},
       {"ompl_rs_grid",true,true,false},
+      {"ompl_rs_grid_weighted_1_2",true,true,false,false,1.2,20000},
       {"ompl_rs_grid_refined",true,true,true}
 #endif
     };
@@ -80,7 +86,7 @@ int main(int argc,char** argv) {
       "mean_expanded,mean_generated,mean_final_pose_checks,"
       "mean_grid_settlements,mean_grid_fallbacks,seed_cells_examined,"
       "grid_budget_fallbacks,validated_cost,validated_length,"
-      "heuristic_certified,strict_success,expansion_budget,grid_total_budget\n";
+      "heuristic_certified,strict_success,expansion_budget,grid_total_budget,heuristic_weight\n";
     for(const auto& scenario:bench::hardCases())for(const auto& v:variants) {
       std::vector<double> times;
       std::size_t successful=0,expanded=0,generated=0,finalChecks=0,gridWork=0,
@@ -118,7 +124,8 @@ int main(int argc,char** argv) {
       else std::cout<<"NA,NA";
       std::cout<<','<<(last.heuristicCertifiedAdmissible?1:0)<<','<<strict
         <<','<<scenario.request.options.maxExpansions
-        <<','<<scenario.request.options.gridMaxTotalSettlements<<'\n';
+        <<','<<(v.gridBudget?v.gridBudget:scenario.request.options.gridMaxTotalSettlements)
+        <<','<<v.weight<<'\n';
     }
   } catch(const std::exception& e) {
     std::cerr<<"Hard scenario benchmark failed: "<<e.what()<<'\n';
