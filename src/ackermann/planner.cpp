@@ -206,7 +206,8 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
   const std::size_t n=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(divisions)));
   for (std::size_t i=0;i<=n;++i) {
     if (cancel && cancel->load(std::memory_order_relaxed)) return MotionStatus::Cancelled;
-    const auto pose=section.evaluate(section.lengthMeters*static_cast<double>(i)/n);
+    const auto pose=section.evaluate(i==n ? section.lengthMeters :
+                        section.lengthMeters*static_cast<double>(i)/n);
     if (prefilter && prefilter->definitelyClear(pose)) {
       if (stats) ++stats->discDefinitelyClear;
     } else {
