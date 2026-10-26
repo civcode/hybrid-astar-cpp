@@ -1,4 +1,5 @@
 #include "hybrid_astar/ackermann/planner.hpp"
+#include "hybrid_astar/ackermann/cover_prefilter.hpp"
 
 #include <algorithm>
 #include <array>
@@ -69,6 +70,7 @@ void validateOptions(const PlanOptions& o) {
       !std::isfinite(o.searchMaxBodyPointMotionMeters) || o.searchMaxBodyPointMotionMeters<=0 ||
       !std::isfinite(o.finalMaxBodyPointMotionMeters) || o.finalMaxBodyPointMotionMeters<=0 ||
       o.maxSamplesPerSection<2 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
+      o.discPrefilterCount>64 ||
       (o.solutionPolicy!=SolutionPolicy::FirstStrictlyValidated &&
        o.solutionPolicy!=SolutionPolicy::ImproveIncumbent))
     throw std::invalid_argument("Invalid planning options");
@@ -190,7 +192,9 @@ void summarizePath(PlanResult& r) {
 enum class MotionStatus { Clear, Colliding, Incomplete, Cancelled };
 MotionStatus checkMotion(const MotionSection& section, const ExactCollisionChecker& checker,
                          double step, double bodyStep, std::size_t limit, std::size_t& checks,
-                         const std::atomic_bool* cancel) {
+                         const std::atomic_bool* cancel,
+                         const ConservativeDiscPrefilter* prefilter=nullptr,
+                         PlanDiagnostics* stats=nullptr) {
   if (!std::isfinite(section.lengthMeters) || section.lengthMeters<0) return MotionStatus::Incomplete;
   // Upper bound on translation+rotation of EVERY body point per interval.
   const double factor=1.0+checker.maxBodyRadius()*std::abs(section.curvature);
@@ -199,8 +203,13 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
   const std::size_t n=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(divisions)));
   for (std::size_t i=0;i<=n;++i) {
     if (cancel && cancel->load(std::memory_order_relaxed)) return MotionStatus::Cancelled;
-    if (checker.check(section.evaluate(section.lengthMeters*static_cast<double>(i)/n))==PoseCollision::Colliding)
-      return MotionStatus::Colliding;
+    const auto pose=section.evaluate(section.lengthMeters*static_cast<double>(i)/n);
+    if (prefilter && prefilter->definitelyClear(pose)) {
+      if (stats) ++stats->discDefinitelyClear;
+    } else {
+      if (prefilter && stats) ++stats->discExactFallback;
+      if (checker.check(pose)==PoseCollision::Colliding) return MotionStatus::Colliding;
+    }
     ++checks;
   }
   return MotionStatus::Clear;
@@ -308,6 +317,10 @@ PlanResult plan(const PlanRequest& r) {
   }
   try {
     const ExactCollisionChecker checker(*r.map,r.occupancy,r.footprint);
+    std::unique_ptr<ConservativeDiscPrefilter> prefilter;
+    if (r.options.discPrefilterCount)
+      prefilter=std::make_unique<ConservativeDiscPrefilter>(
+           *r.map,r.occupancy,r.footprint,r.options.discPrefilterCount);
     if (checker.check(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
     ++result.diagnostics.searchPoseChecks;
     const auto& opt=r.options;
@@ -447,7 +460,7 @@ PlanResult plan(const PlanRequest& r) {
             if (!std::isfinite(weighted)) {valid=false;break;}
             const auto check=checkMotion(normalized,checker,opt.searchSampleSpacingMeters,
                   opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
-                  result.diagnostics.searchPoseChecks,r.cancelled.get());
+                  result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics);
             if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
             if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
             if (check==MotionStatus::Colliding) {valid=false;break;}
@@ -498,7 +511,7 @@ PlanResult plan(const PlanRequest& r) {
           }
           const auto check=checkMotion(sec,checker,opt.searchSampleSpacingMeters,
                      opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
-                     result.diagnostics.searchPoseChecks,r.cancelled.get());
+                     result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics);
           if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
           if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
           if (check==MotionStatus::Colliding) continue;
