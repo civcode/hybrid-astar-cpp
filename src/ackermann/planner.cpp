@@ -452,7 +452,20 @@ PlanResult plan(const PlanRequest& r) {
         std::hypot(std::max(std::abs(r.footprint.rearX),
                             std::abs(r.footprint.frontX)),r.footprint.halfWidth),
         std::numbers::pi_v<double>,o.maxSamplesPerSection};
-      (void)differential_drive::buildCatalog(model,sampling);
+      const auto& p=sampling;
+      if(!std::isfinite(p.translationMeters)||p.translationMeters<=0 ||
+         !std::isfinite(p.arcTurnRadians)||p.arcTurnRadians<=0 ||
+         !std::isfinite(p.spinRadians)||p.spinRadians<=0 ||
+         !std::isfinite(p.translationSpeed)||p.translationSpeed<=0 ||
+         !std::isfinite(p.rotationSpeed)||p.rotationSpeed<=0)
+        throw std::invalid_argument("Invalid differential-drive primitive parameters");
+      const double duration=p.translationMeters/p.translationSpeed;
+      if(!std::isfinite(duration)||duration<=0 ||
+         !model.valid({p.translationSpeed,p.arcTurnRadians/duration}) ||
+         !model.valid({0,p.rotationSpeed}))
+        throw std::invalid_argument("Differential-drive wheel-rate limit exceeded");
+      (void)motion::sampleIntervals(p.translationMeters,p.arcTurnRadians,p.sampling);
+      (void)motion::sampleIntervals(0,p.spinRadians,p.sampling);
     }
   } catch (const std::exception&) {
     result.status=PlanStatus::InvalidRequest;return result;
