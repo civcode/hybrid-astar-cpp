@@ -115,6 +115,9 @@ if(HYBRID_ASTAR_BUILD_APP)
     target_link_libraries(hybrid_astar_demo_map_io_test PRIVATE hybrid_astar_demo_logic Catch2::Catch2WithMain)
     add_test(NAME demo_map_io_test COMMAND hybrid_astar_demo_map_io_test)
     add_test(NAME demo_cli_open COMMAND hybrid_astar_demo --once --scenario open)
+    add_test(NAME demo_cli_import_pgm COMMAND hybrid_astar_demo
+      --once --map ${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/maps/sample.pgm
+      --resolution 0.5)
     add_test(NAME demo_cli_docker_bind COMMAND hybrid_astar_demo
       --once --bind 0.0.0.0 --scenario reverse)
     if(HYBRID_ASTAR_ENABLE_OMPL)
