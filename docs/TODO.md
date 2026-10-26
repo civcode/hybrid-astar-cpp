@@ -3,13 +3,24 @@
 > has been imported. The normative current behavior and remaining W0-W9 gates
 > are tracked in [current-implementation.md](architecture/current-implementation.md).
 > The current Ackermann primitives use exact constant-curvature integration, not RK4. This older checklist and ADR references may predate the verified vertical
-> slice and must not override the current contract. **Still pending:** OMPL-ON
-> integration verification and benchmarks for signed connector (W5),
+> slice and must not override the current contract. **Still pending:** full OMPL package/export build and exact-checkout
+> verification (the real OMPL 2.0.2 source-runtime tests now pass, W5),
 > performance-grid benchmarks and any reachability proof (W6),
 > optional EDT/disc proof review and broader benchmarks (W7),
 > clearance-weight tuning and broader curvature-aware post-path smoothing (W8; a bounded strict shortcut refiner is now implemented),
 > future chassis/actuation and ROS adapters (W9). No swept/actuator safety
 > certification or validated global optimality is claimed.
+
+**Latest executable gates (2026-10-26):** The native signed adapter,
+true OMPL 2.0.2 Reeds–Shepp source-runtime smoke and 12,000-case randomized
+test, and independent C++20 search/refiner suites now run through a
+[manual offline source bridge](../tests/ompl_source_bridge/CMakeLists.txt).
+See [W5 runtime verification](architecture/w5-ompl-source-verification.md).
+The separate W4 cumulative strict-final-check budget is implemented
+(default 250,000 checks), including explicit incomplete status or preservation
+of an earlier strictly validated incumbent. Full installed OMPL package
+verification, complete GitHub checkout build, geometric swept certification
+and steering actuator modeling remain future work.
 
 # Implementation and architecture TODOs
 
