@@ -118,6 +118,64 @@ TEST_CASE("Goal-tolerance region seeds avoid full-map grid scans",
   // orientation- and whole-footprint-constrained search.
   if(result.status==PlanStatus::Success)independentlyVerified(request,result);
 }
+TEST_CASE("Hard-map goals are footprint-feasible before search",
+          "[hard-scenarios][fixtures]") {
+  for(const auto& item:bench::hardCases()) {
+    DYNAMIC_SECTION(item.name) {
+      ExactCollisionChecker checker(*item.request.map,item.request.occupancy,item.request.footprint);
+      REQUIRE(checker.check(item.request.start)==PoseCollision::Clear);
+      REQUIRE(checker.check(item.request.goal)==PoseCollision::Clear);
+    }
+  }
+  const auto cases=bench::hardCases();
+  const auto& escape=cases[4];
+  REQUIRE(escape.name=="dead_end");
+  const auto path=plan(escape.request);
+  REQUIRE(path.status==PlanStatus::Success);
+  REQUIRE(path.reverseLengthMeters>5.0);
+  independentlyVerified(escape.request,path);
+}
+TEST_CASE("W6 weighted grid enables detour within the original expansion budget",
+          "[hard-scenarios][w6]") {
+  const auto cases=bench::hardCases();
+  auto request=cases[5].request;
+  REQUIRE(cases[5].name=="obstacle_detour");
+  request.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+  request.options.gridMaxTotalSettlements=20000;
+  request.options.performanceHeuristicWeight=1.2;
+  auto fast=plan(request);
+  REQUIRE(fast.status==PlanStatus::Success);
+  REQUIRE(fast.diagnostics.expanded<=request.options.maxExpansions);
+  REQUIRE_FALSE(fast.heuristicCertifiedAdmissible);
+  independentlyVerified(request,fast);
+  auto repeat=plan(request);
+  comparable(fast,repeat);
+
+  // A larger expansion budget with unit weight shows the tradeoff: the
+  // weighted first-feasible mode can return a more costly but faster plan.
+  request.options.performanceHeuristicWeight=1.;
+  request.options.maxExpansions=30000;
+  const auto unweighted=plan(request);
+  REQUIRE(unweighted.status==PlanStatus::Success);
+  independentlyVerified(request,unweighted);
+  REQUIRE(unweighted.diagnostics.expanded>fast.diagnostics.expanded);
+
+  // A weighted setting must never silently change certified mode.
+  request.options.heuristicMode=HeuristicMode::CertifiedRegionEuclidean;
+  request.options.performanceHeuristicWeight=1.5;
+  request.options.maxExpansions=1500;
+  const auto certified=plan(request);
+  request.options.performanceHeuristicWeight=1.;
+  const auto baseline=plan(request);
+  comparable(certified,baseline);
+  REQUIRE(certified.heuristicCertifiedAdmissible);
+
+  // Validate bounded configuration and maintain explicit failure status.
+  request.options.performanceHeuristicWeight=.99;
+  REQUIRE(plan(request).status==PlanStatus::InvalidRequest);
+  request.options.performanceHeuristicWeight=3.01;
+  REQUIRE(plan(request).status==PlanStatus::InvalidRequest);
+}
 TEST_CASE("W6 cumulative grid budget preserves bounded finite fallback",
           "[hard-scenarios][w6]") {
   auto q=bench::hardCases().front().request;
