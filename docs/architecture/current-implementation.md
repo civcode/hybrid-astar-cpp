@@ -33,9 +33,12 @@ request-local options. It performs:
    Lower g wins within one approximate key; this can suppress a feasible
    sub-bin arrival, so **no resolution-completeness or global-optimality
    claim** is justified.
-5. Search queue ordered by finite `g + max(0,distXY-to-goal - XY tolerance)`
-   (equivalent-meter, goal-region Euclidean lower-bound ordering).
-   Edges use 1.0x forward, 1.10x reverse and +0.50m actual gear changes.
+5. Search queue ordered by finite `g+h`. Default `h` is the certified
+   goal-region Euclidean lower bound; an optional **noncertified** performance
+   mode combines finite fallback, lazy goal-region-seeded reverse Dijkstra
+   (settled distances only) and an optional injected RS exact-goal distance.
+   No 2D graph can prune search as a `NoPath` proof. Edges use 1.0x
+   forward, 1.10x reverse and +0.50m actual gear changes.
 6. Required full-footprint checks at every search segment start and sample,
    including each endpoint. Spacing obeys BOTH reference spacing and a
    translation-plus-rotation body-point movement bound
@@ -45,7 +48,15 @@ request-local options. It performs:
    motion sections: default 0.05 m reference and 0.05 m body-point movement
    ceiling. It calls exact collision directly and never trusts cached
    search classifications. Only a completed strict pass permits `Success`.
-8. Explicit statuses for input/map/unknown errors, cooperative cancellation, start collision,
+8. Optional scheduled signed analytic connector supplied as a native callback.
+   It is attempted at the first eligible node and at search-bin-relative
+   intervals; independently validates every section's direction, curvature,
+   endpoint continuity, incoming/internal cusp costs, search collision and
+   final whole-path collision. Invalid analytic candidates fall back to the
+   primitive search; an optional incremental weighted-cost gate is available.
+   `ReedsSheppEvaluator` in the **OMPL-enabled target** materializes signed
+   OMPL sections using reusable per-instance state-space/scratch resources.
+9. Explicit statuses for input/map/unknown errors, cooperative cancellation, start collision,
    work budgets, incomplete/failed final checking and approximate
    search exhaustion; true terminal pose/error/gear, weighted path cost,
    effective map provenance, counts and achieved *sampled* collision
@@ -60,17 +71,20 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 
 ## Important limitations (never advertise as implemented)
 
-- **W5:** The separate OMPL target still only provides distance
-  `reedsSheppDistance`; this vertical slice does not yet accept analytic
-  connector segments or use the attempt scheduler during search. Optional
-  OMPL-ON build remains unverified in this environment.
-- **W6:** No reverse-Dijkstra/lazy obstacle-performance heuristic yet.
-  The planner uses the goal-region Euclidean fallback only; no graph
-  unreachable pruning. There is no `max(RS,grid)` priority in this slice.
+- **W5:** The signed connector and reusable OMPL evaluator are implemented
+  behind optional provider injection. An application must explicitly pass
+  `analyticConnector` and, for performance ordering, `analyticDistance`;
+  without those callbacks the planner uses primitives only. **OMPL-ON build
+  and real OMPL tests remain unverified** in this environment.
+- **W6:** Request-local raw-occupancy lazy reverse Dijkstra is an optional
+  noncertified performance provider with deterministic count-based settlements,
+  goal-region seeds and finite fallback; it is **not** a separately proved
+  footprint-aware reachability oracle. No early graph-based `NoPath`.
 - **W7:** No EDT, multi-disc cover or swept certification. Search/final
   adaptive sampling controls *density*, **not the continuous swept set**.
-- **W8:** No clearance integral, incumbent-improvement mode, cost-gated RS,
-  post-path refiner or bounded final-validation retry.
+- **W8:** No clearance integral, incumbent-improvement mode, post-path
+  refiner or bounded final-validation retry. An optional incremental
+  weighted analytic cost gate already exists.
 - **W9:** No timed steering/actuator checks, dynamic-obstacle predictions,
   ROS/Nav2 adapter, articulated/self-collision or alternative chassis model.
 - Cooperative request-local atomic cancellation is implemented and polled
@@ -90,8 +104,8 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 | W2 Ackermann motion | Implemented for fixed curvature | `MotionSection` analytic evaluator; test more numerical extreme values/equivariance |
 | W3 Minimal search | Initial vertical slice | Immutable nodes/reopen/base costs/region Euclidean and cancellation; add wall detour, parking and negative tests |
 | W4 Final validation | Initial adaptive-sampled gate | Stricter exact resampling; independently inject weaker search path and verify failure, verify separate resource budget |
-| W5 Analytic RS | Pending | OMPL reusable evaluator, signed sections, cusps and cost, scheduler wired into search |
-| W6 Obstacle heuristic | Pending | Goal-region-seeded request-local reverse Dijkstra with finite fallback; no unproven `NoPath` |
+| W5 Analytic RS | Implemented, OMPL-ON unverified | Native signed provider hook, reusable OMPL evaluator, cusps/cost/scheduler; run OMPL-ON integration matrix and benchmark |
+| W6 Obstacle heuristic | Initial performance mode | Goal-region-seeded request-local lazy reverse Dijkstra, optional RS metric, finite fallback; compare maps/settlement budgets and no unproven `NoPath` |
 | W7 Disc/EDT | Deferred | Conservatism proof + exact fallback + whole-planner benchmark |
 | W8 Quality/refiner | Deferred | Benchmarkable optional clearance, validated incumbent improvement, full-path revalidation |
 | W9 Other models | Deferred | Add only after a second real model exists; actuator/ROS contracts independent |
@@ -106,9 +120,9 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 | Validation | Exact filled pose; adaptive sampled at <=0.10m/0.05m search/final reference | Continuous swept certification, body-point thresholds |
 | Occupancy | threshold 0, Unknown=Occupied, optional Free/Reject | Exploration's risk policy |
 | Cost | F=1.0, R=1.10, switch=0.50m, clearance=0 | Clearance/routing objective |
-| Heuristic | Certified region Euclidean numerical lower bound | Performance RS+grid, graph reachability proof |
+| Heuristic | Certified region Euclidean default; optional noncertified lazy grid plus injected RS exact-goal distance | Benchmark performance and separate reachability proof |
 | Termination | First strictly validated path | Bounded incumbent improvement, retry policy |
-| RS | Scheduler uses search-bin units; no planner connector | Full path adapter, attempt cadence benchmark |
+| RS | First-node/search-bin scheduler; signed native hook; optional reusable OMPL evaluator | OMPL-ON build, integration and scheduling/quality benchmarks |
 | Result | Geometric sampled evidence, no actuator guarantee | Consumer execution assurance policy |
 
 See synthesis §1.3, §17 and §18 for alternative approaches and mathematical
