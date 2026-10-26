@@ -58,6 +58,10 @@ endif()
 
 if(HYBRID_ASTAR_BUILD_TESTS)
   enable_testing()
+  add_executable(hybrid_astar_w11_model_policy_test tests/w11_model_policy_test.cpp)
+  target_link_libraries(hybrid_astar_w11_model_policy_test PRIVATE
+    hybrid_astar::core Catch2::Catch2WithMain)
+  add_test(NAME w11_model_policy_test COMMAND hybrid_astar_w11_model_policy_test)
   add_executable(hybrid_astar_w10_differential_search_test tests/w10_differential_search_test.cpp)
   target_link_libraries(hybrid_astar_w10_differential_search_test PRIVATE
     hybrid_astar::core Catch2::Catch2WithMain)
