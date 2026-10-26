@@ -1,6 +1,6 @@
 # hybrid-astar-cpp
 
-A standalone, high-performance **C++20 Hybrid A*** path-planning library. **Status: architecture baseline plus a compiling C++20 scaffold. The Hybrid A* search/planner is NOT implemented yet.**
+A standalone, high-performance **C++20 Hybrid A*** path-planning library. **Status: initial complete-primitives Ackermann planning vertical slice, with exact filled-footprint pose checks and strict adaptive-sampled final validation. Analytic RS integration, performance heuristic and continuous swept certification remain unimplemented.**
 
 The core is intended to be independent of ROS 2, any single vehicle model, and any single geometric curve family. Initial implementation priorities are differential drive and Ackermann; an ideal mecanum/omnidirectional chassis is the third reference model for testing generic interfaces. A separate trajectory planner/MPC will handle time-parameterization and moving-obstacle prediction.
 
@@ -19,9 +19,11 @@ Start at [Architecture documentation](docs/architecture/README.md), then review:
 - [Implementation checklist](docs/TODO.md)
 - [Architecture Decision Records](docs/adr/README.md)
 
-The architecture is a proposed first Ackermann baseline. The only executable implementation so far is a minimal core with search-key quantization, distance/gear edge-cost arithmetic, analytic-connection guard decisions, and an optional OMPL Reeds–Shepp distance-only adapter. **Motion primitives, collision checking, goal-seeded 2D heuristic, actual analytic connector path segments and Hybrid A* search are not implemented.**
+The [consolidated external-review specification](docs/architecture/Hybrid_AStar_Consolidated_Specification.md) is versioned as a **proposal**, not an approved ADR. The [current implementation contract and work-package traceability](docs/architecture/current-implementation.md) describes which recommendations have shipped and what remains unverified.
 
-## Build the minimal scaffold
+The core now implements a first standalone Ackermann search: six exact analytic primitives, continuous states with gear-aware one-label keys, append-only parent records/reopening, full-body rectangle-versus-closed-grid-square collision, request-pinned occupancy snapshots, and an independent stricter full-path sampled validation pass. This is a geometric initializer; sampling does not prove full continuous swept safety or timed actuation feasibility.
+
+## Build and test the Ackermann vertical slice
 
 ```bash
 cmake -S . -B build -DHYBRID_ASTAR_ENABLE_OMPL=OFF
@@ -29,9 +31,9 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-When OMPL's CMake package is installed, enable the separate steering adapter and its smoke test with `-DHYBRID_ASTAR_ENABLE_OMPL=ON`. OMPL types are not exposed by the public headers. The default OFF allows a basic core build without OMPL; the complete Ackermann planner will require OMPL when it is implemented. **The OMPL-enabled build is not yet verified in the current environment**, which has no OMPL installation.
+When OMPL's CMake package is installed, enable the separate steering adapter and its smoke test with `-DHYBRID_ASTAR_ENABLE_OMPL=ON`. OMPL types are not exposed by the public headers. The default OFF builds the entire current six-primitive Ackermann vertical slice. The **future** RS analytic connector requires OMPL and is not yet wired into the planner. **The OMPL-enabled build is not yet verified in the current environment**, which has no OMPL installation.
 
-The initial Ackermann **search key** uses 0.25 m XY cells, **5-degree yaw bins (72)** and incoming gear. This is distinct from the goal-heading **10-degree tolerance**. Reeds–Shepp attempts are **adaptively scheduled (initially ratio 3.5, configurable) with an unconditional first-node attempt** and no XY proximity trigger. A scheduled attempt produces one complete OMPL RS path; the acceptance gate requires valid finite geometry and sampled collision validation, **not a hard path-length cap**. An optional weighted-cost cap is disabled by default. Passing these guards is not a substitute for path/collision validity. Collision configuration defaults to `BoundaryOnlyPoseSampled` with optional interior checking; the geometry checker itself is not implemented yet.
+The initial Ackermann **search key** uses independent 0.25 m XY cells, 5-degree heading bins (72), and incoming gear. The goal accepts independent 0.25 m XY and 10-degree yaw tolerances on the actual reached state. Default costs are 1.00× forward, 1.10× reverse, and +0.50 m for a gear switch. The active planner uses a finite goal-region Euclidean ordering heuristic; the combined RS/grid performance heuristic is not implemented. The separate analytic-attempt scheduler now takes **search-bin** units and retains its first-attempt behavior, but is not yet integrated with the planner. The shipped planner always uses exact full-body collision checks at sampled poses; legacy `CheckOptions` now defaults to full-footprint rather than boundary-only.
 
 ## Conventions
 
