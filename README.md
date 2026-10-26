@@ -78,6 +78,36 @@ build and test are manual, not GitHub Actions automation. See the
 **Docker execution has not yet been validated in this assistant environment**
 because no Docker engine is installed here.
 
+## Hard-scenario verification and W6 search benchmarking
+
+Seven deterministic planner fixtures now cover reverse approach, three-point
+turns, parallel parking, narrow corridors, U-shaped dead ends, long obstacle
+detours and an impassable sub-vehicle-width gap. They exercise **strict
+independent sampled validation**, result provenance, reproducible search
+diagnostics and explicit budget-limited outcomes. They also compare baseline
+certified Euclidean search against the opt-in noncertified obstacle-grid
+heuristic; an OMPL-enabled build additionally checks Reeds–Shepp.
+
+W6 now seeds the goal tolerance disk using a **bounded grid-cell window**
+rather than scanning the whole map; optionally prevents diagonal cutting
+across blocked corners; and applies a **cumulative reverse-grid settlement
+budget** with finite fallback. These mechanisms are *performance ordering*
+only, not continuous-space admissibility or NoPath proofs.
+
+Manually compare identical maps and work limits:
+
+```bash
+cmake -S . -B build-hard -DCMAKE_BUILD_TYPE=Release \
+  -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
+cmake --build build-hard --parallel
+./build-hard/hybrid_astar_hard_scenario_bench 5 > hard-scenarios.csv
+```
+
+Add `-DHYBRID_ASTAR_ENABLE_OMPL=ON` with an installed OMPL package for
+signed analytic steering rows. See [hard-scenario evidence and W6
+tradeoffs](docs/architecture/w3-w6-hard-scenarios.md). Benchmarks are opt-in
+and never run through GitHub Actions.
+
 ## Build and test the Ackermann vertical slice
 
 Catch2 **v3** is required for test builds. If you only need the core/demo

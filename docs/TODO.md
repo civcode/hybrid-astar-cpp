@@ -5,7 +5,7 @@
 > The current Ackermann primitives use exact constant-curvature integration, not RK4. This older checklist and ADR references may predate the verified vertical
 > slice and must not override the current contract. **Still pending:** full OMPL package/export build and exact-checkout
 > verification (the real OMPL 2.0.2 source-runtime tests now pass, W5),
-> performance-grid benchmarks and any reachability proof (W6),
+> representative multi-seed performance thresholds and any reachability proof (W6),
 > optional EDT/disc proof review and broader benchmarks (W7),
 > clearance-weight tuning and broader curvature-aware post-path smoothing (W8; a bounded strict shortcut refiner is now implemented),
 > future chassis/actuation and ROS adapters (W9). No swept/actuator safety
@@ -21,6 +21,30 @@ The separate W4 cumulative strict-final-check budget is implemented
 of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
+
+## W3/W6 planner milestones — implemented 2026-10-26
+
+- [x] Share seven deterministic reverse/parking/three-point/narrow-corridor/
+  dead-end/detour/impassable-gap fixtures across Catch2 and manually run
+  benchmark; classify successes, finite work-limit outcomes, reproducibility,
+  map provenance and independent strict path revalidation.
+- [x] Compare certified primitive-only Euclidean and noncertified
+  obstacle-grid search with identical map/pose/footprint/budgets.
+  Conditional OMPL/Reeds–Shepp modes and bounded CSC-refinement rows are
+  included in both regression tests and CSV benchmark.
+- [x] Seed grid heuristic from tolerance-disk cells in its clipped bounding
+  box rather than scanning all map cells; preserve free tolerance fringe seeds.
+- [x] Apply request-global reverse Dijkstra settlement budget, finite fallback
+  for uncomputed/blocked cells, and default diagonal corner prevention.
+  Expose diagnostic counts and keep certified Euclidean mode unchanged.
+- [ ] Run exact-checkout Catch2 and full installed OMPL/Docker matrix, then
+  gather representative multi-run p50/p95/p99 performance data before
+  enabling the noncertified heuristic by default.
+- [ ] Investigate dead-end and long-detour search-budget failures; compare
+  quantized one-label dominance and gear/reverse cost choices without
+  sacrificing independently verified feasibility.
+
+See [W3/W6 hard-scenario evidence](architecture/w3-w6-hard-scenarios.md).
 
 ## Planning Lab obstacle editor — implemented 2026-10-26
 

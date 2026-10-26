@@ -177,9 +177,14 @@ The relocated core-only demo has been compiled and smoke-tested locally.
   offline source-subset harness. `steering::planAndRefineWithReedsShepp()`
   also passes. The full official **OMPL-ON package build remains unverified**.
 - **W6:** Request-local raw-occupancy lazy reverse Dijkstra is an optional
-  noncertified performance provider with deterministic count-based settlements,
-  goal-region seeds and finite fallback; it is **not** a separately proved
-  footprint-aware reachability oracle. No early graph-based `NoPath`.
+  **noncertified** performance provider. It now seeds only cells in the
+  goal tolerance disk's grid bounding box (not the whole map), blocks
+  diagonal corner cutting by default, limits total settlements per request
+  (`gridMaxTotalSettlements=20000`), and directly skips blocked target cells.
+  Unavailable, disconnected and over-budget grid values use a finite fallback;
+  there is **no** graph-based `NoPath` or footprint-aware reachability proof.
+  New diagnostics count seed candidates, actual seeds and budget fallbacks.
+  One-label dominance and gear/reverse cost semantics are unchanged.
 - **W7:** Conservative request-local blocked-center Euclidean distance transform
   and constructive whole-body disc covers are implemented as an optional
   search-only safe bypass with exact fallback, map-border checks and counts.
@@ -225,10 +230,10 @@ The relocated core-only demo has been compiled and smoke-tested locally.
 | W0 Baseline/tests | In progress | Contract, imported synthesis, named tests, manual `bench/planner_bench.cpp`; add reference hardware/Release and additional geometry fixtures |
 | W1 Map/exact geometry | Implemented for filled Ackermann rectangle | `MapSnapshot`, `ExactCollisionChecker`, tests for rotated/boundary/unknown/interior; expand contact/property cases |
 | W2 Ackermann motion | Implemented for fixed curvature | `MotionSection` analytic evaluator; test more numerical extreme values/equivariance |
-| W3 Minimal search | Initial vertical slice, additional acceptance fixtures | Immutable nodes/reopen/base costs/region Euclidean and cancellation; primitive-only reverse and two-cusp parking, narrow-gap and revision tests now pass locally; further negative/large-map scenarios pending |
+| W3 Minimal search | Deterministic difficult-map suite implemented | Seven reverse/parking/corridor/dead-end/detour/blocked-gap fixtures; certified and performance modes run repeatable finite tests, successful paths independently rechecked, budget outcomes explicit; exhaustive feasibility and global optimum still unproved |
 | W4 Final validation | Independent per-section and cumulative strict budgets | Stricter exact resampling, weakened search fixture, final per-section and total pose-check budgets; validated incumbent retained on validation-budget exhaustion; failure location and swept proof pending |
 | W5 Analytic RS | Genuine 2.0.2 source-runtime integration passes, package install unverified | Offline CMake state-space subset, 12000 randomized OMPL pose pairs, signed cusps, wall/heuristic integration, plan/refine workflow and sanitizer runs pass locally; complete OMPL CMake package/export and exact repository checkout remain pending |
-| W6 Obstacle heuristic | Initial performance mode | Goal-region-seeded request-local lazy reverse Dijkstra, optional RS metric, finite fallback; compare maps/settlement budgets and no unproven `NoPath` |
+| W6 Obstacle heuristic | Bounded goal seeding and cumulative-work controls implemented | Tolerance-box seed indexing, default diagonal corner prevention, blocked-query early fallback and 20k total settlement cap; seven-case manual A/B matrix documents cases helped and budgets still exhausted; admissibility/reachability unproved |
 | W7 Disc/EDT | Opt-in prototype, disabled by default | Blocked-center exact EDT, conservative rectangle disc cover, strict exact fallback; 3/4/5-disc randomized differential tests and staged end-to-end benchmarks; proof review and further map/geometry testing pending |
 | W8 Quality/refiner | Optional CSC shortcut extension implemented | Validated incumbent continuation, exact-oriented clearance weighting, strict section-boundary refinement, and opt-in forward/reverse CSC candidates with cost lower-bound pruning; 2000 seeded pose tests and local benchmark pass. Steering-rate smoothing, broader benchmarks and final retry remain pending |
 | W9 Other models | Deferred | Add only after a second real model exists; actuator/ROS contracts independent |
@@ -249,6 +254,7 @@ The relocated core-only demo has been compiled and smoke-tested locally.
 | Refinement | Explicit `refinePath()`; straight-only default; opt-in CSC or signed provider; optional real-OMPL combined plan/refine; strict cheaper full-path revalidation and original fallback | CCC/RS completeness, curvature-continuous steering smoothing, multi-seed cost/latency benchmarks |
 | Result | Geometric sampled evidence, no actuator guarantee | Consumer execution assurance policy |
 
+See [hard-scenario regression and W6 A/B evidence](w3-w6-hard-scenarios.md) for current test fixtures, counters and remaining search-efficiency limitations.
 See [real OMPL 2.0.2 source integration evidence](w5-ompl-source-verification.md) for the offline 10-suite Release/sanitizer matrix and remaining official-package gate.
 See [W8 curvature-bounded CSC verification](w8-csc-verification.md) for geometric construction, safe cost pruning and local performance limits.
 See [W3–W5 verification notes](w3-w5-verification-notes.md) for new acceptance fixtures and explicit OMPL verification limits.
