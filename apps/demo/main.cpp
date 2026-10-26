@@ -320,6 +320,8 @@ int main(int argc,char** argv) {
     } else if(!mapFilename.empty())
       options.customMap=hybrid_astar::demo::loadPgm(mapFilename,mapResolution);
     if(!outputFilename.empty()&&!once)throw std::invalid_argument("--output requires --once");
+    if(!once && options.model!="ackermann")
+      throw std::invalid_argument("--model is a --once option; select the model in the browser for server mode");
     if(once) {
       const auto json=hybrid_astar::demo::toJson(hybrid_astar::demo::run(options));
       if(outputFilename.empty())std::cout<<json<<'\n';
