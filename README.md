@@ -50,6 +50,33 @@ When OMPL's CMake package is installed, enable the separate steering adapter and
 
 The initial Ackermann **search key** uses independent 0.25 m XY cells, 5-degree heading bins (72), and incoming gear. The goal accepts independent 0.25 m XY and 10-degree yaw tolerances on the actual reached state. Default costs are 1.00× forward, 1.10× reverse, and +0.50 m for a gear switch. The active planner uses a finite goal-region Euclidean ordering heuristic; a selectable noncertified performance mode uses lazy reverse-Dijkstra obstacle guidance plus an optional injected RS exact-goal distance. The analytic-attempt scheduler uses **search-bin** units and is integrated whenever a native signed analytic connector is supplied. The shipped planner uses exact full-body checks by default; an optional request-local EDT multi-disc prefilter (default **off**) can skip proven-clear search poses, never final validation. Legacy `CheckOptions` defaults to full-footprint, not boundary-only. The optional oriented-rectangle clearance cost is zero by default; bounded validated-incumbent improvement is also opt-in.
 
+## Optional W8 post-search shortcut refinement
+
+`plan()` still returns the first strictly validated geometric path by
+default. To try bounded, obstacle-checked section-boundary shortcuts **only
+after planning**, use the new standalone core API:
+
+```cpp
+#include "hybrid_astar/ackermann/refinement.hpp"
+auto original = hybrid_astar::ackermann::plan(request);
+if (original.status == hybrid_astar::ackermann::PlanStatus::Success) {
+  auto refined = hybrid_astar::ackermann::refinePath(request, original);
+  // refined.path is populated only after the original was revalidated.
+  // Inspect refined.status: Improved, Unchanged, WorkBudgetExceeded, etc.
+}
+```
+
+The built-in proposal is a same-heading straight section shortcut.
+A third `RefinementConnector` argument may supply exact signed analytic
+arcs, including from an externally owned Reeds–Shepp evaluator. Every
+accepted replacement is strictly less costly under the configured weights
+and independently checked against the pinned map and entire filled vehicle.
+Failed candidates cannot discard the revalidated original. Strict
+**adaptive-sampled** geometry still does not prove continuous swept-body
+clearance or timed actuator feasibility. See
+[W8 refinement verification](docs/architecture/w8-refinement-verification.md)
+for regression fixtures, budgets and unresolved quality gates.
+
 ## Conventions
 
 - C++20, standard CMake; core has **zero ROS 2 dependencies**.
