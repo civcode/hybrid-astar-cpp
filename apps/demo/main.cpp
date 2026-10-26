@@ -1,4 +1,5 @@
 #include "apps/demo/demo.hpp"
+#include "apps/demo/map_io.hpp"
 #include <charconv>
 #include <cmath>
 #include <cstdlib>
@@ -118,7 +119,7 @@ void sendReply(int fd,int code,std::string_view type,const std::string& body) {
     offset+=static_cast<std::size_t>(sent);
   }
 }
-void handle(int client) {
+void handle(int client,const std::shared_ptr<const hybrid_astar::ackermann::MapSnapshot>& customMap) {
   char data[8193]{};
   const auto received=::recv(client,data,8192,0);
   if(received<=0)return;
@@ -135,15 +136,16 @@ void handle(int client) {
     if(route=="/"||route=="/index.html")sendReply(client,200,"text/html; charset=utf-8",loadAsset("index.html"));
     else if(route=="/app.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("app.js"));
     else if(route=="/style.css")sendReply(client,200,"text/css; charset=utf-8",loadAsset("style.css"));
-    else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson());
+    else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson(bool(customMap)));
     else if(route=="/api/plan") {
       const auto query=q==std::string_view::npos?std::string_view{}:url.substr(q+1);
       auto options=requestOptions(queryParameters(query));
+      options.customMap=customMap;
       sendReply(client,200,"application/json",hybrid_astar::demo::toJson(hybrid_astar::demo::run(options)));
     } else sendReply(client,404,"application/json",jsonError("Not found"));
   } catch(const std::exception& e) {sendReply(client,400,"application/json",jsonError(e.what()));}
 }
-void serve(unsigned int port,bool allowContainerInterface) {
+void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<const hybrid_astar::ackermann::MapSnapshot>& customMap) {
   const int server=::socket(AF_INET,SOCK_STREAM,0);
   if(server<0)throw std::runtime_error("Failed to create socket");
   const int reuse=1;::setsockopt(server,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
@@ -157,17 +159,18 @@ void serve(unsigned int port,bool allowContainerInterface) {
   std::cout<<std::flush;
   for(;;) {
     const int client=::accept(server,nullptr,nullptr);
-    if(client>=0){handle(client);::close(client);}
+    if(client>=0){handle(client,customMap);::close(client);}
   }
 }
 #endif
 void usage(){std::cout<<"Usage: hybrid_astar_demo [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
-  " [--start x y yawDeg] [--goal x y yawDeg] [--ompl] [--refine] [--curved] [--performance] [--improve]\n"
+  " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS] [--output FILE.json --once] [--ompl] [--refine] [--curved] [--performance] [--improve]\n"
   "Default: serve interactive UI on 127.0.0.1 only. --once prints machine-readable JSON.\n";}
 }
 int main(int argc,char** argv) {
   try {
     Options options;unsigned int port=8765;bool once=false;bool allowContainerInterface=false;
+    std::string mapFilename,outputFilename;double mapResolution=.25;
     for(int i=1;i<argc;++i) {
       const std::string arg=argv[i];
       if(arg=="--help"||arg=="-h"){usage();return 0;}
@@ -185,6 +188,15 @@ int main(int argc,char** argv) {
         if(bind=="127.0.0.1")allowContainerInterface=false;
         else if(bind=="0.0.0.0")allowContainerInterface=true;
         else throw std::invalid_argument("Bind address must be 127.0.0.1 or 0.0.0.0");
+      } else if(arg=="--map") {
+        if(i+1>=argc)throw std::invalid_argument("Missing PGM filename");
+        mapFilename=argv[++i];options.scenario="custom";
+      } else if(arg=="--resolution") {
+        if(i+1>=argc)throw std::invalid_argument("Missing map resolution");
+        mapResolution=number(argv[++i]);
+      } else if(arg=="--output") {
+        if(i+1>=argc)throw std::invalid_argument("Missing output filename");
+        outputFilename=argv[++i];
       } else if(arg=="--scenario") {
         if(i+1>=argc)throw std::invalid_argument("Missing scenario");
         options.scenario=argv[++i];
@@ -199,9 +211,19 @@ int main(int argc,char** argv) {
       else if(arg=="--improve")options.improve=true;
       else throw std::invalid_argument("Unknown flag: "+arg);
     }
-    if(once) {std::cout<<hybrid_astar::demo::toJson(hybrid_astar::demo::run(options))<<'\n';return 0;}
+    if(!mapFilename.empty())options.customMap=hybrid_astar::demo::loadPgm(mapFilename,mapResolution);
+    if(!outputFilename.empty()&&!once)throw std::invalid_argument("--output requires --once");
+    if(once) {
+      const auto json=hybrid_astar::demo::toJson(hybrid_astar::demo::run(options));
+      if(outputFilename.empty())std::cout<<json<<'\n';
+      else {
+        std::ofstream output(outputFilename,std::ios::binary|std::ios::trunc);
+        if(!output||!(output<<json<<'\n'))throw std::runtime_error("Cannot write output JSON");
+      }
+      return 0;
+    }
 #ifdef __unix__
-    serve(port,allowContainerInterface);
+    serve(port,allowContainerInterface,options.customMap);
 #else
     throw std::runtime_error("Local demo HTTP server requires POSIX sockets; use --once on this platform");
 #endif
