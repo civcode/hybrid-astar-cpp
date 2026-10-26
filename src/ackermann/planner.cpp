@@ -163,7 +163,10 @@ public:
         const double dy=local.y-std::clamp(local.y,bottom,bottom+r);
         if(std::hypot(dx,dy)<=tolerance) {
           dist_[idx]=0;
-          heap_.push({0.0,0.0,idx});
+          {
+            HotPathTimer timer(diag_.gridQueueNanoseconds);
+            heap_.push({0.0,0.0,idx});
+          }
           ++diag_.gridQueuePushes;
           diag_.gridQueuePeakSize=std::max(diag_.gridQueuePeakSize,heap_.size());
           diag_.gridQueuePeakStorageBytes=std::max(diag_.gridQueuePeakStorageBytes,heap_.storageBytes());
@@ -193,7 +196,10 @@ public:
     std::size_t work=0;
     while(work<perQueryLimit_&&diag_.gridSettlements<totalLimit_&&
           !heap_.empty()&&!settled_[target]) {
-      const auto item=heap_.pop();
+      const auto item=[&] {
+        HotPathTimer timer(diag_.gridQueueNanoseconds);
+        return heap_.pop();
+      }();
       const double distance=item.f;const std::size_t index=item.node;
       ++diag_.gridQueuePops;
       if(settled_[index]||distance>dist_[index]) {++diag_.gridQueueStalePops;continue;}
@@ -216,7 +222,11 @@ public:
         const double candidate=distance+m_.resolutionMeters*
                   ((dx&&dy)?std::numbers::sqrt2_v<double>:1.0);
         if(std::isfinite(candidate)&&candidate<dist_[next]) {
-          dist_[next]=candidate;heap_.push({candidate,candidate,next},next);
+          dist_[next]=candidate;
+          {
+            HotPathTimer timer(diag_.gridQueueNanoseconds);
+            heap_.push({candidate,candidate,next},next);
+          }
           ++diag_.gridQueuePushes;
           diag_.gridQueuePeakSize=std::max(diag_.gridQueuePeakSize,heap_.size());
           diag_.gridQueuePeakStorageBytes=std::max(diag_.gridQueuePeakStorageBytes,heap_.storageBytes());
