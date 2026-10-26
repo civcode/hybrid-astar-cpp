@@ -73,6 +73,14 @@ void validateOptions(const PlanOptions& o) {
       o.maxSamplesPerSection<2 || o.maxFinalSamplesPerSection<2 ||
       o.maxTotalFinalPoseChecks==0 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
       o.discPrefilterCount>64 ||
+      (o.gridQueueMode!=OpenQueueMode::BinaryLazy &&
+       o.gridQueueMode!=OpenQueueMode::FourAryLazy &&
+       o.gridQueueMode!=OpenQueueMode::IndexedBinary &&
+       o.gridQueueMode!=OpenQueueMode::IndexedFourAry) ||
+      (o.openQueueMode!=OpenQueueMode::BinaryLazy &&
+       o.openQueueMode!=OpenQueueMode::FourAryLazy &&
+       o.openQueueMode!=OpenQueueMode::IndexedBinary &&
+       o.openQueueMode!=OpenQueueMode::IndexedFourAry) ||
       !std::isfinite(o.performanceHeuristicWeight) ||
       o.performanceHeuristicWeight<1 || o.performanceHeuristicWeight>3 ||
       !std::isfinite(o.clearanceWeight) || o.clearanceWeight<0 ||
@@ -98,15 +106,6 @@ struct Node {
   MotionSection via;
 };
 struct Label { std::size_t node; double bestG; bool expanded; };
-struct Entry { double f,h; std::size_t node; };
-struct EntryWorse {
-  bool operator()(const Entry& a, const Entry& b) const {
-    if (a.f!=b.f) return a.f>b.f;
-    if (a.h!=b.h) return a.h>b.h;
-    return a.node>b.node;
-  }
-};
-using Queue=std::priority_queue<Entry,std::vector<Entry>,EntryWorse>;
 double goalErrorXY(const Pose2D& p,const Pose2D& g) { return std::hypot(p.x-g.x,p.y-g.y); }
 double goalErrorYaw(const Pose2D& p,const Pose2D& g) { return std::abs(wrap(p.yaw-g.yaw)); }
 double heuristic(const Pose2D& p,const Pose2D& goal,double tolerance) {
@@ -118,9 +117,9 @@ class LazyGrid {
 public:
   LazyGrid(const MapSnapshot& m,OccupancyPolicy p,const Pose2D& goal,
            double tolerance,std::size_t perQueryLimit,std::size_t totalLimit,
-           bool preventCornerCutting,PlanDiagnostics& diag)
+           bool preventCornerCutting,OpenQueueMode gridQueueMode,PlanDiagnostics& diag)
       : m_(m),p_(p),perQueryLimit_(perQueryLimit),totalLimit_(totalLimit),
-        preventCornerCutting_(preventCornerCutting),diag_(diag),
+        preventCornerCutting_(preventCornerCutting),diag_(diag),heap_(gridQueueMode),
         dist_(m.cells.size(),std::numeric_limits<double>::infinity()),
         settled_(m.cells.size(),false) {
     const auto local=mapLocal(goal);
@@ -150,7 +149,10 @@ public:
         const double dy=local.y-std::clamp(local.y,bottom,bottom+r);
         if(std::hypot(dx,dy)<=tolerance) {
           dist_[idx]=0;
-          heap_.emplace(0.0,idx);
+          heap_.push({0.0,0.0,idx});
+          ++diag_.gridQueuePushes;
+          diag_.gridQueuePeakSize=std::max(diag_.gridQueuePeakSize,heap_.size());
+          diag_.gridQueuePeakStorageBytes=std::max(diag_.gridQueuePeakStorageBytes,heap_.storageBytes());
           ++diag_.gridSeedCellsAccepted;
         }
       }
@@ -177,8 +179,10 @@ public:
     std::size_t work=0;
     while(work<perQueryLimit_&&diag_.gridSettlements<totalLimit_&&
           !heap_.empty()&&!settled_[target]) {
-      const auto [distance,index]=heap_.top();heap_.pop();
-      if(settled_[index]||distance>dist_[index])continue;
+      const auto item=heap_.pop();
+      const double distance=item.f;const std::size_t index=item.node;
+      ++diag_.gridQueuePops;
+      if(settled_[index]||distance>dist_[index]) {++diag_.gridQueueStalePops;continue;}
       settled_[index]=true;++work;++diag_.gridSettlements;
       const std::size_t cx=index%m_.width,cy=index/m_.width;
       for(int dy=-1;dy<=1;++dy) for(int dx=-1;dx<=1;++dx) {
@@ -198,7 +202,10 @@ public:
         const double candidate=distance+m_.resolutionMeters*
                   ((dx&&dy)?std::numbers::sqrt2_v<double>:1.0);
         if(std::isfinite(candidate)&&candidate<dist_[next]) {
-          dist_[next]=candidate;heap_.emplace(candidate,next);
+          dist_[next]=candidate;heap_.push({candidate,candidate,next},next);
+          ++diag_.gridQueuePushes;
+          diag_.gridQueuePeakSize=std::max(diag_.gridQueuePeakSize,heap_.size());
+          diag_.gridQueuePeakStorageBytes=std::max(diag_.gridQueuePeakStorageBytes,heap_.storageBytes());
         }
       }
     }
@@ -226,8 +233,7 @@ private:
   PlanDiagnostics& diag_;
   std::vector<double> dist_;
   std::vector<bool> settled_;
-  using Item=std::pair<double,std::size_t>;
-  std::priority_queue<Item,std::vector<Item>,std::greater<Item>> heap_;
+  SearchOpenQueue heap_;
 };
 void summarizePath(PlanResult& r) {
   Gear previous=Gear::None;
@@ -384,7 +390,7 @@ PlanResult plan(const PlanRequest& r) {
     std::vector<Node> nodes;
     nodes.reserve(std::min<std::size_t>(opt.maxGeneratedNodes,20000));
     std::unordered_map<SearchKey,Label,KeyHash> active;
-    Queue open;
+    SearchOpenQueue open(opt.openQueueMode);
     steering::AnalyticExpansionScheduler scheduler(opt.analytic);
     result.heuristicCertifiedAdmissible=opt.heuristicMode==HeuristicMode::CertifiedRegionEuclidean;
     std::unique_ptr<LazyGrid> grid;
@@ -392,7 +398,7 @@ PlanResult plan(const PlanRequest& r) {
       grid=std::make_unique<LazyGrid>(*r.map,r.occupancy,r.goal,
                        opt.goalXYToleranceMeters,opt.gridMaxSettlementsPerQuery,
                        opt.gridMaxTotalSettlements,opt.gridPreventDiagonalCornerCutting,
-                       result.diagnostics);
+                       opt.gridQueueMode,result.diagnostics);
     const auto estimate=[&](const Pose2D& p) {
       double h=heuristic(p,r.goal,opt.goalXYToleranceMeters);
       if (grid) {
@@ -419,6 +425,8 @@ PlanResult plan(const PlanRequest& r) {
     nodes.push_back({r.start,startKey,Gear::None,0.0,initialH,0.0,0,{}});
     active.emplace(startKey,Label{0,0.0,false});
     open.push({initialH,initialH,0});
+    result.diagnostics.openQueuePushes=1;result.diagnostics.openQueuePeakSize=1;
+    result.diagnostics.openQueuePeakStorageBytes=open.storageBytes();
     result.diagnostics.generated=1;
     bool strictFailure=false;
     PlanResult incumbent;
@@ -464,8 +472,13 @@ PlanResult plan(const PlanRequest& r) {
         if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
         result.status=PlanStatus::Cancelled;return result;
       }
-      const Entry item=open.top();open.pop();
-      const Node current=nodes[item.node]; // copy: nodes may grow while expanding
+      const OpenEntry item=open.pop();
+      ++result.diagnostics.openQueuePops;
+      // Copy only expansion fields, not the complete MotionSection. A
+      // reference would dangle if the node vector reallocates for children.
+      const auto& candidate=nodes[item.node];
+      const struct {Pose2D pose; SearchKey key; Gear gear; double g,h,clearanceCost;} current{
+        candidate.pose,candidate.key,candidate.gear,candidate.g,candidate.h,candidate.clearanceCost};
       auto label=active.find(current.key);
       if (label==active.end()||label->second.node!=item.node||label->second.expanded) {
         ++result.diagnostics.staleHeapPops;continue;
@@ -637,8 +650,16 @@ PlanResult plan(const PlanRequest& r) {
           const double h=weightedEstimate(sec.end);
           const auto id=nodes.size();
           nodes.push_back({sec.end,key,gear,g,h,current.clearanceCost+extra,item.node,sec});
+          const auto oldNode=found!=active.end()?
+              std::optional<std::size_t>(found->second.node):std::nullopt;
           active[key]={id,g,false};
-          open.push({g+h,h,id});
+          const bool replaced=open.push({g+h,h,id},oldNode);
+          ++result.diagnostics.openQueuePushes;
+          if(replaced)++result.diagnostics.openQueueReplacements;
+          result.diagnostics.openQueuePeakSize=
+              std::max(result.diagnostics.openQueuePeakSize,open.size());
+          result.diagnostics.openQueuePeakStorageBytes=
+              std::max(result.diagnostics.openQueuePeakStorageBytes,open.storageBytes());
           ++result.diagnostics.generated;
         }
       }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hybrid_astar/ackermann/search_config.hpp"
+#include "hybrid_astar/ackermann/open_queue.hpp"
 #include "hybrid_astar/steering/analytic_expansion.hpp"
 #include <atomic>
 #include <cstddef>
@@ -94,6 +95,8 @@ struct PlanOptions {
   std::size_t maxSamplesPerSection = 10000; // search only
   std::size_t maxFinalSamplesPerSection = 10000; // independent strict validator
   std::size_t maxTotalFinalPoseChecks = 250000; // cumulative strict whole-path checks
+  OpenQueueMode gridQueueMode = OpenQueueMode::BinaryLazy; // grid frontier A/B
+  OpenQueueMode openQueueMode = OpenQueueMode::BinaryLazy; // baseline
   std::size_t maxExpansions = 100000;
   std::size_t maxGeneratedNodes = 400000;
 };
@@ -114,6 +117,12 @@ struct PlanRequest {
 struct PlanDiagnostics {
   std::size_t expanded = 0, generated = 0, reopened = 0;
   std::size_t staleHeapPops = 0, prunedByKey = 0;
+  std::size_t openQueuePushes = 0, openQueuePops = 0;
+  std::size_t openQueueReplacements = 0, openQueuePeakSize = 0;
+  std::size_t openQueuePeakStorageBytes = 0;
+  std::size_t gridQueuePushes = 0, gridQueuePops = 0;
+  std::size_t gridQueueStalePops = 0, gridQueuePeakSize = 0;
+  std::size_t gridQueuePeakStorageBytes = 0;
   std::size_t searchPoseChecks = 0, finalPoseChecks = 0;
   std::size_t analyticAttempts = 0, analyticAccepted = 0;
   std::size_t gridSettlements = 0, gridFallbacks = 0;
