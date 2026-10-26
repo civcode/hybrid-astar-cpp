@@ -37,10 +37,11 @@ double quantile(std::vector<double> v,double q) {
   std::sort(v.begin(),v.end());
   return v[std::min(v.size()-1,static_cast<std::size_t>(std::ceil(q*v.size()))-1)];
 }
-struct Variant {const char* name;bool performance,ompl,refine;};
+struct Variant {const char* name;bool performance,ompl,refine,allowCornerCut=false;};
 PlanResult run(PlanRequest q,const Variant& variant) {
   if(variant.performance)
     q.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+  q.options.gridPreventDiagonalCornerCutting=!variant.allowCornerCut;
   PlanResult path;
 #ifdef HYBRID_ASTAR_HARD_CASES_WITH_OMPL
   if(variant.ompl)path=steering::planWithReedsShepp(q,variant.performance);
@@ -67,6 +68,7 @@ int main(int argc,char** argv) {
     const std::vector<Variant> variants={
       {"primitive",false,false,false},
       {"primitive_grid",true,false,false},
+      {"primitive_grid_legacy_diagonals",true,false,false,true},
       {"primitive_grid_refined",true,false,true},
 #ifdef HYBRID_ASTAR_HARD_CASES_WITH_OMPL
       {"ompl_rs",false,true,false},
