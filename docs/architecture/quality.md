@@ -8,7 +8,7 @@
 | NFR-002 | Efficient search | Generated / expanded / re-opened nodes, open-set peak, heuristic cache hit ratio |
 | NFR-003 | Bounded memory | Peak resident memory, bytes/node, per-request allocations, cache sizes; budget configurable |
 | NFR-004 | Robust numerical behavior | Endpoint error, turning-radius scaling, finite/NaN checks, extreme radii, degenerate configurations |
-| NFR-005 | Sampled collision at stored primitive/connector poses with **sound conservative hull-mask bypass** and rasterized footprint boundary **by default** with **optional** filled-interior blocked-cell check (`checkFootprintInterior=true`); no continuous swept collision certification; benchmark occupancy/mask/raster time (ADR-0029) |
+| NFR-005 | Exact filled-body collision at every checked pose | Rectangle/SAT vs closed blocked squares at search and stricter final samples; no hull-mask bypass or continuous swept certification; benchmark exact checker and future proof-verified accelerators (current implementation contract) |
 | NFR-006 | Reproducibility | Fixed seeds, inputs, build flags, map/config hash, machine/OS/compiler metadata |
 | NFR-007 | Thread safety / concurrency | Planner-instance ownership, immutable snapshot sharing, cache synchronization; TSAN where possible |
 | NFR-008 | Portability | Standalone Linux C++20 and CMake baseline first; validate additional toolchains by matrix |
@@ -55,9 +55,9 @@
 - [ ] Define reference machines and supported OS/compiler versions.
 - [ ] Set per-scenario planning latency budgets (p95/p99), if needed.
 - [ ] Set memory budgets and maximum grid/state dimensions.
-- [x] Accept sample-pose collision validation using a conservative orientation-hull map lookup and **boundary-only rasterized footprint edges by default**, with **interior grid-cell checks optional via API**. Boundary-only validation may miss enclosed obstacles; distinguish assurance explicitly (ADR-0029). No continuous swept guarantee; retained RK4 0.10 m sample spacing and optional adaptive subdivision off by default.
+- [x] Implement exact **filled-footprint** checks at every sampled pose; boundary-only is unsafe diagnostic mode, not planner default. Search/default reference spacing 0.10 m and independent strict-final reference spacing 0.05 m with body-motion adaptive density; **no continuous swept guarantee**. See [current contract](current-implementation.md).
 - [x] Accept initial Ackermann 0.10 m primitive-generator sample spacing for default collision checks (ADR-0025).
 - [ ] Set future stationary-model generation sample extents, optional adaptive threshold/budget and shape intersection numerical tolerances after targeted tests.
-- [x] Accept first Ackermann RK4 arc-length endpoint tolerance **0.0001 m** (ADR-0025).
+- [x] Use closed-form Ackermann SE(2) primitives for the first model instead of runtime RK4; evaluate actual analytic endpoints (consolidated §6).
 - [ ] Define model-independent numerical tolerances for poses, state constraints and collision shape intersection.
 - [ ] Define expected baseline success rate and path-quality comparisons.
