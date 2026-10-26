@@ -70,7 +70,7 @@ workspace. This is **not** a probabilistic or formal all-input proof.
 - Identical clearance integration is applied to primitives and signed analytic
   connector sections **before** key-cost dominance. The base edge cost stays
   a safe cheap lower bound because clearance is nonnegative.
-- No post-path smoothing/refinement or one-time strict-validation retry yet.
+- A separate **opt-in bounded post-path shortcut refiner** is now implemented with strict entire-path revalidation, original-path fallback, and native signed connector injection. See [W8 refinement verification](w8-refinement-verification.md) for the 7-suite local evidence. More general smoothing and the one-time strict-validation retry are still pending.
 
 ## Reproduction and preliminary result
 
