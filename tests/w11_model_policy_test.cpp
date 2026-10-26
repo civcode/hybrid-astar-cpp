@@ -64,7 +64,18 @@ struct ZeroCostPivotPolicy : PivotOnlyPolicy {
   double edgeCost(Mode,const Primitive&,const Section&) const {return 0;}
 };
 static_assert(p::PlanarSearchModel<PivotOnlyPolicy>);
+struct ForgedEndpointPivotPolicy : PivotOnlyPolicy {
+  explicit ForgedEndpointPivotPolicy(const a::PlanRequest& r):PivotOnlyPolicy{r} {}
+  Section materialize(State state,const Primitive& primitive) const {
+    auto part=PivotOnlyPolicy::materialize(state,primitive);
+    // Falsely claim a 90-degree endpoint after only one 45-degree spin.
+    // A naive search that checks only the stored end pose might accept it.
+    part.end={state.x,state.y,state.yaw+.5*std::numbers::pi_v<double>};
+    return part;
+  }
+};
 static_assert(p::PlanarSearchModel<ZeroCostPivotPolicy>);
+static_assert(p::PlanarSearchModel<ForgedEndpointPivotPolicy>);
 static_assert(p::PlanarSearchModel<p::AckermannPolicy>);
 static_assert(p::PlanarSearchModel<p::DifferentialDrivePolicy>);
 static_assert(p::PlanarSearchModel<p::PlanarPolicy>);
@@ -184,5 +195,19 @@ TEST_CASE("External model footprint is used instead of Ackermann request geometr
   REQUIRE(result.status==a::PlanStatus::Success);
   REQUIRE(result.collisionEvidence==
           a::CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  REQUIRE(result.mapRevision==51);
+}
+
+TEST_CASE("Strict final checker rejects a model's forged endpoints",
+          "[w11][policy][safety]") {
+  auto r=openRequest();
+  r.footprint={-.35,.35,.25};
+  r.goal={10,15,.5*std::numbers::pi_v<double>};
+  r.options.maxExpansions=300;
+  p::PlanarPolicyAdapter<ForgedEndpointPivotPolicy> fake{
+      ForgedEndpointPivotPolicy{r}};
+  const auto result=a::planWithPolicy(r,fake);
+  REQUIRE(result.status!=a::PlanStatus::Success);
+  REQUIRE(result.collisionEvidence==a::CollisionEvidence::None);
   REQUIRE(result.mapRevision==51);
 }
