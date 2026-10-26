@@ -11,7 +11,7 @@ using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 using namespace hybrid_astar::steering;
 
-static void require(bool c,const char* msg){if(!c) throw std::runtime_error(msg);}
+static void require(bool c,const char* msg) { INFO(msg); REQUIRE(c); }
 static double yawError(double a,double b) {
   return std::abs(std::remainder(a-b,2*std::numbers::pi));
 }

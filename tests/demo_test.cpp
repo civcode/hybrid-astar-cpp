@@ -6,7 +6,7 @@
 using namespace hybrid_astar;
 using namespace hybrid_astar::demo;
 using namespace hybrid_astar::ackermann;
-static void require(bool v,const char* msg){if(!v)throw std::runtime_error(msg);}
+static void require(bool v,const char* msg) { INFO(msg); REQUIRE(v); }
 static void runLegacyAssertions() {
   auto open=run({});
   require(open.original.status==PlanStatus::Success,"open plan success");

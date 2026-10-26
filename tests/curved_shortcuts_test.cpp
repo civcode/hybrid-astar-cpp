@@ -9,7 +9,7 @@
 #include <stdexcept>
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
-static void require(bool c,const char* why) {if(!c) throw std::runtime_error(why);}
+static void require(bool c,const char* why) { INFO(why); REQUIRE(c); }
 static std::shared_ptr<MapSnapshot> openMap() {
   auto m=std::make_shared<MapSnapshot>();m->width=m->height=400;m->resolutionMeters=.2;
   m->cells.assign(160000,0);m->revision=77;return m;

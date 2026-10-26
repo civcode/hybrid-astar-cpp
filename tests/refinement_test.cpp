@@ -8,7 +8,7 @@
 #include <stdexcept>
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
-static void must(bool x,const char* why) {if(!x) throw std::runtime_error(why);}
+static void must(bool x,const char* why) { INFO(why); REQUIRE(x); }
 static std::shared_ptr<MapSnapshot> map() {
   auto m=std::make_shared<MapSnapshot>();
   m->width=m->height=400;

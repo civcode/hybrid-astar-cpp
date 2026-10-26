@@ -5,7 +5,7 @@
 #include <memory>
 #include <stdexcept>
 using namespace hybrid_astar;using namespace hybrid_astar::ackermann;
-static void require(bool yes,const char* what){if(!yes) throw std::runtime_error(what);}
+static void require(bool yes,const char* what) { INFO(what); REQUIRE(yes); }
 static std::shared_ptr<MapSnapshot> map() {
   auto m=std::make_shared<MapSnapshot>();
   m->width=m->height=200;m->resolutionMeters=.2;

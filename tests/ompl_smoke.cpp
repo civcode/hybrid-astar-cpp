@@ -9,7 +9,7 @@
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 using namespace hybrid_astar::steering;
-static void check(bool yes,const char* reason){if(!yes) throw std::runtime_error(reason);}
+static void check(bool yes,const char* reason) { INFO(reason); REQUIRE(yes); }
 static int runLegacyAssertions() {
   ReedsSheppEvaluator evaluator(4.0);
   const Pose2D start{20,20,0};

@@ -8,7 +8,7 @@
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 using namespace hybrid_astar::steering;
-static void require(bool okay,const char* msg) {if(!okay) throw std::runtime_error(msg);}
+static void require(bool okay,const char* msg) { INFO(msg); REQUIRE(okay); }
 static void runLegacyAssertions() {
   const Pose2D start{20,20,0};
   const std::array<SignedSegment,5> parts{{{SegmentTurn::Straight,2},

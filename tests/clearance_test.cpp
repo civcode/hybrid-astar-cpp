@@ -6,7 +6,7 @@
 #include <stdexcept>
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
-static void require(bool ok,const char* why) {if(!ok) throw std::runtime_error(why);}
+static void require(bool ok,const char* why) { INFO(why); REQUIRE(ok); }
 static void runLegacyAssertions() {
   auto map=std::make_shared<MapSnapshot>();
   map->width=map->height=400;map->resolutionMeters=.1;

@@ -7,7 +7,7 @@
 #include <stdexcept>
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
-static void require(bool x,const char* msg) {if(!x) throw std::runtime_error(msg);}
+static void require(bool x,const char* msg) { INFO(msg); REQUIRE(x); }
 static void runLegacyAssertions() {
   std::mt19937_64 rng(198260);
   std::uniform_real_distribution<double> xy(-2,25),yaw(-3.15,3.15);

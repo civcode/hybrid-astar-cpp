@@ -17,7 +17,7 @@ static MapSnapshot makeMap(double resolution=.2) {
   m.revision=7;m.frameId="map";m.sourceId="test";
   return m;
 }
-static void expect(bool x,const char* message) { if(!x) throw std::runtime_error(message); }
+static void expect(bool x,const char* message) { INFO(message); REQUIRE(x); }
 
 static void runLegacyAssertions() {
   const double pi=std::numbers::pi;
