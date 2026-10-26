@@ -182,6 +182,9 @@ if(HYBRID_ASTAR_BUILD_APP)
         ${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/web/map_geometry.test.js)
     endif()
     add_test(NAME demo_cli_open COMMAND hybrid_astar_demo --once --scenario open)
+    add_test(NAME demo_cli_differential_spin COMMAND hybrid_astar_demo
+      --once --model differential --scenario open
+      --start 10 15 0 --goal 10 15 90)
     add_test(NAME demo_cli_import_pgm COMMAND hybrid_astar_demo
       --once --map ${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/maps/sample.pgm
       --resolution 0.5)
