@@ -175,6 +175,16 @@ private:
   using Item=std::pair<double,std::size_t>;
   std::priority_queue<Item,std::vector<Item>,std::greater<Item>> heap_;
 };
+void summarizePath(PlanResult& r) {
+  Gear previous=Gear::None;
+  for (std::size_t i=0;i<r.sections.size();++i) {
+    const auto& section=r.sections[i];
+    r.geometricLengthMeters+=section.lengthMeters;
+    if (section.gear==Gear::Reverse) r.reverseLengthMeters+=section.lengthMeters;
+    if (previous!=Gear::None && previous!=section.gear) r.gearChangeSectionIndices.push_back(i);
+    previous=section.gear;
+  }
+}
 enum class MotionStatus { Clear, Colliding, Incomplete, Cancelled };
 MotionStatus checkMotion(const MotionSection& section, const ExactCollisionChecker& checker,
                          double step, double bodyStep, std::size_t limit, std::size_t& checks,
@@ -362,6 +372,7 @@ PlanResult plan(const PlanRequest& r) {
           result.goalYawErrorRadians=goalErrorYaw(current.pose,r.goal);
           result.collisionEvidence=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
           result.modelGeometryValid=true;
+          summarizePath(result);
           return result;
         }
         strictFailure=true; // Never report an invalid candidate as Success.
@@ -431,6 +442,7 @@ PlanResult plan(const PlanRequest& r) {
               result.collisionEvidence=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
               result.modelGeometryValid=true;
               ++result.diagnostics.analyticAccepted;
+              summarizePath(result);
               return result;
             }
             strictFailure=true;
