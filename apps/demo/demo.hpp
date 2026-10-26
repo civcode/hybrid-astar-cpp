@@ -27,5 +27,5 @@ struct Outcome {
 ackermann::PlanRequest makeRequest(std::string_view scenario);
 Outcome run(const Options& options);
 std::string toJson(const Outcome& result);
-std::string capabilitiesJson(bool customMapAvailable=false);
+std::string capabilitiesJson(const ackermann::MapSnapshot* customMap=nullptr);
 } // namespace hybrid_astar::demo
