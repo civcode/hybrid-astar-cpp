@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hybrid A* · Planning Lab</title><link rel="stylesheet" href="/style.css"/></head>
+<body><main class="shell">
+<header class="top"><div><div class="eyebrow">C++20 / ACKERMANN + DIFFERENTIAL DRIVE / STATIC MAP</div>
+<h1>Planning <span>Lab</span></h1><p class="subtitle">Explore validated Hybrid A* paths and exact motion arcs.</p></div>
+<div class="status-chip" id="connection">LOCAL DEMO</div></header>
+<div class="layout"><aside class="panel controls">
+<div class="heading"><span>01</span> PLAN CONFIGURATION</div>
+<label class="label" for="model">Kinematic model</label>
+<select id="model"><option value="ackermann">Ackermann steering</option>
+<option value="differential">Differential drive (in-place rotation)</option>
+<option value="mecanum">Mecanum (sideways + rotation)</option></select>
+<label class="label" for="scenario">Environment</label><select id="scenario">
+<option value="open">Open field</option><option value="reverse">Reverse maneuver</option>
+<option value="parking">Parking approach</option><option value="warehouse">Warehouse obstacles</option>
+<option value="blocked">Unreachable wall</option><option value="custom" id="customOption" hidden>Imported map</option></select>
+<div class="divider"></div><div class="section-label">START POSE <small>Click map to place</small></div>
+<div class="coords"><label>X (m)<input id="startx" type="number" step="0.25"/></label><label>Y (m)<input id="starty" type="number" step="0.25"/></label><label>Yaw (°)<input id="startyaw" type="number" step="5"/></label></div>
+<div class="section-label">GOAL POSE <small>Shift-click map to place</small></div>
+<div class="coords"><label>X (m)<input id="goalx" type="number" step="0.25"/></label><label>Y (m)<input id="goaly" type="number" step="0.25"/></label><label>Yaw (°)<input id="goalyaw" type="number" step="5"/></label></div>
+<div class="divider"></div><div class="section-label">MAP EDITING <small>Drag to paint cells</small></div>
+<label class="label" for="editMode">Map interaction</label>
+<select id="editMode">
+<option value="start">Move start (Shift: goal)</option>
+<option value="goal">Move goal</option>
+<option value="blocked">Paint obstacle</option>
+<option value="free">Paint free</option>
+<option value="unknown">Paint unknown</option>
+<option value="restore">Restore original cell</option>
+</select>
+<label class="label" for="brushSize">Brush radius (cells)</label>
+<select id="brushSize"><option value="0">1 cell</option><option value="1">3-cell diameter</option>
+<option value="2">5-cell diameter</option><option value="3">7-cell diameter</option></select>
+<div class="edit-row"><button id="resetMap" class="secondary" disabled>Reset map edits</button>
+<span id="editCount">0 changed cells</span></div>
+<div class="divider"></div><div class="section-label">PLANNING OPTIONS</div>
+<label class="check"><input type="checkbox" id="ompl"/><span>Reeds–Shepp analytic connector <em id="omplInfo"></em></span></label>
+<label class="check"><input type="checkbox" id="performance"/><span>Obstacle-grid heuristic <small>(noncertified)</small></span></label>
+<label class="check"><input type="checkbox" id="improve"/><span>Bounded incumbent improvement</span></label>
+<label class="check"><input type="checkbox" id="refine"/><span>Strict post-path refinement</span></label>
+<label class="check nested"><input type="checkbox" id="curved"/><span>Native curved CSC candidates</span></label>
+<button id="planButton" class="primary">Plan path <span>↗</span></button><button id="exportButton" class="secondary" disabled>Export path JSON ↓</button>
+<div class="hint">Runs the C++ planner locally. Only strictly validated paths are shown as successful. Motion remains sampled, not swept-certified.</div>
+</aside>
+<section class="visual">
+<div class="canvas-head"><div><div class="heading"><span>02</span> MAP VIEW</div><h2 id="sceneTitle">Open field</h2></div>
+<div class="legend"><span><i class="forward"></i>Forward</span><span><i class="reverse"></i>Reverse</span><span><i class="rotate"></i>Rotate</span><span><i class="holonomic"></i>Sideways / holonomic</span><span><i class="blocked"></i>Occupied</span></div></div>
+<div class="map-wrap"><canvas id="map" aria-label="Occupancy map with computed route"></canvas><div class="map-hint">Select brush to paint · Drag on map · Click/Shift-click for poses</div>
+<div id="overlay" class="overlay">Preparing map…</div></div>
+<div class="playback"><button id="playButton" title="Animate along route" aria-label="Play or pause path">▶</button><input aria-label="Position along path" id="position" type="range" min="0" max="1000" value="0"/><span id="travel">0%</span>
+<label class="show-original"><input id="showOriginal" type="checkbox" checked/> Show original</label></div>
+<div class="readout" id="message" role="status">Choose a scenario and plan a path.</div>
+<div class="metrics"><div><span>PATH COST</span><strong id="cost">—</strong></div><div><span>PATH LENGTH</span><strong id="length">—</strong></div>
+<div><span>REVERSE</span><strong id="reverseLen">—</strong></div><div><span>EXPANSIONS</span><strong id="expanded">—</strong></div>
+<div><span>PLANNING TIME</span><strong id="elapsed">—</strong></div></div>
+</section></div><footer>Hybrid A* Planning Lab · Geometric path planning · No actuator or swept-volume safety claim</footer></main>
+<script src="/map_geometry.js" defer></script><script src="/map_editor.js" defer></script><script src="/app.js" defer></script></body></html>

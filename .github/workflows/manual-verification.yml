@@ -1,0 +1,79 @@
+name: Manual C++ verification
+
+# Intentionally opt-in: no push, pull_request, schedule or chained triggers.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Run one suite only; quick is the least expensive'
+        required: true
+        type: choice
+        default: quick
+        options:
+          - quick
+          - sanitizers
+          - ompl
+
+run-name: 'Manual ${{ inputs.suite }} verification on ${{ github.ref_name }}'
+
+permissions:
+  contents: read
+
+# A new request for the same branch cancels the previous manual run,
+# preventing redundant runner-minutes from overlapping attempts.
+concurrency:
+  group: 'manual-cpp-${{ github.repository }}-${{ github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  quick:
+    if: ${{ inputs.suite == 'quick' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure core, Catch2 3.16.1 and demo
+        run: |
+          cmake -S . -B build-ci -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DHYBRID_ASTAR_BUILD_TESTS=ON \
+            -DHYBRID_ASTAR_BUILD_APP=ON \
+            -DHYBRID_ASTAR_ENABLE_OMPL=OFF
+      - name: Build (bounded parallelism)
+        run: cmake --build build-ci --parallel 2
+      - name: Run CTest (includes W11/W12, CLI, HTTP and map tests)
+        run: ctest --test-dir build-ci --output-on-failure --parallel 2 --timeout 180
+
+  sanitizers:
+    if: ${{ inputs.suite == 'sanitizers' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure ASan/UBSan with Catch2 3.16.1 and demo
+        run: |
+          cmake -S . -B build-sanitizers -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DHYBRID_ASTAR_BUILD_TESTS=ON \
+            -DHYBRID_ASTAR_BUILD_APP=ON \
+            -DHYBRID_ASTAR_ENABLE_OMPL=OFF \
+            '-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer' \
+            '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined'
+      - name: Build (bounded parallelism)
+        run: cmake --build build-sanitizers --parallel 2
+      - name: Run sanitized CTest sequentially
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build-sanitizers --output-on-failure --parallel 1 --timeout 240
+
+  ompl:
+    if: ${{ inputs.suite == 'ompl' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build OMPL 2.0.2 and run Docker CTest integration suite
+        # Reuses the existing manual Docker test target; OMPL is built from
+        # the pinned 2.0.2 source and Catch2 is fetched by project CMake.
+        run: docker compose run --build --rm test

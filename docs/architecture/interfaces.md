@@ -1,0 +1,242 @@
+> **Current implementation precedence (2026-10-26):** This file preserves the baseline design history/proposal. Where defaults, collision assurance, Ackermann integration, heuristics or RS scheduling differ, follow the [current implementation contract](current-implementation.md) and its work-package statuses. The [consolidated external reviews](Hybrid_AStar_Consolidated_Specification.md) are proposed design guidance, **not** an already approved ADR or evidence of completed features.
+
+# Interface contracts — proposed v0.1 (pre-implementation)
+
+**All C++ fragments are illustrative API sketches, not compilable headers.** Exact names, constness, templates, error types and ownership will be reviewed *before coding*. The requirements are semantic; implementations may choose concept-based static dispatch for hot paths, and type erasure at application boundaries.
+
+## Shared semantics and units
+
+- Positions and collision geometry are 2D in **meters**; headings/steering in **radians**, time in seconds; avoid implicit units conversions. Follow REP-103 right-handed body axes (+X forward, +Y left) and counterclockwise-positive yaw about +Z.
+- State includes all variables that influence propagation, collision-body poses, or future reachability. A world pose `Pose2D{x,y,yaw}` is a projection of state, **not** necessarily the full state.
+- An integration domain may be signed travel distance or nonnegative time; they are not interchangeable for stationary rotation.
+- State controls, gear and maneuver events are **model-specific**. Never require all models to expose turning radius, steering angle, or reverse movement.
+- Holonomic chassis motion may translate sideways at constant heading or translate and rotate simultaneously; body yaw and travel tangent are independent. The search cannot infer feasibility from a holonomic/nonholonomic flag.
+- Every path and map has a known coordinate frame and a bounded validity context (map version and model/config identity). The default planning frame is `map` under REP-105. Start, goal, snapshot, and output frames must agree; ROS transforms are applied externally.
+- Prefer status/result values at request boundaries over uncaught exceptions in planning hot paths.
+
+## 1. Configuration and environment
+
+```cpp
+struct Pose2D { double x, y, yaw; };
+struct GridGeometry {
+    double resolution;
+    Pose2D origin;
+    uint32_t width, height;
+    std::string frameId; // public-side metadata, not per-cell
+};
+
+enum class UnknownCellPolicy { Occupied, Free, Reject };
+struct OccupancyPolicy {
+    uint8_t maxTraversableOccupancy = 0; // known c traversable iff c <= max
+    UnknownCellPolicy unknownCells = UnknownCellPolicy::Occupied;
+};
+struct CollisionCheckOptions {
+    bool checkFootprintInterior = false; // default: boundary-only polygon/rectangle raster checks, ADR-0029
+    bool adaptiveSubdivision = false; // optional additional pose samples, ADR-0022
+    // Default: check stored RK4 primitive samples; no separate fixed spacing.
+    // If adaptive: additional intermediate states/limits, TBD.
+};
+struct PlanningOptions {
+    OccupancyPolicy occupancy{};
+    CollisionCheckOptions collision{}; // request-level validation behavior
+};
+struct MapData {
+    GridGeometry geometry;
+    std::vector<int8_t> occupancy;  // candidate representation; OQ-023 still open
+    MapIdentity identity;            // source/reset identity, exact type TBD
+    uint64_t revision;
+};
+using MapSnapshot = std::shared_ptr<const MapData>;
+// A map provider atomically publishes the latest immutable shared handle.
+```
+
+**Accepted OQ-006 occupancy and live-map contract (ADRs 0017–0019):** the immutable snapshot preserves original cell semantics (`-1` unknown, `0` known free, `1..99` intermediate occupancy, `100` occupied). Each request explicitly selects `Occupied` (the default for frontier exploration), `Free` (optimistic, with provisional map-validity status), or `Reject` (dedicated request-validation error when **any cell of the supplied map** is unknown, checked before search). The policy belongs to planning options, **not the map snapshot**, and must agree across collision/traversability and heuristic interpretation. It never rewrites or duplicates the occupancy data merely to select a policy. Known cell `c in [0,100]` is traversable iff `c <= maxTraversableOccupancy`; the **configurable default is `0`**, i.e. only known-free `0` cells are traversable. Unknown `-1` never uses the numeric comparison ([ADR-0018](../adr/0018-known-free-only-occupancy-threshold.md)).
+
+**Accepted ADR-0019:** publish privately built, immutable whole-grid `shared_ptr<const MapData>` snapshots via atomic latest-handle exchange at the map-provider boundary. Pin one revision per request; neither occupancy nor metadata of a published revision may mutate. Map source identity plus revision prevents reset collisions. Begin with a contiguous-grid copy on publication; consider tiled/COW storage only if measured necessary. Model-only caches survive map updates; derived map caches are rebuilt **on demand** unless all effective inputs match, with bounded retention. Strict `Reject` checks the **whole provided map upfront**, not whichever cells happen to be visited during search. See [ADR-0019](../adr/0019-live-map-snapshot-cache-and-reject.md) and [design rationale](live-map-snapshots-and-cache-proposal.md). Signed `int8_t` above is a candidate wire-compatible representation; alternative typed occupancy storage remains open. Occupied-probability threshold and invalid-encoding behavior must be explicit, and Nav2 uint8 costmaps require conversion rather than raw reinterpretation. Grid indices use `index = j*width+i` (X-fastest); grid origin is the lower-left corner of cell `(0,0)` with a `(+0.5,+0.5)` cell-center offset. World/grid conversions must handle rotated origins through full SE(2), floor negative coordinates correctly, and check bounds. Details: [map-coordinates.md](map-coordinates.md).
+
+Plan configuration is a validated immutable typed structure. YAML/JSON adapters own parsing and versioning, not search.
+
+## 2. Kinematic model
+
+The model is defined primarily by the controlled differential equation `dq/dt = f(q,u;p)`, the valid state/control sets, state-to-pose projection and model-defined collision-frame transforms. A full mathematical definition, C++20 concept sketch, and examples for differential drive, bicycle/Ackermann, ideal mecanum and articulation are in [kinematic-models.md](kinematic-models.md).
+
+Contract:
+- **Accepted ADR-0021:** model owns state, control, tangent/derivative, state/control validity, reference pose and transforms of its named rigid-body frames. Feasible control bounds may depend on state. It **does not own collision shapes, collision checking, integration, primitive enumeration or Hybrid A***; these are separate contracts.
+- **Integration is separate**: a numerical/analytical propagator evaluates the vector field and yields intermediate states for collision and path reconstruction. Exact propagation may be specialized by a model.
+- The primary ODE uses time; local primitive progress and final geometric path progress are separate representations, not an MPC execution schedule.
+- Capability queries describe possibilities, but do not replace checking admissible controls. In particular do not branch search on `isHolonomic()`.
+- State may live on a manifold (e.g. yaw or joint angles), with model-defined tangent/state-update conventions; discrete modes are not differentiated.
+- Implementation priority: differential drive and geometric bicycle/Ackermann. Ideal mecanum is the third **reference and integration-test model**. Articulated state support remains a design extension, not a claim of implementation.
+- **Accepted OQ-007:** initial Ackermann model is `(x,y,yaw)` with fixed-curvature straight/left/right primitives and optional intermediate curvatures ([ADR-0014](../adr/0014-fixed-curvature-ackermann-baseline.md)). Steering angle is a primitive control, not baseline state. Raw arc concatenations do not guarantee finite steering rate; later refinement or a separate four-state model must validate this requirement.
+
+## 3. Motion primitive generation and indexing
+
+```cpp
+template<class M> struct PrimitiveCandidate {
+    typename M::Control control;
+    typename M::PrimitiveExtent extent;  // geometric; model-defined units
+    uint32_t primitiveId;
+};
+template<class State> struct PrimitiveSample {
+    double lambda;                       // ordered progress in [0,1]
+    State state;                         // complete state (template-local or world)
+};
+template<class State> struct GeneratedPrimitive {
+    State endState;                      // evaluate(1), within numeric tolerance
+    double traveledLength;               // nonnegative geometric translation length
+    std::vector<PrimitiveSample<State>> samples; // debug/visualization checkpoints
+    // Retained extent, control law and motion-evaluation data.
+    // evaluate(lambda) -> full State via compatible numerical trajectory.
+};
+template<class M> concept PrimitiveProvider = requires(
+    const M& model, const typename M::State& q,
+    PrimitiveBuffer<typename M::Control>& controls)
+{
+    // Model-dependent control and extent generation.
+    // Candidate evaluation returns intermediate states + final state.
+};
+template<class M> concept StateIndexer = requires(
+    const M& model, const typename M::State& q)
+{
+    // quantize(q) -> hashable/equatable model-aware search key
+};
+```
+
+Contracts:
+- **Accepted ADR-0023:** generate translating primitive endpoints using RK4 on the model ODE, accumulating actual traveled arc length; stop at requested length within a configured tolerance, iteratively refining the terminal integration step when needed. Record reverse as motion direction, not negative geometric length. Stationary angular/articulation primitives stop at their model-specific configuration extent (ADR-0012).
+- **Every generated primitive retains complete-state ordered trajectory samples**, including start/end and normalized local progress, for visualization/debugging. Preserve the control law and numerical evaluation representation so `evaluate(lambda)` can reproduce the full state between checkpoints; sampled-point linear interpolation alone is not necessarily model feasible. Instantiated endpoint, stored final sample and `evaluate(1)` must agree within declared numerical tolerances.
+- **Search consumes generated/instantiated evaluable primitives**, rather than invoking a general-purpose RK4 solver at every expansion when a reusable catalog applies. Only cache SE(2)-relative templates for models/configurations where their full-state evolution is truly reusable. State-dependent articulated primitives may need internal-state-keyed caches or generation on demand; cached local trajectories must still transform against the **continuous** parent state.
+- **Accepted initial Ackermann coupling (ADR-0025):** the 0.50 m primitive's **six 0.10 m-spaced complete-state samples** (including start and end) are *both* visualization/debug points and the **default complete-body collision-check poses during search expansion**. No separate fixed collision sampling schedule or interpolated straight line between search nodes is required. Adaptive mode alone may query additional states between the stored points (ADRs 0022 and 0025); these do not become additional search nodes.
+- **Accepted OQ-002:** translating primitives use explicit traveled-distance extents; zero-translation rotations/steering/articulation maneuvers use model-specific angular/configuration extents ([ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md)). **ADR-0023** selects RK4 primitive generation with a traveled-length termination criterion, stored trajectory samples and full-state numerical evaluation. Kinematic models retain time-domain ODEs; spatial reparameterization must not divide by zero at stationary motions. The exact typed extent/control-law signature and numerical tolerances are still under review.
+- Search node stores continuous state, accumulated `g`, stable parent reference and the exact action/connector necessary to reconstruct its edge.
+- The **model-specific** discretized key includes configuration dimensions necessary to distinguish reachability and collision geometry (e.g. articulation for a four-state model). **Accepted Ackermann MVP (ADR-0025):** use `(xBin, yBin, yawBin, incomingGear)` with **0.25 m / 0.25 m / **5° (72 bins)**** bins and distinct forward/reverse modes, to make the chosen gear-switch cost history-aware. The physical model state is still `(x,y,yaw)`; a start node has no previous gear. Quantization may still merge nonequivalent continuous states.
+- **Accepted OQ-001:** exactly **one retained continuous node per complete discretized key** in the initial Hybrid A* ([ADR-0013](../adr/0013-single-label-search-baseline.md), superseding ADR-0010). Keep continuous state, `g`, parent and incoming primitive on the node; do not implement multi-label storage, retention policies or runtime selection in the baseline. Relaxation, reopening and stale-queue handling are required. **For Ackermann, incoming forward/reverse mode is included in the key by ADR-0025**; primitive ID and curvature selection need not be.
+- One lowest-`g` arrival per discretized key is **approximate pruning** because equal keys do not imply identical future reachability. Incoming-primitive-dependent effort costs also introduce history dependence not represented by the key. We explicitly accept this simplification and make no global optimality or resolution-completeness guarantee. Optional refinement cannot always recover a discarded arrival or alternative homotopy.
+- Precomputation is allowed only if validity assumptions (initial internal state, control limits, etc.) remain true.
+
+## 4. Geometry and collision
+
+```cpp
+using CollisionShape2D = std::variant<Circle, Rectangle, ConvexPolygon>;
+struct CollisionBody2D {
+    FrameId frame;          // model-defined rigid-body frame
+    Pose2D localOffset;     // frame -> shape transform
+    CollisionShape2D shape;
+    double safetyMargin;
+};
+struct RobotGeometry {
+    std::vector<CollisionBody2D> bodies; // immutable throughout a request
+};
+template<class M>
+concept CollisionValidator = requires(
+    const M& model, const typename M::State& state,
+    const TrajectoryView<typename M::State>& motion,
+    const MapSnapshot& map,
+    const CollisionCheckOptions& options)
+{
+    // stateValid(state, map) -> CollisionCheckResult
+    // motionValid(motion, map) -> CollisionCheckResult
+};
+```
+
+**ADRs 0021–0022, with first-Ackermann narrow-phase revised by ADR-0029:** collision geometry is an independent immutable collection of model-frame-attached circles, rectangles and convex polygons, with compound or nonconvex bodies represented by multiple shapes. For every body, evaluate `T_world_shape(q) = T_world_frame(q) * T_frame_shape`. This supports arbitrary finite multi-trailer shape configurations **provided the model defines all transforms and joint kinematics**; efficient multi-trailer search is not guaranteed or part of the MVP. Validate frame references at setup. Collision checking evaluates **all** bodies along complete motions, including when the reference point is stationary. At each evaluated state, use the **conservative orientation-envelope collision-possibility lookup** (keyed to the pinned map/occupancy policy/robot configuration). On a possibly colliding state, perform **conservative rasterized footprint boundary-cell checks by default**, with **optional interior occupied-cell scanning** when `collision.checkFootprintInterior=true` (scanline fill/containment); do not require full polygon-vs-grid-square SAT for the first Ackermann implementation. The default boundary-only raster mode **can miss a blocked cell completely enclosed by the footprint**; report `BoundaryOnlyPoseSampled`, never full-footprint collision assurance. With the optional interior check and sound raster coverage, report `FullFootprintPoseSampled`; neither mode certifies continuous swept collision freedom. Circle/compound geometry needs its own conservative raster/coverage rule (ADR-0029). For the initial Ackermann MVP, the checker uses **the already stored RK4 primitive samples at 0.10 m arc-length spacing** (six complete states for each 0.50 m primitive), including start/end, and **no separate default collision sampling scheduler**; a request can opt into additional body-motion-aware subdivision through `adaptiveSubdivision=true`, default **false**. Other maneuvers may need their own generation-sample domain; adaptive thresholds/budgets and intersection numerical tolerances remain implementation-facing details ([ADR-0025](../adr/0025-approved-ackermann-mvp-settings-and-primitive-sample-collision.md), [ADR-0022](../adr/0022-opt-in-adaptive-collision-subdivision.md)). Self-collision pair exclusions and future continuous swept certification remain open (OQ-014/OQ-009). Both fixed primitive and adaptive trajectory sampling give **pose-sampled, non-continuous collision assurance**; additionally report whether footprint raster coverage is **boundary-only** or **boundary+interior**, not a certified continuous sweep.
+
+## 5. Heuristics and analytic steering functions
+
+```cpp
+struct HeuristicValue {
+    double lowerBoundCost;
+    bool certifiedAdmissible;
+};
+
+template<class State>
+concept SteeringConnector = requires(const State& a, const State& b)
+{
+    // shortestPath(a,b) -> model-compatible optional path
+    // distanceLowerBound(a,b) -> cost lower bound, if available
+};
+```
+
+Contract:
+- **ADRs 0015 and 0027:** the **first Ackermann search uses the combined RS+2D-grid heuristic as its explicitly labeled performance-oriented default**, without an admissibility or optimality claim. A **separate certified fallback mode** uses only proven goal-region-compatible lower bounds (e.g. Euclidean to the accepted XY tolerance region, or zero); weighted/experimental modes must report their weaker guarantees. Reverse Dijkstra estimates obstacle-aware distance from a **static** map; key/cache includes map version/goal/grid and free-space policy. **The initial implementation uses lazy multi-source reverse Dijkstra:** seed the traversable XY goal-region cells once on cache miss, retain its min-heap and distance/status arrays, resume only until a queried cell is settled or a work budget/frontier exhaustion is reached. Return a distinct unavailable/unreachable status plus finite RS/Euclidean fallback rather than a fabricated infinite heuristic. Reuse a partially built field across replans only with exactly matching effective map/goal/policy/2D graph inputs; **allow only one active request per planner instance**; overlapping requests fail fast with Busy/ConcurrentRequest. Different instances may share immutable maps but not mutable Dijkstra frontiers.
+- Heuristics combine as `max(h_obstacle, h_model)` **only when both are proven lower bounds on the configured `g` cost**. Otherwise use a documented nonadmissible search mode; do not claim optimality.
+- **Required performance mode (ADR-0027):** `h=max(h_RS_obstacle_free,h_2D_grid_obstacle_aware)`, using an OMPL-backed RS distance-only steering adapter and a compatible **lazy cached multi-source** goal-rooted reverse-Dijkstra occupancy-grid field. These raw values are **not automatically admissible** for our nonzero goal tolerance and discrete-cell graph. Retain a separately certified lower-bound mode using proven goal-region-compatible bounds; annotate the chosen heuristic guarantee. Cache matching map/goal/policy/grid fields and optionally bounded RS relative-pose lookup. Obstacle-*clearance* and collision-candidate maps are different artifacts from the goal-distance heuristic.
+- **Blocked nominal center, goal tolerance and grid disconnection (ADR-0027):** seed all traversable XY map cells whose **square intersects** the XY tolerance disk. Require correct 3-state heading tolerance and configured footprint coverage only when accepting an actual terminal state. Grid cell seed does not imply a valid terminal pose. When 2D graph data is unsettled or disconnected, use a finite model/Euclidean fallback instead of `h=+infinity`, and never reject a feasible Hybrid A* branch solely from that grid estimate.
+- Discrete 2D shortest-path distances and any obstacle approximation can *overestimate* continuous robot path distance; a reverse-Dijkstra field **cannot be marked certified** until a conservative bound is proven/corrected. A certified heuristic does not undo quantized-key pruning (ADR-0013).
+- **ADRs 0026–0028 require adaptively scheduled OMPL-backed Reeds–Shepp expansion for the first 3-state Ackermann implementation.** Generate one complete analytic path from the actual **continuous** popped-node pose to the exact goal on the **first non-stale node**, and retry from selected later nodes by Nav2-style scheduling using a **closest-observed heuristic** in **map-cell-equivalent units**, with configurable `analyticExpansionRatio` (initial tuning value 3.5). **No fixed XY/proximity trigger is part of the API.** Each attempted full path may have multiple signed sections/cusps; sample each section at ≤0.10 m including all endpoints and cusps. Score forward/reverse travel and incoming/internal switches, check finite path/model/goal validity, apply an optional **disabled-by-default** weighted-cost cap (never a hard length cap), collision-check the sampled path using the configured coverage and revalidate complete ancestry before feasible-first success. On any failed connection, continue ordinary search, including potential tolerance-region terminals. The scheduler is reset per request, unlike the cached lazy goal-distance field. No optimality or steering-rate guarantee is implied.
+- OMPL-backed Dubins and Reeds–Shepp connectors are valid only for compatible geometric models with constant turning-radius assumptions. Neither inherently enforces steering-rate constraints or articulated dynamics.
+- Analytic paths must be fully collision-checked under the declared sampled-only assurance, model-valid, and costed consistently; multiple equal-length geometric path families are acceptable even if their reverse/switch/clearance costs differ. The initial feasible-first analytic connection is not a proof of minimum configured path cost.
+
+## 6. Planning request and result
+
+```cpp
+enum class PlanStatus {
+    Success, NoPath, Cancelled, ResourceLimit,
+    ValidationIncomplete, InvalidRequest, MapUnavailable, InternalError
+};
+template<class State>
+struct PlanRequest {
+    State start;
+    MapSnapshot map;             // holds one immutable revision throughout planning
+    PlanningOptions options{};  // per-request occupancy + collision settings
+    // Goal specification: world pose + independent XY/yaw tolerances;
+    // optional model-specific state constraints, not a mandatory full State goal.
+    // model/config identity, limits,
+    // optional cancellation token
+};
+template<class State>
+struct PlanResult {
+    PlanStatus status;
+    // optional GeometricPath<State>, diagnostics and
+    // model/map version identities
+};
+```
+
+**Accepted OQ-008:** the default goal accepts the **continuous model-defined reference pose** when XY Euclidean distance to the target is `<= 0.25 m` **and** wrapped yaw error is `<= 10°` (`pi/18 rad`). These tolerances are independently configurable, including zero. Other state components (such as articulation) are unconstrained by default but must remain valid and collision-free; the caller may request explicit additional state/terminal constraints. Validate the incoming swept motion and return the actual reached endpoint, never snap the path to the goal center. Goal-region heuristics must account for tolerance ([ADR-0016](../adr/0016-default-pose-goal-tolerances.md)).
+
+Contract: no partial/unverified path is reported as `Success`. If adaptive collision checking exhausts its bound without verifying its requested sample criterion, return `ValidationIncomplete` with details, not `Success`; both fixed and adaptive sampled modes disclose their non-certified assurance and sampling configuration. Failure carries diagnostic reason and counters; cancellation is checked at bounded intervals. Planner instances should avoid rebuilding immutable caches unnecessarily; concurrency semantics remain proposed in [components.md](components.md).
+
+**Speed-profile boundary (OQ-024):** core output is a geometric path, not a time-stamped trajectory. Each segment must support evaluating full configuration at its canonical `(segmentIndex, lambda)` position; optional model-appropriate first/second derivatives, manifold operations and control-law metadata permit later time scaling. A separate trajectory planner checks wheel/steering/articulation rates, accelerations/jerks, stops at mode transitions and moving obstacles. Model constraints depending on an assumed primitive duration are **not** guaranteed after arbitrary retiming. A speed-aware feasibility estimate inside search remains an open design choice.
+
+## 7. Piecewise geometric path and refinement
+
+The path represents a sequence of **model-feasible motions**, not merely a polyline or a spline. Each motion segment has:
+- a **canonical path address** `(segmentIndex, lambda)` with `lambda in [0,1]`, full start/end states and model-appropriate motion semantics (including lateral translation), as accepted in [ADR-0011](../adr/0011-canonical-segment-path-position.md);
+- an evaluable complete model configuration `q(progress)`, including heading and articulation when present;
+- optional derivatives/curvature with an explicit domain of definition and orientation/direction convention;
+- boundary metadata for reverse cusps, rotations in place, and combined translation/rotation; body yaw need not equal spatial tangent and global differentiability is **not** required;
+- a validation record identifying the map/model configuration and guarantee level.
+
+```cpp
+struct PathPosition { std::size_t segmentIndex; double lambda; };
+
+template<class State> struct PathEvaluation {
+    State state;
+    // optional: tangent, curvature, control, derivative validity
+};
+template<class State>
+struct GeometricSegment {
+    // evaluate(lambda in [0,1]) -> PathEvaluation<State>
+    // motionDirection(), endConditions(), provenance()
+};
+template<class State>
+struct PiecewiseGeometricPath {
+    // segments(); evaluate(PathPosition{segmentIndex,lambda});
+    // optional translationalArcLength(), cost(), other derived metrics
+    // map/config identity, validation metadata
+};
+```
+
+**The canonical path address is not universally translational arc length.** A segment's normalized `lambda` advances even during in-place rotation or articulation-only movement with zero translation. Holonomic models can translate sideways at fixed yaw, so pose heading and spatial tangent need not coincide. Translational arc length is a useful *derived metric*, not the address. Segment endpoints must agree in complete continuous configuration; controls or derivatives may have one-sided/discontinuous limits at cusps. Boundary canonicalization remains an interface detail.
+
+**Accepted ADR-0024:** if refinement is enabled, it must be **obstacle-aware during optimization**, not only collision-checked after smoothing. The refiner consumes the validated raw path, the pinned immutable map snapshot and matching occupancy policy, model state/control validity, and the full independent frame-attached robot geometry. Its optimization may use clearance-aware costs, hard feasibility constraints or obstacle-tested local changes; numerical method and clearance representation are not yet fixed. The refiner must account for the entire articulated footprint, not only reference-point distance. Map-derived obstacle-clearance fields are distinct from goal-distance heuristics and have separate policy/map/geometry-compatible cache keys.
+
+Refinement returns either:
+1. a new path with independently verified model constraints, endpoint conditions and complete-body collision status under the same map/policy and declared sampled-assurance level; or
+2. a failure status plus unchanged raw path.
+
+An optimization-stage obstacle penalty cannot replace final collision validation. Curve fitting (B-splines, Hermite, clothoids, arcs) is an internal interchangeable strategy, not a public path requirement. Optional Ceres backend does not leak into search or public path types. For articulated models, optimizing controls and integrating the model may be preferable to smoothing only `x,y`. 
+
+## Interface decisions to close
+
+Review the remaining details in [open-questions.md](open-questions.md): implementation-facing native map representation/frame/handle types (OQ-023), concurrent planner-cache synchronization (OQ-012), primitive-extent/control-law ABI (OQ-002), path boundary canonicalization (OQ-003), state/tangent conventions (OQ-021), capability metadata (OQ-019), effort-cost objective (OQ-004/OQ-024), collision assurance and type-erasure boundaries. Immutable map publication, lazy revisioned caches and deterministic strict `Reject` are accepted (ADR-0019). Baseline one-key/one-node search, three-state fixed-curvature Ackermann and pose-tolerant goals are accepted (ADRs 0013–0016); the combined performance heuristic and its guarantee status are revised by ADR-0027.
