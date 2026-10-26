@@ -60,6 +60,7 @@ void validateFootprint(Footprint f) {
 }
 void validateOptions(const PlanOptions& o) {
   validate(o.search);
+  steering::evaluateAnalyticCost(0.0,o.analytic);
   if (!std::isfinite(o.minimumTurningRadiusMeters) || o.minimumTurningRadiusMeters<=0 ||
       !std::isfinite(o.goalXYToleranceMeters) || o.goalXYToleranceMeters<0 ||
       !std::isfinite(o.goalYawToleranceRadians) || o.goalYawToleranceRadians<0 || o.goalYawToleranceRadians>pi ||
@@ -223,6 +224,7 @@ PlanResult plan(const PlanRequest& r) {
     nodes.reserve(std::min<std::size_t>(opt.maxGeneratedNodes,20000));
     std::unordered_map<SearchKey,Label,KeyHash> active;
     Queue open;
+    steering::AnalyticExpansionScheduler scheduler(opt.analytic);
     const auto startKey=quantize(r.start,Gear::None,opt.search);
     const double initialH=heuristic(r.start,r.goal,opt.goalXYToleranceMeters);
     nodes.push_back({r.start,startKey,Gear::None,0.0,initialH,0,{}});
@@ -272,6 +274,77 @@ PlanResult plan(const PlanRequest& r) {
           return result;
         }
         strictFailure=true; // Never report an invalid candidate as Success.
+      }
+      // Optional analytic provider: one complete signed path. Search-bin cadence.
+      if (r.analyticConnector && scheduler.shouldAttempt(current.h,opt.search.xyBinMeters)) {
+        ++result.diagnostics.analyticAttempts;
+        std::vector<MotionSection> proposed;
+        try { proposed=r.analyticConnector(current.pose,r.goal); }
+        catch (const std::exception&) { proposed.clear(); } // ordinary search survives
+        if (!proposed.empty()) {
+          std::vector<MotionSection> tail;
+          tail.reserve(proposed.size());
+          Pose2D expected=current.pose;
+          Gear prior=current.gear;
+          double weighted=current.g;
+          bool valid=true;
+          for (const auto& part:proposed) {
+            if (!finite(part.start)||!finite(part.end)||!std::isfinite(part.curvature)||
+                !std::isfinite(part.lengthMeters)||part.lengthMeters<0||
+                std::abs(part.curvature)>1.0/opt.minimumTurningRadiusMeters+1e-10||
+                part.gear==Gear::None||
+                goalErrorXY(part.start,expected)>1e-5||goalErrorYaw(part.start,expected)>1e-5) {
+              valid=false;break;
+            }
+            const auto normalized=makeSection(expected,part.gear,part.curvature,part.lengthMeters);
+            if (goalErrorXY(normalized.end,part.end)>1e-5 ||
+                goalErrorYaw(normalized.end,part.end)>1e-5) {valid=false;break;}
+            weighted+=edgeCost(normalized.lengthMeters,part.gear,prior,opt.search);
+            if (!std::isfinite(weighted)) {valid=false;break;}
+            const auto check=checkMotion(normalized,checker,opt.searchSampleSpacingMeters,
+                  opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
+                  result.diagnostics.searchPoseChecks,r.cancelled.get());
+            if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
+            if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
+            if (check==MotionStatus::Colliding) {valid=false;break;}
+            tail.push_back(normalized);
+            expected=normalized.end;prior=part.gear;
+          }
+          if (valid && goalErrorXY(expected,r.goal)<=opt.goalXYToleranceMeters &&
+              goalErrorYaw(expected,r.goal)<=opt.goalYawToleranceRadians &&
+              steering::evaluateAnalyticCost(weighted-current.g,opt.analytic)==
+                  steering::AnalyticCostGate::AcceptableForFurtherValidation) {
+            std::vector<MotionSection> candidate;
+            std::size_t id=item.node;
+            while (id!=0) {candidate.push_back(nodes[id].via);id=nodes[id].parent;}
+            std::reverse(candidate.begin(),candidate.end());
+            candidate.insert(candidate.end(),tail.begin(),tail.end());
+            bool finalValid=checker.check(r.start)==PoseCollision::Clear;
+            ++result.diagnostics.finalPoseChecks;
+            for (const auto& part:candidate) {
+              if (!finalValid) break;
+              const auto check=checkMotion(part,checker,opt.finalSampleSpacingMeters,
+                    opt.finalMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
+                    result.diagnostics.finalPoseChecks,r.cancelled.get());
+              if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
+              if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
+              finalValid=check==MotionStatus::Clear;
+            }
+            if (finalValid) {
+              result.status=PlanStatus::Success;
+              result.sections=std::move(candidate);
+              result.reached=expected;result.finalGear=prior;
+              result.weightedCostMeters=weighted;
+              result.goalXYErrorMeters=goalErrorXY(expected,r.goal);
+              result.goalYawErrorRadians=goalErrorYaw(expected,r.goal);
+              result.collisionEvidence=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
+              result.modelGeometryValid=true;
+              ++result.diagnostics.analyticAccepted;
+              return result;
+            }
+            strictFailure=true;
+          }
+        }
       }
       const double curvature=1.0/opt.minimumTurningRadiusMeters;
       for (const Gear gear : {Gear::Forward,Gear::Reverse}) {
