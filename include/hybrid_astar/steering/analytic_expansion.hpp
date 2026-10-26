@@ -32,12 +32,12 @@ class AnalyticExpansionScheduler {
 public:
   explicit AnalyticExpansionScheduler(AnalyticExpansionOptions options = {});
 
-  bool shouldAttempt(double heuristicCostMeters, double mapResolutionMeters);
+  bool shouldAttempt(double heuristicCostMeters, double searchXYBinMeters);
   void reset() noexcept;
 
 private:
   AnalyticExpansionOptions options_;
-  double closestHeuristicCells_ = std::numeric_limits<double>::infinity();
+  double closestHeuristicBins_ = std::numeric_limits<double>::infinity();
   std::uint32_t expansionsUntilNextAttempt_ = 0;
 };
 
