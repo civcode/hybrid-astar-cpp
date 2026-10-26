@@ -1,7 +1,9 @@
 #include "hybrid_astar/steering/reeds_shepp.hpp"
 #include "hybrid_astar/steering/reeds_shepp_evaluator.hpp"
+#include "hybrid_astar/steering/signed_sections.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <memory>
 #include <numbers>
@@ -60,52 +62,29 @@ std::vector<ackermann::MotionSection>
 ReedsSheppEvaluator::shortestPath(const Pose2D& from,const Pose2D& goal) const {
   auto& i=*impl_;
   i.setStates(from,goal);
-  // OMPL has called this path accessor 'reedsShepp' and 'getPath'
-  // in different versions. Select whichever the installed header provides.
-  const auto path=[&]<typename Space>(const Space& space) {
-    if constexpr (requires(const Space& s,const ompl::base::State* a,const ompl::base::State* b) {
-      s.getPath(a,b);
-    }) {
-      return space.getPath(i.fromState.get(),i.goalState.get());
-    } else {
-      return space.reedsShepp(i.fromState.get(),i.goalState.get());
+  // Public OMPL API. The five path elements have SIGNED length in units
+  // of turning radius; preserve signs and section types before decoding.
+  const auto path=i.space->getPath(i.fromState.get(),i.goalState.get());
+  std::array<SignedSegment,5> native{};
+  for(std::size_t n=0;n<native.size();++n) {
+    SegmentTurn kind=SegmentTurn::None;
+    switch(path.type_[n]) {
+      case ompl::base::ReedsSheppStateSpace::RS_NOP:kind=SegmentTurn::None;break;
+      case ompl::base::ReedsSheppStateSpace::RS_LEFT:kind=SegmentTurn::Left;break;
+      case ompl::base::ReedsSheppStateSpace::RS_RIGHT:kind=SegmentTurn::Right;break;
+      case ompl::base::ReedsSheppStateSpace::RS_STRAIGHT:kind=SegmentTurn::Straight;break;
+      default:throw std::runtime_error("Unexpected OMPL RS section kind");
     }
-  }(*i.space);
-
-  std::vector<ackermann::MotionSection> sections;
-  sections.reserve(5);
-  Pose2D position=from;
-  double distanceMeters=0.0;
-  for (int n=0;n<5;++n) {
-    const double signedLengthMeters=path.length_[n]*i.radius;
-    if (!std::isfinite(signedLengthMeters))
-      throw std::runtime_error("OMPL returned nonfinite RS section");
-    if (std::abs(signedLengthMeters)<=1e-12) continue;
-    const auto type=path.type_[n];
-    double curvature=0.0;
-    switch(type) {
-      case ompl::base::ReedsSheppStateSpace::RS_LEFT:
-        curvature=1.0/i.radius;break;
-      case ompl::base::ReedsSheppStateSpace::RS_RIGHT:
-        curvature=-1.0/i.radius;break;
-      case ompl::base::ReedsSheppStateSpace::RS_STRAIGHT:
-        break;
-      default:
-        throw std::runtime_error("OMPL returned unsupported nonzero RS section");
-    }
-    const auto gear=signedLengthMeters>0?ackermann::Gear::Forward:ackermann::Gear::Reverse;
-    auto section=ackermann::makeSection(position,gear,curvature,std::abs(signedLengthMeters));
-    position=section.end;
-    distanceMeters+=section.lengthMeters;
-    sections.push_back(section);
+    native[n]={kind,path.length_[n]*i.radius};
   }
+  auto chain=decodeSignedSections(from,goal,i.radius,native);
+  double reconstructed=0;
+  for(const auto& part:chain) reconstructed+=part.lengthMeters;
   const double reported=path.length()*i.radius;
-  if (!std::isfinite(reported)||!std::isfinite(distanceMeters)||
-      std::abs(reported-distanceMeters)>1e-7*std::max(1.0,reported)||
-      std::hypot(position.x-goal.x,position.y-goal.y)>1e-5||
-      headingError(position.yaw,goal.yaw)>1e-5)
-    throw std::runtime_error("OMPL RS section chain failed exact endpoint/length check");
-  return sections;
+  if(!std::isfinite(reported)||!std::isfinite(reconstructed)||
+     std::abs(reported-reconstructed)>1e-7*std::max(1.0,reported))
+    throw std::runtime_error("OMPL RS signed-section length mismatch");
+  return chain;
 }
 
 // Backwards-compatible convenience API; use ReedsSheppEvaluator for hot paths
@@ -113,5 +92,22 @@ ReedsSheppEvaluator::shortestPath(const Pose2D& from,const Pose2D& goal) const {
 double reedsSheppDistance(const Pose2D& from,const Pose2D& goal,
                           double minimumTurningRadiusMeters) {
   return ReedsSheppEvaluator(minimumTurningRadiusMeters).distance(from,goal);
+}
+// One reusable OMPL evaluator, with both callbacks scoped to this synchronous
+// call. The core planner's default heuristic remains certified unless the
+// caller explicitly requests RS + obstacle-grid performance ordering.
+ackermann::PlanResult planWithReedsShepp(ackermann::PlanRequest request,
+                                        bool usePerformanceHeuristic) {
+  ReedsSheppEvaluator evaluator(request.options.minimumTurningRadiusMeters);
+  request.analyticConnector=[&evaluator](const Pose2D& from,const Pose2D& goal) {
+    return evaluator.shortestPath(from,goal);
+  };
+  if(usePerformanceHeuristic) {
+    request.options.heuristicMode=ackermann::HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+    request.analyticDistance=[&evaluator](const Pose2D& from,const Pose2D& goal) {
+      return evaluator.distance(from,goal);
+    };
+  }
+  return ackermann::plan(request);
 }
 } // namespace hybrid_astar::steering
