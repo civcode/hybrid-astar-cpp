@@ -73,6 +73,8 @@ void validateOptions(const PlanOptions& o) {
       o.maxSamplesPerSection<2 || o.maxFinalSamplesPerSection<2 ||
       o.maxTotalFinalPoseChecks==0 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
       o.discPrefilterCount>64 ||
+      !std::isfinite(o.performanceHeuristicWeight) ||
+      o.performanceHeuristicWeight<1 || o.performanceHeuristicWeight>3 ||
       !std::isfinite(o.clearanceWeight) || o.clearanceWeight<0 ||
       !std::isfinite(o.clearanceInfluenceRadiusMeters) || o.clearanceInfluenceRadiusMeters<=0 ||
       (o.solutionPolicy!=SolutionPolicy::FirstStrictlyValidated &&
@@ -404,8 +406,14 @@ PlanResult plan(const PlanRequest& r) {
       }
       return h;
     };
+    // Inflation affects only the already noncertified performance ordering.
+    // Coarse dominance and a raw-occupancy grid provide no suboptimality bound.
+    const auto weightedEstimate=[&](const Pose2D& p) {
+      const double raw=estimate(p);
+      return grid?raw*opt.performanceHeuristicWeight:raw;
+    };
     const auto startKey=quantize(r.start,Gear::None,opt.search);
-    const double initialH=estimate(r.start);
+    const double initialH=weightedEstimate(r.start);
     nodes.push_back({r.start,startKey,Gear::None,0.0,initialH,0.0,0,{}});
     active.emplace(startKey,Label{0,0.0,false});
     open.push({initialH,initialH,0});
@@ -624,7 +632,7 @@ PlanResult plan(const PlanRequest& r) {
             result.status=PlanStatus::BudgetExceeded;return result;
           }
           if (found!=active.end() && found->second.expanded) ++result.diagnostics.reopened;
-          const double h=estimate(sec.end);
+          const double h=weightedEstimate(sec.end);
           const auto id=nodes.size();
           nodes.push_back({sec.end,key,gear,g,h,current.clearanceCost+extra,item.node,sec});
           active[key]={id,g,false};
