@@ -3,7 +3,8 @@
 This is a **local interactive browser application backed by the real C++20
 Hybrid A* library**. It is not a browser-only pathfinding simulation.
 
-The demo uses no UI framework, Node server or ROS installation. The native
+The demo uses no UI framework, Node server or ROS installation.
+For a fully provisioned Docker build including **Catch2 v3 and OMPL 2.0.2**, see [Docker setup](../../docs/docker.md). The native
 executable handles planning, collision validation, optional refinement and
 JSON serialization; the bundled HTML/CSS/JavaScript renders the map, route,
 reverse motion, orientation and animated rectangular vehicle footprint.
@@ -33,7 +34,7 @@ With a **complete installed OMPL CMake package**, set
 real OMPL Reeds–Shepp connector and optional OMPL-assisted refinement.
 OMPL-disabled builds continue to use the exact six Ackermann primitives.
 
-The focused [OMPL source bridge](../tests/ompl_source_bridge/CMakeLists.txt)
+The focused [OMPL source bridge](../../tests/ompl_source_bridge/CMakeLists.txt)
 tests the adapter but is **not an official OMPL package installation**.
 It is not a substitute for the complete OMPL-ON CMake package build.
 
@@ -94,7 +95,8 @@ Supported query fields: `scenario`, `startx`,
 
 This small developer server intentionally accepts only GET, permits a maximum
 URL of 2048 bytes, serves only three fixed page assets and binds to
-`127.0.0.1`. It has no authentication or production-grade
+`127.0.0.1` by default. The explicit `--bind 0.0.0.0` option is for
+container networking; publish the Docker host port to **127.0.0.1 only**. It has no authentication or production-grade
 multiuser request scheduling and should **not** be internet-exposed.
 
 ## Manual verification
