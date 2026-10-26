@@ -29,4 +29,11 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
+// Explicit opt-in OMPL-equipped planner entry point; defaults stay unchanged.
+// Builds ONE evaluator for the synchronous request, with safe callback lifetime.
+// Optionally selects noncertified RS + obstacle-grid performance ordering.
+// Throws invalid_argument for an invalid OMPL turning radius.
+ackermann::PlanResult planWithReedsShepp(ackermann::PlanRequest request,
+                                        bool usePerformanceHeuristic=false);
+
 } // namespace hybrid_astar::steering
