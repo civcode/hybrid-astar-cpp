@@ -70,7 +70,7 @@ void validateOptions(const PlanOptions& o) {
       !std::isfinite(o.finalSampleSpacingMeters) || o.finalSampleSpacingMeters<=0 ||
       !std::isfinite(o.searchMaxBodyPointMotionMeters) || o.searchMaxBodyPointMotionMeters<=0 ||
       !std::isfinite(o.finalMaxBodyPointMotionMeters) || o.finalMaxBodyPointMotionMeters<=0 ||
-      o.maxSamplesPerSection<2 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
+      o.maxSamplesPerSection<2 || o.maxFinalSamplesPerSection<2 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
       o.discPrefilterCount>64 ||
       !std::isfinite(o.clearanceWeight) || o.clearanceWeight<0 ||
       !std::isfinite(o.clearanceInfluenceRadiusMeters) || o.clearanceInfluenceRadiusMeters<=0 ||
@@ -427,7 +427,7 @@ PlanResult plan(const PlanRequest& r) {
         for (const auto& sec : reverse) {
           if (!valid) break;
           const auto status=checkMotion(sec,checker,opt.finalSampleSpacingMeters,
-                         opt.finalMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
+                         opt.finalMaxBodyPointMotionMeters,opt.maxFinalSamplesPerSection,
                          result.diagnostics.finalPoseChecks,r.cancelled.get());
           if (status==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
             result.status=PlanStatus::Cancelled;return result;}
@@ -439,7 +439,7 @@ PlanResult plan(const PlanRequest& r) {
           if (opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
             return finishIncumbent(TerminationReason::FirstValidated);
         }
-        strictFailure=true; // Never report an invalid candidate as Success.
+        else strictFailure=true; // Never report an invalid candidate as Success.
       }
       // Optional analytic provider: one complete signed path. Search-bin cadence.
       if (r.analyticConnector && scheduler.shouldAttempt(current.h,opt.search.xyBinMeters)) {
@@ -502,7 +502,7 @@ PlanResult plan(const PlanRequest& r) {
             for (const auto& part:candidate) {
               if (!finalValid) break;
               const auto check=checkMotion(part,checker,opt.finalSampleSpacingMeters,
-                    opt.finalMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
+                    opt.finalMaxBodyPointMotionMeters,opt.maxFinalSamplesPerSection,
                     result.diagnostics.finalPoseChecks,r.cancelled.get());
               if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
             result.status=PlanStatus::Cancelled;return result;}
@@ -515,7 +515,7 @@ PlanResult plan(const PlanRequest& r) {
               if (opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
                 return finishIncumbent(TerminationReason::FirstValidated);
             }
-            strictFailure=true;
+            else strictFailure=true;
           }
         }
       }
