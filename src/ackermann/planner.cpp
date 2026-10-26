@@ -1,4 +1,5 @@
 #include "hybrid_astar/ackermann/planner.hpp"
+#include "hybrid_astar/ackermann/primitives.hpp"
 #include "hybrid_astar/ackermann/cover_prefilter.hpp"
 #include "hybrid_astar/ackermann/clearance.hpp"
 #include "hybrid_astar/ackermann/hotpath_profiler.hpp"
@@ -276,7 +277,8 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
                          const ConservativeDiscPrefilter* prefilter=nullptr,
                          PlanDiagnostics* stats=nullptr,
                          std::size_t maxTotalChecks=std::numeric_limits<std::size_t>::max(),
-                         bool finalPhase=false) {
+                         bool finalPhase=false,
+                         const motion::LocalPrimitive* templateMotion=nullptr) {
   std::uint64_t ignoredTime=0;
   HotPathTimer motionTimer(stats?(finalPhase?stats->finalMotionNanoseconds:
                                       stats->searchMotionNanoseconds):ignoredTime);
@@ -293,8 +295,12 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
   for (std::size_t i=0;i<=n;++i) {
     if (cancel && cancel->load(std::memory_order_relaxed)) return MotionStatus::Cancelled;
     if (checks>=maxTotalChecks) return MotionStatus::Incomplete;
-    const auto pose=section.evaluate(i==n ? section.lengthMeters :
-                        section.lengthMeters*static_cast<double>(i)/n);
+    const bool useTemplate=templateMotion && templateMotion->samples.size()==n+1;
+    const auto pose=useTemplate
+        ? motion::compose(section.start,templateMotion->samples[i].localPose)
+        : section.evaluate(i==n ? section.lengthMeters :
+                            section.lengthMeters*static_cast<double>(i)/n);
+    if(useTemplate && stats)++stats->primitiveTemplatePoseChecks;
     if (prefilter && prefilter->definitelyClear(pose)) {
       if (stats) ++stats->discDefinitelyClear;
     } else {
@@ -431,6 +437,15 @@ PlanResult plan(const PlanRequest& r) {
     if (checkedPose(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
     ++result.diagnostics.searchPoseChecks;
     const auto& opt=r.options;
+    // Generate six SE(2)-local, continuously evaluable, sampled primitives
+    // only once per request. Every search node only rigidly transforms them.
+    const motion::SampleLimits templateLimits{
+      opt.searchSampleSpacingMeters,opt.searchMaxBodyPointMotionMeters,
+      checker.maxBodyRadius(),std::numeric_limits<double>::max(),
+      opt.maxSamplesPerSection};
+    const auto primitiveCatalog=buildPrimitiveCatalog(
+        opt.search,opt.minimumTurningRadiusMeters,templateLimits);
+    result.diagnostics.primitiveTemplatesBuilt=primitiveCatalog.size();
     std::vector<Node> nodes;
     nodes.reserve(std::min<std::size_t>(opt.maxGeneratedNodes,20000));
     std::unordered_map<SearchKey,Label,KeyHash> active(0,KeyHash{&result.diagnostics});
@@ -672,10 +687,15 @@ PlanResult plan(const PlanRequest& r) {
           }
         }
       }
-      const double curvature=1.0/opt.minimumTurningRadiusMeters;
-      for (const Gear gear : {Gear::Forward,Gear::Reverse}) {
-        for (double k : {-curvature,0.0,curvature}) {
-          const auto sec=makeSection(current.pose,gear,k,opt.search.primitiveLengthMeters);
+      for (const auto& primitive : primitiveCatalog) {
+          const Gear gear=primitive.gear;
+          const double k=primitive.curvature;
+          const auto* local=primitive.local.samples.empty()?nullptr:&primitive.local;
+          const auto sec=local
+              ? MotionSection{current.pose,local->endpoint(current.pose),gear,k,
+                              opt.search.primitiveLengthMeters}
+              : makeSection(current.pose,gear,k,opt.search.primitiveLengthMeters);
+          ++result.diagnostics.primitiveTemplateInstantiations;
           const auto key=quantize(sec.end,gear,opt.search);
           const double cost=edgeCost(sec.lengthMeters,gear,current.gear,opt.search);
           const double lowerG=current.g+cost;
@@ -691,7 +711,8 @@ PlanResult plan(const PlanRequest& r) {
           }
           const auto check=checkMotion(sec,checker,opt.searchSampleSpacingMeters,
                      opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
-                     result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics);
+                     result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics,
+                     std::numeric_limits<std::size_t>::max(),false,local);
           if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
             result.status=PlanStatus::Cancelled;return result;}
           if (check==MotionStatus::Incomplete) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
@@ -750,7 +771,6 @@ PlanResult plan(const PlanRequest& r) {
           result.diagnostics.openQueuePeakStorageBytes=
               std::max(result.diagnostics.openQueuePeakStorageBytes,open.storageBytes());
           ++result.diagnostics.generated;
-        }
       }
     }
     if (hasIncumbent) return finishIncumbent(TerminationReason::SearchExhausted);

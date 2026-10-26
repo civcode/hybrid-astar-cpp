@@ -118,6 +118,8 @@ struct PlanRequest {
 
 struct PlanDiagnostics {
   std::size_t expanded = 0, generated = 0, reopened = 0;
+  std::size_t primitiveTemplatesBuilt = 0, primitiveTemplateInstantiations = 0;
+  std::size_t primitiveTemplatePoseChecks = 0;
   std::size_t staleHeapPops = 0, prunedByKey = 0;
   std::size_t openQueuePushes = 0, openQueuePops = 0;
   std::size_t openQueueReplacements = 0, openQueuePeakSize = 0;

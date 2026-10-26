@@ -14,6 +14,7 @@ option(HYBRID_ASTAR_BUILD_APP "Build the optional localhost browser planning dem
 add_library(hybrid_astar_core STATIC
   src/ackermann/search_config.cpp
   src/ackermann/planner.cpp
+  src/ackermann/primitives.cpp
   src/ackermann/cover_prefilter.cpp
   src/ackermann/clearance.cpp
   src/ackermann/refinement.cpp
@@ -21,6 +22,12 @@ add_library(hybrid_astar_core STATIC
   src/steering/analytic_expansion.cpp
   src/steering/signed_sections.cpp)
 add_library(hybrid_astar::core ALIAS hybrid_astar_core)
+add_library(hybrid_astar_differential_drive STATIC
+  src/differential_drive/model.cpp src/differential_drive/primitives.cpp)
+target_compile_features(hybrid_astar_differential_drive PUBLIC cxx_std_20)
+target_include_directories(hybrid_astar_differential_drive PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/include")
+add_library(hybrid_astar::differential_drive ALIAS hybrid_astar_differential_drive)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
 if(HYBRID_ASTAR_PROFILE_HOTPATHS)
   target_compile_definitions(hybrid_astar_core PRIVATE HYBRID_ASTAR_PROFILE_HOTPATHS=1)
