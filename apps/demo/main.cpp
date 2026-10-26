@@ -16,7 +16,7 @@
 #include <unistd.h>
 #endif
 #ifndef HYBRID_ASTAR_DEMO_WEB_ROOT
-#define HYBRID_ASTAR_DEMO_WEB_ROOT "app/web"
+#define HYBRID_ASTAR_DEMO_WEB_ROOT "apps/demo/web"
 #endif
 
 namespace {
