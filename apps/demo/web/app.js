@@ -49,14 +49,14 @@ function drawPose(p,color,g,body=false) {
   const [x,y]=mapPoint(p[0],p[1],g);
   ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2.5;
   ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);ctx.fill();
-  const isDiff=$('model').value==='differential';
-  const headLength=isDiff ? 0.35 : 1.6;
+  const isCompact=$('model').value==='differential'||$('model').value==='mecanum';
+  const headLength=isCompact ? 0.35 : 1.6;
   const [tx,ty]=mapPoint(p[0]+headLength*Math.cos(p[2]),p[1]+headLength*Math.sin(p[2]),g);
   ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
   if(!body)return;
   const [rear,frontX,halfWidth]=(snapshot?.model===$('model').value
       ? snapshot.footprint : null) ||
-      (isDiff?[-.35,.35,.25]:[-1,3.6,.9]);
+      (isCompact?[-.35,.35,.25]:[-1,3.6,.9]);
   const corners=[[rear,-halfWidth],[frontX,-halfWidth],
                  [frontX,halfWidth],[rear,halfWidth]];
   ctx.fillStyle='rgba(91,221,206,.16)';ctx.strokeStyle='#70e5d5';ctx.lineWidth=1.5;
@@ -86,7 +86,7 @@ function drawSections(path,g,muted=false) {
     ctx.beginPath();section.points.forEach((p,i)=>{
       const [x,y]=mapPoint(p[0],p[1],g);if(!i)ctx.moveTo(x,y);else ctx.lineTo(x,y);
     });
-    ctx.strokeStyle=muted?'rgba(155,177,204,.5)':section.gear==='reverse'?'#e4ac70':'#55dac6';
+    ctx.strokeStyle=muted?'rgba(155,177,204,.5)':section.kind==='holonomic'?'#7db2ff':section.gear==='reverse'?'#e4ac70':'#55dac6';
     ctx.lineWidth=muted?2:3.5;ctx.setLineDash(muted?[5,6]:[]);ctx.stroke();ctx.setLineDash([]);
   }
 }
@@ -144,7 +144,7 @@ function stats(result) {
 }
 let modelCapabilities={ompl:false};
 function syncModelOptions() {
-  const diff=$('model').value==='differential';
+  const diff=$('model').value!=='ackermann';
   for(const id of ['ompl','refine','curved']) {
     const el=$(id);
     if(diff)el.checked=false;

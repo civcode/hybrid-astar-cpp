@@ -40,6 +40,7 @@ def main(exe):
             raise AssertionError("Demo server never became ready")
         assert code == 200 and isinstance(json.loads(payload)["ompl"], bool)
         assert json.loads(payload)["differential"] is True
+        assert json.loads(payload)["mecanum"] is True
         assert headers.get("X-Content-Type-Options") == "nosniff"
         for resource, content in [("/", "Planning Lab"),
                                   ("/style.css", "map-wrap"),
@@ -89,6 +90,19 @@ def main(exe):
         assert any(sec["kind"] == "rotation" and sec["length"] == 0 and
                    len(sec["points"]) > 2 and sec["turnRadians"] != 0
                    for sec in spin["original"]["sections"])
+        code, _, body = post({"scenario": "open", "model": "mecanum",
+                              "startx": "10", "starty": "15", "startyaw": "0",
+                              "goalx": "10", "goaly": "17", "goalyaw": "0"})
+        lateral = json.loads(body)
+        assert code == 200 and lateral["model"] == "mecanum"
+        assert lateral["original"]["status"] == "Success"
+        assert lateral["original"]["validated"] is True
+        assert lateral["original"]["actuatorFeasible"] is False
+        assert any(sec["kind"] == "holonomic" and abs(sec["lateralMeters"]) > 0
+                   and sec["gear"] == "holonomic"
+                   for sec in lateral["original"]["sections"])
+        code, _, body = post({"scenario":"open", "model":"mecanum", "ompl":"1"})
+        assert code == 400
         code, _, body = post({"scenario":"open", "model":"differential", "ompl":"1"})
         assert code == 400 and "error" in json.loads(body)
         code, _, body = post({"scenario":"open", "model":"unsupported"})

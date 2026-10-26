@@ -255,7 +255,7 @@ void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<
   }
 }
 #endif
-void usage(){std::cout<<"Usage: hybrid_astar_demo [--model ackermann|differential] [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
+void usage(){std::cout<<"Usage: hybrid_astar_demo [--model ackermann|differential|mecanum] [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
   " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS | --map-yaml FILE.yaml] [--output FILE.json --once] [--ompl] [--refine] [--curved] [--performance] [--improve]\n"
   "Default: serve interactive UI on 127.0.0.1 only. --once prints machine-readable JSON.\n";}
 }

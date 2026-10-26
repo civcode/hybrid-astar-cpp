@@ -28,3 +28,5 @@ footer{font-size:11px;color:#647b93;text-align:right;padding:23px 4px}
 .map-wrap canvas{touch-action:none}
 
 .legend i.rotate{background:#b69eff}
+
+.legend i.holonomic{background:#7db2ff}
