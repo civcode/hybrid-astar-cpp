@@ -410,7 +410,9 @@ PlanResult plan(const PlanRequest& r) {
     // Coarse dominance and a raw-occupancy grid provide no suboptimality bound.
     const auto weightedEstimate=[&](const Pose2D& p) {
       const double raw=estimate(p);
-      return grid?raw*opt.performanceHeuristicWeight:raw;
+      if (!grid || raw>std::numeric_limits<double>::max()/opt.performanceHeuristicWeight)
+        return raw;
+      return raw*opt.performanceHeuristicWeight;
     };
     const auto startKey=quantize(r.start,Gear::None,opt.search);
     const double initialH=weightedEstimate(r.start);
