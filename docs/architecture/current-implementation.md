@@ -45,7 +45,7 @@ request-local options. It performs:
    motion sections: default 0.05 m reference and 0.05 m body-point movement
    ceiling. It calls exact collision directly and never trusts cached
    search classifications. Only a completed strict pass permits `Success`.
-8. Explicit statuses for input/map/unknown errors, start collision,
+8. Explicit statuses for input/map/unknown errors, cooperative cancellation, start collision,
    work budgets, incomplete/failed final checking and approximate
    search exhaustion; true terminal pose/error/gear, weighted path cost,
    effective map provenance, counts and achieved *sampled* collision
@@ -73,8 +73,10 @@ boundary-only diagnostic mode cannot be used by `plan()`.
   post-path refiner or bounded final-validation retry.
 - **W9:** No timed steering/actuator checks, dynamic-obstacle predictions,
   ROS/Nav2 adapter, articulated/self-collision or alternative chassis model.
-- There is no cancellation token, wall-clock budget, separate final-check
-  budget, or allocator-level memory budget in this initial interface.
+- Cooperative request-local atomic cancellation is implemented and polled
+  during search, sample checks and strict validation. There is no wall-clock
+  budget, separately metered final-check budget, or allocator-level memory
+  budget in this initial interface.
 - The initial test set exercises open-field feasibility and correctness
   corner cases, **not** full wall/parking/benchmark, randomized property,
   sanitizer-matrix, or proven SAT/EDT/sweep assurance release gates.
@@ -86,7 +88,7 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 | W0 Baseline/tests | In progress | This contract + imported synthesis, named `planner_test`; reconcile further ADR prose and add benchmark harness |
 | W1 Map/exact geometry | Implemented for filled Ackermann rectangle | `MapSnapshot`, `ExactCollisionChecker`, tests for rotated/boundary/unknown/interior; expand contact/property cases |
 | W2 Ackermann motion | Implemented for fixed curvature | `MotionSection` analytic evaluator; test more numerical extreme values/equivariance |
-| W3 Minimal search | Initial vertical slice | Immutable nodes/reopen/base costs/region Euclidean; add wall detour, parking and negative tests |
+| W3 Minimal search | Initial vertical slice | Immutable nodes/reopen/base costs/region Euclidean and cancellation; add wall detour, parking and negative tests |
 | W4 Final validation | Initial adaptive-sampled gate | Stricter exact resampling; independently inject weaker search path and verify failure, verify separate resource budget |
 | W5 Analytic RS | Pending | OMPL reusable evaluator, signed sections, cusps and cost, scheduler wired into search |
 | W6 Obstacle heuristic | Pending | Goal-region-seeded request-local reverse Dijkstra with finite fallback; no unproven `NoPath` |
