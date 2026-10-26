@@ -63,6 +63,15 @@ int main() {
   const auto improved=planWithReedsShepp(q,true);
   require(improved.status==PlanStatus::Success&&!improved.heuristicCertifiedAdmissible,
           "bounded incumbent with real optional RS ordering");
+  PlanRequest capped=q;
+  capped.options.maxTotalFinalPoseChecks=22; // 1 start + 21 samples for 1m reverse
+  capped.options.maxExtraExpansionsAfterFirst=50;
+  const auto cappedPlan=planWithReedsShepp(capped);
+  require(cappedPlan.status==PlanStatus::Success &&
+          cappedPlan.terminationReason==TerminationReason::ValidationBudgetExhausted,
+          "global final cap retains previously validated incumbent");
+  require(cappedPlan.diagnostics.finalPoseChecks==22,
+          "global final budget used exactly without an unchecked evaluation");
   // The combined workflow must preserve a validated original even when
   // postprocessing is unable to spend the required independent check budget.
   auto combined=planAndRefineWithReedsShepp(q);
