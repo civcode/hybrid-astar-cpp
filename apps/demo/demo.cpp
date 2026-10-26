@@ -47,11 +47,40 @@ const char* refinementName(RefinementStatus s) {
   case RefinementStatus::WorkBudgetExceeded:return "WorkBudgetExceeded";
   default:return "Cancelled";}
 }
+const char* qualityName(SolutionQuality q) {
+  switch(q){
+    case SolutionQuality::FeasibleFirst:return "FeasibleFirst";
+    case SolutionQuality::FeasibleAfterImprovement:return "FeasibleAfterImprovement";
+    case SolutionQuality::FeasibleAfterRefinement:return "FeasibleAfterRefinement";
+  }
+  return "Unknown";
+}
+const char* terminationName(TerminationReason reason) {
+  switch(reason) {
+    case TerminationReason::None:return "None";
+    case TerminationReason::FirstValidated:return "FirstValidated";
+    case TerminationReason::ImprovementBudgetExhausted:return "ImprovementBudgetExhausted";
+    case TerminationReason::SearchExhausted:return "SearchExhausted";
+    case TerminationReason::WorkBudgetExceeded:return "WorkBudgetExceeded";
+    case TerminationReason::CancelledAfterIncumbent:return "CancelledAfterIncumbent";
+    case TerminationReason::ValidationBudgetExhausted:return "ValidationBudgetExhausted";
+  }
+  return "Unknown";
+}
 void poseJson(std::ostream& os,Pose2D p) {
   os<<"["<<p.x<<","<<p.y<<","<<p.yaw<<"]";
 }
 void pathJson(std::ostream& os,const PlanResult& path) {
   os<<"{\"status\":"<<quoted(statusName(path.status))
+    <<",\"mapRevision\":"<<path.mapRevision
+    <<",\"mapFrameId\":"<<quoted(path.mapFrameId)
+    <<",\"mapSourceId\":"<<quoted(path.mapSourceId)
+    <<",\"solutionQuality\":"<<quoted(qualityName(path.solutionQuality))
+    <<",\"terminationReason\":"<<quoted(terminationName(path.terminationReason))
+    <<",\"collisionEvidence\":"<<quoted(path.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled?"FullFootprintBodyMotionAdaptiveSampled":"None")
+    <<",\"actuatorFeasible\":"<<(path.trajectoryActuatorFeasible?"true":"false")
+    <<",\"goalXYErrorMeters\":"<<path.goalXYErrorMeters
+    <<",\"goalYawErrorRadians\":"<<path.goalYawErrorRadians
     <<",\"cost\":"<<path.weightedCostMeters
     <<",\"length\":"<<path.geometricLengthMeters
     <<",\"reverseLength\":"<<path.reverseLengthMeters
@@ -154,6 +183,7 @@ std::string toJson(const Outcome& out) {
   const auto& m=*out.request.map;
   std::ostringstream os;os<<std::setprecision(12);
   os<<"{\"width\":"<<m.width<<",\"height\":"<<m.height<<",\"resolution\":"<<m.resolutionMeters
+    <<",\"frameId\":"<<quoted(m.frameId)<<",\"sourceId\":"<<quoted(m.sourceId)<<",\"revision\":"<<m.revision
     <<",\"origin\":";poseJson(os,m.origin);
   os<<",\"start\":";poseJson(os,out.request.start);
   os<<",\"goal\":";poseJson(os,out.request.goal);
