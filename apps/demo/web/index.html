@@ -2,11 +2,14 @@
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Hybrid A* · Planning Lab</title><link rel="stylesheet" href="/style.css"/></head>
 <body><main class="shell">
-<header class="top"><div><div class="eyebrow">C++20 / ACKERMANN / STATIC MAP</div>
+<header class="top"><div><div class="eyebrow">C++20 / ACKERMANN + DIFFERENTIAL DRIVE / STATIC MAP</div>
 <h1>Planning <span>Lab</span></h1><p class="subtitle">Explore validated Hybrid A* paths and exact motion arcs.</p></div>
 <div class="status-chip" id="connection">LOCAL DEMO</div></header>
 <div class="layout"><aside class="panel controls">
 <div class="heading"><span>01</span> PLAN CONFIGURATION</div>
+<label class="label" for="model">Kinematic model</label>
+<select id="model"><option value="ackermann">Ackermann steering</option>
+<option value="differential">Differential drive (in-place rotation)</option></select>
 <label class="label" for="scenario">Environment</label><select id="scenario">
 <option value="open">Open field</option><option value="reverse">Reverse maneuver</option>
 <option value="parking">Parking approach</option><option value="warehouse">Warehouse obstacles</option>
@@ -41,7 +44,7 @@
 </aside>
 <section class="visual">
 <div class="canvas-head"><div><div class="heading"><span>02</span> MAP VIEW</div><h2 id="sceneTitle">Open field</h2></div>
-<div class="legend"><span><i class="forward"></i>Forward</span><span><i class="reverse"></i>Reverse</span><span><i class="blocked"></i>Occupied</span></div></div>
+<div class="legend"><span><i class="forward"></i>Forward</span><span><i class="reverse"></i>Reverse</span><span><i class="rotate"></i>Rotate</span><span><i class="blocked"></i>Occupied</span></div></div>
 <div class="map-wrap"><canvas id="map" aria-label="Occupancy map with computed route"></canvas><div class="map-hint">Select brush to paint · Drag on map · Click/Shift-click for poses</div>
 <div id="overlay" class="overlay">Preparing map…</div></div>
 <div class="playback"><button id="playButton" title="Animate along route" aria-label="Play or pause path">▶</button><input aria-label="Position along path" id="position" type="range" min="0" max="1000" value="0"/><span id="travel">0%</span>
