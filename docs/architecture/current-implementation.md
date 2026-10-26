@@ -78,7 +78,9 @@ request-local options. It performs:
     sections, is computed before active-label relaxation, and defaults to zero.
 11. Opt-in post-search `refinePath(request, validatedPlan)` in
     `ackermann/refinement.{hpp,cpp}` tries deterministic exact straight
-    section-boundary shortcuts, or an injected analytic signed-section provider.
+    section-boundary shortcuts, opt-in fixed-gear curvature-bounded
+    left/straight/right circle-tangent CSC candidates, or an injected signed
+    analytic provider.
     It independently revalidates the original against the pinned request,
     reconstructs/rechecks every candidate arc and the full candidate path
     using exact filled-footprint collision and the independent strict sampling
@@ -125,9 +127,13 @@ boundary-only diagnostic mode cannot be used by `plan()`.
   are implemented, defaulting to disabled/first-feasible. A separately callable
   **bounded post-path shortcut refiner** is now available, also opt-in, with
   exact obstacle-aware strict revalidation and raw-path fallback. It currently
-  proposes aligned straight shortcuts by itself; curved/nontrivial signed
-  alternatives require an injected provider. A bounded strict-validation
-  retry and more sophisticated continuous-curvature smoothing remain deferred. The clearance
+  proposes aligned straight shortcuts by default. With explicit
+  `RefinementOptions::useCurvatureBoundedShortcuts=true`, it also generates
+  forward-only and reverse-only LSL/LSR/RSL/RSR candidates. Multi-cusp
+  alternatives still require an injected provider. A certified nonnegative
+  base-cost lower bound prunes uncompetitive candidates before strict checks.
+  A bounded strict-validation retry and curvature-continuous smoothing
+  remain deferred. The clearance
   experiment `lambda=0.15` caused a distant-doorway regression under the
   tested work budget: do not adopt it as a product default.
 - **W9:** No timed steering/actuator checks, dynamic-obstacle predictions,
@@ -158,7 +164,7 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 | W5 Analytic RS | Native decoder and wrapper added, OMPL-ON unverified | Signed native decoder and two-cusp cost/fallback tests pass locally; adapter and `planWithReedsShepp` wired, real OMPL build/integration matrix remains an explicit required gate |
 | W6 Obstacle heuristic | Initial performance mode | Goal-region-seeded request-local lazy reverse Dijkstra, optional RS metric, finite fallback; compare maps/settlement budgets and no unproven `NoPath` |
 | W7 Disc/EDT | Opt-in prototype, disabled by default | Blocked-center exact EDT, conservative rectangle disc cover, strict exact fallback; 3/4/5-disc randomized differential tests and staged end-to-end benchmarks; proof review and further map/geometry testing pending |
-| W8 Quality/refiner | Optional bounded shortcut refiner implemented | Validated incumbent continuation, exact-oriented clearance weighting, and independently validated post-search section-boundary shortcuts; original/obstacle/cancellation/limit fixtures pass. More capable obstacle-aware smoothers, objective tuning, whole-pipeline benchmarks and final retry still pending |
+| W8 Quality/refiner | Optional CSC shortcut extension implemented | Validated incumbent continuation, exact-oriented clearance weighting, strict section-boundary refinement, and opt-in forward/reverse CSC candidates with cost lower-bound pruning; 2000 seeded pose tests and local benchmark pass. Steering-rate smoothing, broader benchmarks and final retry remain pending |
 | W9 Other models | Deferred | Add only after a second real model exists; actuator/ROS contracts independent |
 
 ## Provisional configuration / decision log
@@ -174,10 +180,10 @@ boundary-only diagnostic mode cannot be used by `plan()`.
 | Heuristic | Certified region Euclidean default; optional noncertified lazy grid plus injected RS exact-goal distance | Benchmark performance and separate reachability proof |
 | Termination | First strictly validated default, opt-in bounded `ImproveIncumbent` with explicit reasons | Improve-mode expansion budget and strict retry policy |
 | RS | First-node/search-bin scheduler; signed native hook; optional reusable OMPL evaluator | OMPL-ON build, integration and scheduling/quality benchmarks |
-| Refinement | Explicit `refinePath()` only, original revalidated, strict cheaper full-path replacement, optional signed provider | More capable continuous-curvature smoothing, cost/latency benchmarks |
+| Refinement | Explicit `refinePath()`; straight-only default; opt-in fixed-gear CSC candidates or signed callback; strict cheaper full-path revalidation and original fallback | CCC/RS completeness, curvature-continuous steering smoothing, multi-seed cost/latency benchmarks |
 | Result | Geometric sampled evidence, no actuator guarantee | Consumer execution assurance policy |
 
-See [W3–W5 verification notes](w3-w5-verification-notes.md) for new acceptance fixtures and explicit OMPL verification limits.\n\nSee synthesis §1.3, §17 and §18 for alternative approaches and mathematical
+See [W8 curvature-bounded CSC verification](w8-csc-verification.md) for geometric construction, safe cost pruning and local performance limits.\nSee [W3–W5 verification notes](w3-w5-verification-notes.md) for new acceptance fixtures and explicit OMPL verification limits.\n\nSee synthesis §1.3, §17 and §18 for alternative approaches and mathematical
 proof obligations. **All settings are provisional; initial measurements are exploratory and not release benchmarks.** A
 successful sampled plan is a static-map geometric initializer, not an
 execution-safe timed trajectory, proof of swept collision freedom, globally
