@@ -72,8 +72,10 @@ CTest pass of this exact repository.
 full installed OMPL package and Docker matrix, Clang/GCC sanitizers on the
 actual library and demo, browser acceptance on target platforms, and
 representative performance measurements. The current environment has no
-network access for cloning the repository, no Docker engine and no installed
-Catch2/OMPL test dependencies. No GitHub Actions workflow is run or created.
+network access for cloning the repository, no Docker engine and no HTTPS access for
+the initial Catch2 FetchContent download or complete installed OMPL test
+dependencies. Catch2 v3.8.1 is now automatically provisioned through CMake
+on machines with Git and network access. No GitHub Actions workflow is run or created.
 
 ### Manual verification on a provisioned host
 

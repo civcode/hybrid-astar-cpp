@@ -2,8 +2,10 @@
 
 The root [Dockerfile](../Dockerfile) provides a reproducible Ubuntu 24.04
 environment for **building, testing and running** the real C++20 Hybrid A*
-planner. Dependencies include GCC, CMake, Ninja, Python 3, **Catch2 v3**,
-Eigen3, Boost, FLANN, ODE and yaml-cpp. It builds **OMPL 2.0.2 from its
+planner. Dependencies include GCC, Git, CMake, Ninja, Python 3,
+Eigen3, Boost, FLANN, ODE and yaml-cpp. **Catch2 v3.8.1 is built by
+CMake FetchContent by default**, not installed from Ubuntu's packages.
+It builds **OMPL 2.0.2 from its
 official tagged source**, with VAMP and Python bindings disabled; this avoids
 accidentally linking an older distro OMPL version.
 
@@ -125,7 +127,10 @@ Benchmarks are manual; they are not stable product latency promises.
 
 ## Build without Docker
 
-Install Catch2 **3.x** as a CMake package when building tests:
+Catch2 **v3.8.1 is fetched automatically by CMake** when tests are enabled
+(the default). The initial configuration requires Git and HTTPS access to
+`github.com/catchorg/Catch2`; later configurations reuse the downloaded
+FetchContent source tree. An installed Catch2 package is not required.
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
@@ -134,6 +139,21 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
+
+To use an already installed Catch2 v3 CMake package instead (for offline
+or distribution builds):
+
+```bash
+cmake -S . -B build-system-catch2 \
+  -DHYBRID_ASTAR_USE_SYSTEM_CATCH2=ON
+cmake --build build-system-catch2 --parallel
+ctest --test-dir build-system-catch2 --output-on-failure
+```
+
+Alternatively, keep FetchContent enabled and supply an **existing** unpacked
+Catch2 v3.8.1 source checkout with
+`-DFETCHCONTENT_SOURCE_DIR_CATCH2=/absolute/path/to/Catch2`. This is
+useful for offline builds and does not change the default behavior.
 
 For a dependency-minimal **core + app only** build, disable tests explicitly
 (`-DHYBRID_ASTAR_BUILD_TESTS=OFF`); this avoids requiring Catch2. Likewise,
@@ -159,8 +179,9 @@ precondition for using the real Catch2 runner.
 ## Verification limitations
 
 These Docker paths have not been executed from this assistant environment
-because the Docker daemon and Catch2 development package are unavailable
-there. They require a first on-machine Docker build/test to confirm OMPL's
+because the Docker daemon and HTTPS access needed for the default Catch2
+FetchContent download are unavailable here. They require a first on-machine
+Docker build/test to confirm OMPL's
 full package installation and all imported CMake targets. The earlier local
 OMPL 2.0.2 source-subset integration and sanitizer test evidence remain
 separate and do not substitute for that Docker verification.

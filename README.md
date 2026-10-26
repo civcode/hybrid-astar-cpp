@@ -257,8 +257,14 @@ and never run through GitHub Actions.
 
 ## Build and test the Ackermann vertical slice
 
-Catch2 **v3** is required for test builds. If you only need the core/demo
-without Catch2, configure with `-DHYBRID_ASTAR_BUILD_TESTS=OFF`.
+When tests are enabled (the default), CMake **automatically fetches and
+builds Catch2 v3.8.1** using `FetchContent` (Git + network required on
+the first configure). No preinstalled Catch2 package is required.
+Use `-DHYBRID_ASTAR_USE_SYSTEM_CATCH2=ON` to select a system-installed
+Catch2 v3 package instead, or
+`-DFETCHCONTENT_SOURCE_DIR_CATCH2=/path/to/Catch2` for an offline
+source checkout. If you only need the core/demo without Catch2, configure
+with `-DHYBRID_ASTAR_BUILD_TESTS=OFF`. See [testing setup](docs/docker.md#build-without-docker).
 
 ```bash
 cmake -S . -B build -DHYBRID_ASTAR_ENABLE_OMPL=OFF

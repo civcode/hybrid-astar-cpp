@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 # Reproducible Linux development/test/demo environment. No GitHub Actions.
-# Ubuntu 24.04 ships Catch2 v3 (3.4.0); OMPL is built from the exact
-# 2.0.2 upstream tag to match the project's signed-path integration.
+# Catch2 v3.8.1 is downloaded by CMake FetchContent by default; OMPL is
+# built from the exact 2.0.2 upstream tag for signed-path integration.
 FROM ubuntu:24.04 AS dependencies
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake ninja-build pkg-config \
+    build-essential cmake ninja-build pkg-config git \
     ca-certificates curl tar python3 nodejs \
-    catch2 libeigen3-dev libboost-all-dev \
+    libeigen3-dev libboost-all-dev \
     libflann-dev libode-dev libyaml-cpp-dev \
   && rm -rf /var/lib/apt/lists/*
 

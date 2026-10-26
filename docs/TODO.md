@@ -208,9 +208,10 @@ See [W3/W6 failure root-cause investigation](architecture/w3-w6-failure-investig
   **Catch2 v3** dependencies.
 - [x] Expose separate manual Docker `demo` and `test` targets with host
   loopback-only port publication; retain native loopback binding as default.
-- [x] Make `find_package(Catch2 3 CONFIG REQUIRED)` part of the C++ test
-  build; move all existing native tests from custom `main()` executables
-  to Catch2 test cases, and assertion helpers to `INFO`/`REQUIRE`.
+- [x] Wire Catch2 v3 as the actual C++ test runner; default CMake builds
+  now use pinned v3.8.1 via `FetchContent`, with explicit opt-in
+  `HYBRID_ASTAR_USE_SYSTEM_CATCH2=ON` for an installed CMake package.
+  Native tests use Catch2 cases and `INFO`/`REQUIRE` assertions.
 - [x] Add native Catch2 `SECTION` fixtures for kinematic propagation and
   strict validated path evidence.
 - [ ] Run a full Docker image build/CTest matrix on a machine with Docker
