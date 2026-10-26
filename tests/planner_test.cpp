@@ -118,6 +118,24 @@ int main() {
     expect(plan(q).status==PlanStatus::Success,"invalid analytic output cannot abort search");
   }
   {
+    // Deliberately undersampled search misses an obstacle; independent strict
+    // final validation MUST reject the candidate, never return Success.
+    auto m=std::make_shared<MapSnapshot>();
+    m->width=m->height=300;m->resolutionMeters=.01;
+    m->cells.assign(90000,0);m->cells[100*300+125]=100;
+    PlanRequest q;
+    q.map=m;q.footprint={-.02,.02,.02};q.start={1,1,0};q.goal={1.5,1,0};
+    q.options.goalXYToleranceMeters=.02;
+    q.options.searchSampleSpacingMeters=1;
+    q.options.searchMaxBodyPointMotionMeters=1;
+    q.options.finalSampleSpacingMeters=.01;
+    q.options.finalMaxBodyPointMotionMeters=.01;
+    q.options.maxExpansions=2;
+    const auto result=plan(q);
+    expect(result.status!=PlanStatus::Success,"strict final gate rejects missed obstacle");
+    expect(result.diagnostics.finalPoseChecks>0,"strict validation actually ran");
+  }
+  {
     auto m=std::make_shared<MapSnapshot>(makeMap());
     PlanRequest request;
     request.map=m;request.start={12,12,0};request.goal={15,12,0};
