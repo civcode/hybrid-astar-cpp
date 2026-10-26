@@ -93,6 +93,32 @@ int main() {
   }
   {
     auto m=std::make_shared<MapSnapshot>(makeMap());
+    PlanRequest q;
+    q.map=m;q.start={20,20,0};q.goal={21,20,0};
+    q.analyticConnector=[](const Pose2D& start,const Pose2D&) {
+      auto reverse=makeSection(start,Gear::Reverse,0,1);
+      auto forward=makeSection(reverse.end,Gear::Forward,0,2);
+      return std::vector<MotionSection>{reverse,forward};
+    };
+    auto result=plan(q);
+    expect(result.status==PlanStatus::Success,"analytic callback connected");
+    expect(result.diagnostics.analyticAttempts==1 && result.diagnostics.analyticAccepted==1,"first-node attempt");
+    expect(result.sections.size()==2 && result.finalGear==Gear::Forward,"analytic cusp preserved");
+    expect(std::abs(result.weightedCostMeters-3.6)<1e-9,"analytic cost including cusp");
+    q.options.analytic.maxWeightedCostMeters=2.0;
+    auto fallback=plan(q);
+    expect(fallback.status==PlanStatus::Success,"cost-gated connector falls back");
+    expect(fallback.diagnostics.analyticAccepted==0,"analytic cost cap respected");
+    q.options.analytic.maxWeightedCostMeters.reset();
+    q.analyticConnector=[](const Pose2D& p,const Pose2D&) {
+      auto invalid=makeSection(p,Gear::Forward,0,1);
+      invalid.end.x+=2.0;
+      return std::vector<MotionSection>{invalid};
+    };
+    expect(plan(q).status==PlanStatus::Success,"invalid analytic output cannot abort search");
+  }
+  {
+    auto m=std::make_shared<MapSnapshot>(makeMap());
     PlanRequest request;
     request.map=m;request.start={12,12,0};request.goal={15,12,0};
     request.options.maxExpansions=15000;
