@@ -73,5 +73,21 @@ int main() {
     require(blocked.collisionEvidence==CollisionEvidence::None,
             "failed search never advertises validated path");
   }
+  {
+    // Search has ample samples but the strict validator has an independent cap.
+    auto m=map();PlanRequest q;q.map=m;
+    q.start={20,20,0};q.goal={21,20,0};
+    q.options.maxFinalSamplesPerSection=3;
+    auto bounded=plan(q);
+    require(bounded.status==PlanStatus::ValidationIncomplete,
+            "strict sample cap cannot be silently bypassed");
+    require(bounded.collisionEvidence==CollisionEvidence::None,
+            "strict budget abort never claims validated geometry");
+    require(bounded.diagnostics.finalPoseChecks>0,
+            "strict checking actually attempted");
+    q.options.maxFinalSamplesPerSection=10000;
+    require(plan(q).status==PlanStatus::Success,
+            "larger independent strict cap permits complete validation");
+  }
   std::cout<<"SCENARIOS PASS\n";
 }
