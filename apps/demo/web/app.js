@@ -49,10 +49,15 @@ function drawPose(p,color,g,body=false) {
   const [x,y]=mapPoint(p[0],p[1],g);
   ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2.5;
   ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);ctx.fill();
-  const [tx,ty]=mapPoint(p[0]+1.6*Math.cos(p[2]),p[1]+1.6*Math.sin(p[2]),g);
+  const isDiff=$('model').value==='differential';
+  const headLength=isDiff?.35:1.6;
+  const [tx,ty]=mapPoint(p[0]+headLength*Math.cos(p[2]),p[1]+headLength*Math.sin(p[2]),g);
   ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
   if(!body)return;
-  const corners=[[-1,-.9],[3.6,-.9],[3.6,.9],[-1,.9]];
+  const [rear,frontX,halfWidth]=snapshot?.footprint||
+      (isDiff?[-.35,.35,.25]:[-1,3.6,.9]);
+  const corners=[[rear,-halfWidth],[frontX,-halfWidth],
+                 [frontX,halfWidth],[rear,halfWidth]];
   ctx.fillStyle='rgba(91,221,206,.16)';ctx.strokeStyle='#70e5d5';ctx.lineWidth=1.5;
   ctx.beginPath();corners.forEach(([u,v],i)=>{
     const xx=p[0]+Math.cos(p[2])*u-Math.sin(p[2])*v;
@@ -65,6 +70,18 @@ function drawSections(path,g,muted=false) {
   ctx.lineCap='round';ctx.lineJoin='round';
   for(const section of path.sections) {
     if(!section.points.length)continue;
+    if(section.kind==='rotation') {
+      const anchor=section.points[0];
+      const [cx,cy]=mapPoint(anchor[0],anchor[1],g);
+      ctx.beginPath();ctx.arc(cx,cy,9,0,Math.PI*1.75,section.turnRadians>0);
+      ctx.strokeStyle=muted?'rgba(155,177,204,.5)':'#b69eff';
+      ctx.lineWidth=2.5;ctx.stroke();
+      for(const p of [section.points[0],section.points.at(-1)]) {
+        const [ex,ey]=mapPoint(p[0]+.45*Math.cos(p[2]),p[1]+.45*Math.sin(p[2]),g);
+        ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(ex,ey);ctx.stroke();
+      }
+      continue;
+    }
     ctx.beginPath();section.points.forEach((p,i)=>{
       const [x,y]=mapPoint(p[0],p[1],g);if(!i)ctx.moveTo(x,y);else ctx.lineTo(x,y);
     });
@@ -124,6 +141,19 @@ function stats(result) {
   $('expanded').textContent=result.original.expanded.toLocaleString();
   $('elapsed').textContent=result.milliseconds.toFixed(1)+' ms';
 }
+let modelCapabilities={ompl:false};
+function syncModelOptions() {
+  const diff=$('model').value==='differential';
+  for(const id of ['ompl','refine','curved']) {
+    const el=$(id);
+    if(diff)el.checked=false;
+    el.disabled=diff || (id==='ompl'?!modelCapabilities.ompl:
+                          id==='curved'?!$('refine').checked:false);
+  }
+}
+$('model').addEventListener('change',()=>{
+  syncModelOptions();invalidateRoute();replan();
+});
 function invalidateRoute() {
   routeValid=false;animation=false;
   $('playButton').textContent='▶';
@@ -169,6 +199,7 @@ async function replan() {
   animation=false;$('playButton').textContent='▶';
   const keys=['scenario','startx','starty','startyaw','goalx','goaly','goalyaw'];
   const params=new URLSearchParams();for(const key of keys)params.set(key,$(key).value);
+  params.set('model',$('model').value);
   for(const key of ['ompl','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
   params.set('editRevision',String(generation));
   params.set('edits',MapEditor.encode(editMap));
@@ -262,7 +293,8 @@ new ResizeObserver(draw).observe(canvas);
 (async()=>{
   resetScenario();$('curved').disabled=true;
   try {const caps=await (await fetch('/api/capabilities')).json();
-    $('ompl').disabled=!caps.ompl;$('omplInfo').textContent=caps.ompl?'(available)':'(build without OMPL)';
+    modelCapabilities=caps;syncModelOptions();
+    $('omplInfo').textContent=caps.ompl?'(available for Ackermann)':'(build without OMPL)';
     if(caps.customMap) {
       $('customOption').hidden=false;
       customOrigin=caps.origin||[0,0,0];
