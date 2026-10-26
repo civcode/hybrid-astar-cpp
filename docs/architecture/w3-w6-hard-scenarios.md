@@ -114,7 +114,9 @@ For OMPL 2.0.2 comparison, use a properly installed OMPL package (the
 project's Dockerfile provisions this) and add
 `-DHYBRID_ASTAR_ENABLE_OMPL=ON`. The manual benchmark then includes
 `ompl_rs`, `ompl_rs_grid` and `ompl_rs_grid_refined` alongside
-`primitive`, `primitive_grid` and `primitive_grid_refined`.
+`primitive`, `primitive_grid`, `primitive_grid_legacy_diagonals` and
+`primitive_grid_refined`. The legacy diagonal row is an explicit
+**noncertified controlled A/B mode**, not the default.
 
 CSV provides status, success count, p50/p95/p99 latency, expansions,
 generated nodes, exact final checks, grid settlement/seed/fallback counts,
@@ -124,7 +126,8 @@ scheduled automatically and has no threshold assertions on wall-clock time.
 
 **Local checks completed:** GCC Release reconstructed core 8/8 CTest,
 Clang ASan/UBSan reconstructed core 8/8 CTest, fourteen repeated
-hard-fixture/mode comparisons with independent original-path checking, and
+hard-fixture/mode comparisons with independent original-path checking
+(including an ASan/UBSan run), and
 a blocked-center goal tolerance seeding probe (25 candidates, 19 accepted).
 **Still unverified:** running the newly committed Catch2 source on an
 installed Catch2 v3 package, the exact remote repository checkout, and the
