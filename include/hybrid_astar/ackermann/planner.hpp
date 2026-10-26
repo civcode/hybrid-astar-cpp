@@ -97,6 +97,7 @@ struct PlanOptions {
   std::size_t maxTotalFinalPoseChecks = 250000; // cumulative strict whole-path checks
   OpenQueueMode gridQueueMode = OpenQueueMode::BinaryLazy; // grid frontier A/B
   OpenQueueMode openQueueMode = OpenQueueMode::BinaryLazy; // baseline
+  std::size_t searchLabelReserve = 0; // opt-in initial hash-table reserve (0 = baseline)
   std::size_t maxExpansions = 100000;
   std::size_t maxGeneratedNodes = 400000;
 };
@@ -123,6 +124,17 @@ struct PlanDiagnostics {
   std::size_t gridQueuePushes = 0, gridQueuePops = 0;
   std::size_t gridQueueStalePops = 0, gridQueuePeakSize = 0;
   std::size_t gridQueuePeakStorageBytes = 0;
+  std::size_t labelFinds = 0, labelFindHits = 0, labelInsertions = 0;
+  std::size_t labelUpdates = 0, labelRehashes = 0, labelPeakBuckets = 0;
+  std::size_t labelPeakSize = 0, hashCalls = 0;
+  std::size_t searchMotionCalls = 0, finalMotionCalls = 0;
+  std::size_t exactCollisionPoseCalls = 0;
+  // Timing counters are nonzero only with HYBRID_ASTAR_PROFILE_HOTPATHS=ON.
+  // Motion timings INCLUDE nested exact-collision timings: do not sum.
+  std::uint64_t labelLookupNanoseconds = 0, labelWriteNanoseconds = 0;
+  std::uint64_t hashNanoseconds = 0, openQueueNanoseconds = 0;
+  std::uint64_t gridQueueNanoseconds = 0, exactCollisionNanoseconds = 0;
+  std::uint64_t searchMotionNanoseconds = 0, finalMotionNanoseconds = 0;
   std::size_t searchPoseChecks = 0, finalPoseChecks = 0;
   std::size_t analyticAttempts = 0, analyticAccepted = 0;
   std::size_t gridSettlements = 0, gridFallbacks = 0;
