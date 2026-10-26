@@ -56,6 +56,10 @@ endif()
 
 if(HYBRID_ASTAR_BUILD_TESTS)
   enable_testing()
+  add_executable(hybrid_astar_w10_differential_search_test tests/w10_differential_search_test.cpp)
+  target_link_libraries(hybrid_astar_w10_differential_search_test PRIVATE
+    hybrid_astar::core Catch2::Catch2WithMain)
+  add_test(NAME w10_differential_search_test COMMAND hybrid_astar_w10_differential_search_test)
   add_executable(hybrid_astar_w10_motion_primitives_test tests/w10_motion_primitives_test.cpp)
   target_link_libraries(hybrid_astar_w10_motion_primitives_test PRIVATE
     hybrid_astar::core hybrid_astar::differential_drive Catch2::Catch2WithMain)
