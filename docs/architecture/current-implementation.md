@@ -134,6 +134,17 @@ the C++ loader and independent JavaScript transform have local tests.
 Unsupported arbitrary YAML schemas/PNG/ROS message integration remain deferred.
 The browser/CLI can export JSON but this is still not a timed ROS Path.
 
+The browser now supports interactive **obstacle/free/unknown/restore**
+brush editing in map-local coordinates (including nonzero YAML map yaw).
+Each planning request uses a bounded, canonical cell-edit list, applied
+to a new immutable `MapSnapshot` with a fresh browser edit generation.
+Old path evidence is hidden immediately when map cells change; search,
+strict final validation and optional refinement all use the copied revision.
+A capped `POST /api/plan` URL-encoded form handles brush edits, while
+existing unedited GET requests remain available. This is request-local
+editing, not a transactional shared mutable map server. See
+[edit protocol](../../apps/demo/README.md#interactive-obstacle-editing-immutable-map-revisions).
+
 This is a **single-user developer demo**, not a dynamic-map/ROS/Nav2
 integration or remote/public HTTP service. It advertises only the core's
 static-map **adaptive-sampled geometric evidence**, not certified swept
