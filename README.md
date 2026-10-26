@@ -78,6 +78,36 @@ build and test are manual, not GitHub Actions automation. See the
 **Docker execution has not yet been validated in this assistant environment**
 because no Docker engine is installed here.
 
+## W6 label hashing, exact collision and CPU hotpath profiling
+
+The planner now counts **search-label hash-table lookups/inserts/rehashes,
+exact whole-footprint collision calls, search/final motion checks**, and
+queue work. An optional build flag
+`-DHYBRID_ASTAR_PROFILE_HOTPATHS=ON` adds per-stage nanosecond timings
+without clock-read overhead in ordinary builds. Hash and collision timings
+are nested within label operations and motion checks, respectively.
+
+Two conservative source changes remove a redundant hash lookup for
+improved search labels and cache the immutable occupancy map's origin
+rotation. Neither changes collision semantics or path priority. The new
+`PlanOptions::searchLabelReserve` defaults to 0; label-table reservation
+is an **opt-in** allocation A/B knob, not a global performance claim.
+
+```bash
+cmake -S . -B build-hotpath -DCMAKE_BUILD_TYPE=Release \
+  -DHYBRID_ASTAR_BUILD_TESTS=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON \
+  -DHYBRID_ASTAR_PROFILE_HOTPATHS=ON
+cmake --build build-hotpath --parallel
+ctest --test-dir build-hotpath --output-on-failure
+./build-hotpath/hybrid_astar_hotpath_bench 7 > hotpath.csv
+```
+
+A second profiling-**OFF** build is required to compare end-to-end
+latency without clock overhead. The [profiling and acceptance notes](
+docs/architecture/w6-hotpath-profiling.md) distinguish measurements
+and unverified hypotheses; no new default is selected until those
+hardware runs are completed.
+
 ## W6 priority-queue profiling and A/B tuning
 
 Both search queues now expose explicit queue push/pop/stale/peak/memory

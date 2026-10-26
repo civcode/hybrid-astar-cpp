@@ -264,6 +264,17 @@ The relocated core-only demo has been compiled and smoke-tested locally.
 | Refinement | Explicit `refinePath()`; straight-only default; opt-in CSC or signed provider; optional real-OMPL combined plan/refine; strict cheaper full-path revalidation and original fallback | CCC/RS completeness, curvature-continuous steering smoothing, multi-seed cost/latency benchmarks |
 | Result | Geometric sampled evidence, no actuator guarantee | Consumer execution assurance policy |
 
+Search hotpath instrumentation counts label finds/hits/inserts/rehashes,
+exact pose checks and queue work. An opt-in CMake timing build measures
+hashing, label writes/lookups, exact SAT collisions, full motion checks and
+both queue push/pops; nested timings must not be summed. The map checker now
+caches immutable map-origin trigonometry; successful key updates reuse
+the found map iterator instead of performing an extra lookup. Label-table
+pre-reservation is opt-in (`searchLabelReserve=0` baseline), not
+a new benchmark-ratified default. See [hotpath profiling
+contract](w6-hotpath-profiling.md). A complete profiled toolchain run is
+still pending.
+
 See [W6 priority queue verification](w6-priority-queue-verification.md) for both-heap instrumentation, indexed and four-ary A/B timings, memory costs and unchanged defaults.
 See [W3/W6 failure investigation](w3-w6-failure-investigation.md) for the corrected dead-end fixture, detour heuristic-budget root cause and optional weight tradeoffs.
 See [hard-scenario regression and W6 A/B evidence](w3-w6-hard-scenarios.md) for current test fixtures, counters and remaining search-efficiency limitations.

@@ -22,6 +22,23 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## W6 hash/collision/queue hotpath instrumentation — 2026-10-26
+
+- [x] Instrument label map finds/hits/inserts/updates/rehashes, hash calls,
+  exact full-footprint collision evaluations, search/final arc work and
+  both search queues with compile-time opt-in nanosecond timers.
+- [x] Avoid redundant hashing on improved-key replacement by writing
+  through the existing label iterator; cache immutable map-origin trigonometry.
+- [x] Add opt-in label-table reserve and controlled comparison with the
+  conservative 4-disc collision prefilter.
+- [x] Register Catch2 reserve/collision invariants and a manual hard-scenario
+  p50/p95 benchmark with profiled versus nonprofiled runs.
+- [ ] Execute exact checkout Catch2/Docker build plus profiled and
+  profiling-OFF benchmark on one representative host; establish actual CPU
+  hotspots and RSS before promoting any reserve/prefilter configuration.
+
+See [W6 hotpath profiling guide](architecture/w6-hotpath-profiling.md).
+
 ## W6 priority-queue profiling — implemented 2026-10-26
 
 - [x] Instrument both Hybrid A* open and lazy reverse-grid frontiers for
