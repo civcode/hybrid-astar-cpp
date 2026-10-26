@@ -152,6 +152,9 @@ int main() {
     expect(!result.trajectoryActuatorFeasible,"no actuator assertion");
     expect(result.mapRevision==7,"map provenance");
     expect(result.weightedCostMeters>0,"costed motion");
+    request.occupancy.maxTraversableOccupancy=101;
+    expect(plan(request).status==PlanStatus::InvalidRequest,"invalid policy request");
+    request.occupancy.maxTraversableOccupancy=0;
     request.cancelled=std::make_shared<std::atomic_bool>(true);
     expect(plan(request).status==PlanStatus::Cancelled,"cancelled status");
     request.cancelled.reset();
