@@ -6,6 +6,7 @@ The baseline and ADRs are historical architecture proposals; the first C++20 Ack
 | --- | --- |
 | [Current implementation](current-implementation.md) | Normative shipped behavior, evidence, open W0–W9 work packages |
 | [W3–W5 verification](w3-w5-verification-notes.md) | Signed section decoder, parking fixtures, strict budget and explicit unverified OMPL-ON gate |
+| [W8 CSC verification](w8-csc-verification.md) | Opt-in forward/reverse curvature-bounded connectors, certified cost pruning, local randomized tests and benchmark tradeoffs |
 | [W8 refinement verification](w8-refinement-verification.md) | Bounded post-search exact-arc shortcutting, independent whole-path SAT checking, safe fallback and 7-suite local evidence |
 | [W7–W8 verification](w7-w8-verification-notes.md) | Conservative EDT pose-bypass argument, optional improvement/clearance, exploratory benchmark regression |
 | [Consolidated synthesis](Hybrid_AStar_Consolidated_Specification.md) | Original three-review proposed architecture and decision register |
