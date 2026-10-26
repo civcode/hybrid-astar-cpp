@@ -115,52 +115,93 @@ double heuristic(const Pose2D& p,const Pose2D& goal,double tolerance) {
 class LazyGrid {
 public:
   LazyGrid(const MapSnapshot& m,OccupancyPolicy p,const Pose2D& goal,
-           double tolerance,std::size_t limit,PlanDiagnostics& diag)
-      : m_(m),p_(p),limit_(limit),diag_(diag),
+           double tolerance,std::size_t perQueryLimit,std::size_t totalLimit,
+           bool preventCornerCutting,PlanDiagnostics& diag)
+      : m_(m),p_(p),perQueryLimit_(perQueryLimit),totalLimit_(totalLimit),
+        preventCornerCutting_(preventCornerCutting),diag_(diag),
         dist_(m.cells.size(),std::numeric_limits<double>::infinity()),
         settled_(m.cells.size(),false) {
     const auto local=mapLocal(goal);
-    // Seed every free cell square intersecting the XY goal tolerance disc.
-    for (std::size_t y=0;y<m.height;++y) for (std::size_t x=0;x<m.width;++x) {
-      const std::size_t idx=y*m.width+x;
-      if (!traversable(idx)) continue;
-      const double left=x*m.resolutionMeters, bottom=y*m.resolutionMeters;
-      const double dx=local.x-std::clamp(local.x,left,left+m.resolutionMeters);
-      const double dy=local.y-std::clamp(local.y,bottom,bottom+m.resolutionMeters);
-      if (std::hypot(dx,dy)<=tolerance) {
-        dist_[idx]=0.0;
-        heap_.emplace(0.0,idx);
+    const double r=m.resolutionMeters;
+    // A cell intersects the goal disk iff its nearest square point is in the
+    // disk. Only squares in the axis-aligned disk bounding box need testing.
+    // Full-map seeding was O(width*height), even for a single-cell goal.
+    const auto clipped=[&](double coordinate,std::size_t dim)->std::size_t {
+      const double index=std::floor(coordinate/r);
+      if(index<=0) return 0;
+      if(index>=static_cast<double>(dim)) return dim-1;
+      return static_cast<std::size_t>(index);
+    };
+    const double xmin=local.x-tolerance, xmax=local.x+tolerance;
+    const double ymin=local.y-tolerance, ymax=local.y+tolerance;
+    if(xmax<0||ymax<0||xmin>m.width*r||ymin>m.height*r)
+      return; // no reachable goal-region seeds; later queries use fallback
+    const auto firstX=clipped(xmin,m.width),lastX=clipped(xmax,m.width);
+    const auto firstY=clipped(ymin,m.height),lastY=clipped(ymax,m.height);
+    for(std::size_t y=firstY;y<=lastY;++y) {
+      for(std::size_t x=firstX;x<=lastX;++x) {
+        ++diag_.gridSeedCellsExamined;
+        const std::size_t idx=y*m.width+x;
+        if(!traversable(idx)) continue;
+        const double left=x*r,bottom=y*r;
+        const double dx=local.x-std::clamp(local.x,left,left+r);
+        const double dy=local.y-std::clamp(local.y,bottom,bottom+r);
+        if(std::hypot(dx,dy)<=tolerance) {
+          dist_[idx]=0;
+          heap_.emplace(0.0,idx);
+          ++diag_.gridSeedCellsAccepted;
+        }
       }
     }
   }
   double estimate(const Pose2D& pose,double fallback) {
     const auto local=mapLocal(pose);
-    if (local.x<0||local.y<0||local.x>=m_.width*m_.resolutionMeters||
-        local.y>=m_.height*m_.resolutionMeters) {++diag_.gridFallbacks;return fallback;}
+    if(local.x<0||local.y<0||local.x>=m_.width*m_.resolutionMeters||
+       local.y>=m_.height*m_.resolutionMeters) {
+      ++diag_.gridFallbacks;return fallback;
+    }
     const auto x=static_cast<std::size_t>(std::floor(local.x/m_.resolutionMeters));
     const auto y=static_cast<std::size_t>(std::floor(local.y/m_.resolutionMeters));
     const auto target=y*m_.width+x;
-    for (std::size_t work=0;work<limit_ && !heap_.empty() && !settled_[target];) {
-      auto [distance,index]=heap_.top();heap_.pop();
-      if (settled_[index]||distance>dist_[index]) continue;
+    // A blocked center cell is not an exact footprint-collision oracle.
+    // But it cannot have a finite value in this raw-grid relaxation; don't
+    // burn hundreds of settlements trying to compute one.
+    if(!traversable(target)||heap_.empty()) {
+      if(!traversable(target))++diag_.gridBlockedQueryFallbacks;
+      ++diag_.gridFallbacks;return fallback;
+    }
+    std::size_t work=0;
+    while(work<perQueryLimit_&&diag_.gridSettlements<totalLimit_&&
+          !heap_.empty()&&!settled_[target]) {
+      const auto [distance,index]=heap_.top();heap_.pop();
+      if(settled_[index]||distance>dist_[index])continue;
       settled_[index]=true;++work;++diag_.gridSettlements;
       const std::size_t cx=index%m_.width,cy=index/m_.width;
-      for (int dy=-1;dy<=1;++dy) for (int dx=-1;dx<=1;++dx) {
-        if (dx==0&&dy==0) continue;
-        if ((dx<0&&cx==0)||(dy<0&&cy==0)||
-            (dx>0&&cx+1>=m_.width)||(dy>0&&cy+1>=m_.height)) continue;
+      for(int dy=-1;dy<=1;++dy) for(int dx=-1;dx<=1;++dx) {
+        if(dx==0&&dy==0)continue;
+        if((dx<0&&cx==0)||(dy<0&&cy==0)||
+           (dx>0&&cx+1>=m_.width)||(dy>0&&cy+1>=m_.height))continue;
+        if(preventCornerCutting_&&dx&&dy) {
+          const std::size_t sideX=dx<0?index-1:index+1;
+          const std::size_t sideY=dy<0?index-m_.width:index+m_.width;
+          if(!traversable(sideX)||!traversable(sideY))continue;
+        }
         std::size_t nx=cx,ny=cy;
-        if (dx<0) --nx; else if (dx>0) ++nx;
-        if (dy<0) --ny; else if (dy>0) ++ny;
-        const auto next=ny*m_.width+nx;
-        if (!traversable(next)||settled_[next]) continue;
-        const double candidate=distance+m_.resolutionMeters*((dx&&dy)?std::numbers::sqrt2_v<double>:1.0);
-        if (std::isfinite(candidate)&&candidate<dist_[next]) {
+        if(dx<0)--nx;else if(dx>0)++nx;
+        if(dy<0)--ny;else if(dy>0)++ny;
+        const std::size_t next=ny*m_.width+nx;
+        if(!traversable(next)||settled_[next])continue;
+        const double candidate=distance+m_.resolutionMeters*
+                  ((dx&&dy)?std::numbers::sqrt2_v<double>:1.0);
+        if(std::isfinite(candidate)&&candidate<dist_[next]) {
           dist_[next]=candidate;heap_.emplace(candidate,next);
         }
       }
     }
-    if (settled_[target]&&std::isfinite(dist_[target])) return std::max(fallback,dist_[target]);
+    if(settled_[target]&&std::isfinite(dist_[target]))
+      return std::max(fallback,dist_[target]);
+    if(diag_.gridSettlements>=totalLimit_&&!heap_.empty())
+      ++diag_.gridWorkBudgetFallbacks;
     ++diag_.gridFallbacks;
     return fallback;
   }
@@ -176,7 +217,8 @@ private:
   }
   const MapSnapshot& m_;
   OccupancyPolicy p_;
-  std::size_t limit_;
+  std::size_t perQueryLimit_,totalLimit_;
+  bool preventCornerCutting_;
   PlanDiagnostics& diag_;
   std::vector<double> dist_;
   std::vector<bool> settled_;
@@ -344,7 +386,9 @@ PlanResult plan(const PlanRequest& r) {
     std::unique_ptr<LazyGrid> grid;
     if (opt.heuristicMode==HeuristicMode::PerformanceReedsSheppAndObstacleGrid)
       grid=std::make_unique<LazyGrid>(*r.map,r.occupancy,r.goal,
-                       opt.goalXYToleranceMeters,opt.gridMaxSettlementsPerQuery,result.diagnostics);
+                       opt.goalXYToleranceMeters,opt.gridMaxSettlementsPerQuery,
+                       opt.gridMaxTotalSettlements,opt.gridPreventDiagonalCornerCutting,
+                       result.diagnostics);
     const auto estimate=[&](const Pose2D& p) {
       double h=heuristic(p,r.goal,opt.goalXYToleranceMeters);
       if (grid) {
