@@ -8,6 +8,7 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   find_package(Catch2 3 CONFIG REQUIRED)
 endif()
 option(HYBRID_ASTAR_BUILD_BENCHMARKS "Build optional manually run planner benchmark" OFF)
+option(HYBRID_ASTAR_PROFILE_HOTPATHS "Collect opt-in timing of planner hot paths (adds clock overhead)" OFF)
 option(HYBRID_ASTAR_BUILD_APP "Build the optional localhost browser planning demo" OFF)
 
 add_library(hybrid_astar_core STATIC
@@ -21,6 +22,9 @@ add_library(hybrid_astar_core STATIC
   src/steering/signed_sections.cpp)
 add_library(hybrid_astar::core ALIAS hybrid_astar_core)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
+if(HYBRID_ASTAR_PROFILE_HOTPATHS)
+  target_compile_definitions(hybrid_astar_core PRIVATE HYBRID_ASTAR_PROFILE_HOTPATHS=1)
+endif()
 target_include_directories(hybrid_astar_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
