@@ -1,5 +1,6 @@
 #include "hybrid_astar/ackermann/planner.hpp"
 #include "hybrid_astar/ackermann/primitives.hpp"
+#include "hybrid_astar/planning/model_policy.hpp"
 #include "hybrid_astar/ackermann/cover_prefilter.hpp"
 #include "hybrid_astar/ackermann/clearance.hpp"
 #include "hybrid_astar/ackermann/hotpath_profiler.hpp"
@@ -92,34 +93,6 @@ void validateOptions(const PlanOptions& o) {
        o.solutionPolicy!=SolutionPolicy::ImproveIncumbent))
     throw std::invalid_argument("Invalid planning options");
 }
-struct KeyHash {
-  PlanDiagnostics* diagnostics = nullptr;
-  std::size_t operator()(const SearchKey& k) const noexcept {
-#if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
-    if (diagnostics) {
-      ++diagnostics->hashCalls;
-      HotPathTimer timer(diagnostics->hashNanoseconds);
-      return hash(k);
-    }
-#endif
-    return hash(k);
-  }
-private:
-  static std::size_t hash(const SearchKey& k) noexcept {
-    std::size_t h=std::hash<std::int64_t>{}(k.xBin);
-    const auto mix=[&](std::size_t v) { h^=v+0x9e3779b97f4a7c15ULL+(h<<6)+(h>>2); };
-    mix(std::hash<std::int64_t>{}(k.yBin)); mix(k.yawBin); mix(static_cast<unsigned>(k.incomingGear));
-    return h;
-  }
-};
-struct Node {
-  Pose2D pose;
-  SearchKey key;
-  Gear gear;
-  double g, h, clearanceCost;
-  std::size_t parent;
-  MotionSection via;
-};
 struct Label { std::size_t node; double bestG; bool expanded; };
 double goalErrorXY(const Pose2D& p,const Pose2D& g) { return std::hypot(p.x-g.x,p.y-g.y); }
 double goalErrorYaw(const Pose2D& p,const Pose2D& g) { return std::abs(wrap(p.yaw-g.yaw)); }
@@ -428,45 +401,21 @@ Pose2D MotionSection::evaluate(double progress) const {
   return p;
 }
 
-PlanResult plan(const PlanRequest& r) {
+// This is ONE typed search kernel. The model supplies state indexing, cost,
+// successor catalog and exact section materialization. Model dispatch occurs
+// only once per request; the expansion loop contains no chassis switch.
+template <planning::PlanarSearchModel Policy>
+PlanResult planImpl(const PlanRequest& r,const Policy& model) {
+  using Node=planning::SearchNode<typename Policy::State,typename Policy::Key,
+                                  typename Policy::Mode,typename Policy::Section>;
   PlanResult result;
   if (r.map) { result.mapRevision=r.map->revision; result.mapFrameId=r.map->frameId; result.mapSourceId=r.map->sourceId; }
   result.effectiveOccupancy=r.occupancy;
   if (!r.map || !finite(r.start) || !finite(r.goal)) return result;
   try {
-    validateOptions(r.options);validateFootprint(r.footprint);
-    const auto& o=r.options;
-    if(o.model!=PlanOptions::Model::Ackermann &&
-       o.model!=PlanOptions::Model::DifferentialDrive)
-      throw std::invalid_argument("Unsupported kinematic model");
-    if(o.model==PlanOptions::Model::DifferentialDrive) {
-      if(!std::isfinite(o.rotationCostMetersPerRadian)||
-         o.rotationCostMetersPerRadian<=0 || r.analyticConnector ||
-         r.analyticDistance || o.clearanceWeight>0)
-        throw std::invalid_argument("Unsupported differential-drive planner option");
-      const differential_drive::Model model(o.diffParameters);
-      auto sampling=o.diffPrimitives;
-      // Reject a catalog that cannot obey the request's collision budget.
-      sampling.sampling={
-        o.searchSampleSpacingMeters,o.searchMaxBodyPointMotionMeters,
-        std::hypot(std::max(std::abs(r.footprint.rearX),
-                            std::abs(r.footprint.frontX)),r.footprint.halfWidth),
-        std::numbers::pi_v<double>,o.maxSamplesPerSection};
-      const auto& p=sampling;
-      if(!std::isfinite(p.translationMeters)||p.translationMeters<=0 ||
-         !std::isfinite(p.arcTurnRadians)||p.arcTurnRadians<=0 ||
-         !std::isfinite(p.spinRadians)||p.spinRadians<=0 ||
-         !std::isfinite(p.translationSpeed)||p.translationSpeed<=0 ||
-         !std::isfinite(p.rotationSpeed)||p.rotationSpeed<=0)
-        throw std::invalid_argument("Invalid differential-drive primitive parameters");
-      const double duration=p.translationMeters/p.translationSpeed;
-      if(!std::isfinite(duration)||duration<=0 ||
-         !model.valid({p.translationSpeed,p.arcTurnRadians/duration}) ||
-         !model.valid({0,p.rotationSpeed}))
-        throw std::invalid_argument("Differential-drive wheel-rate limit exceeded");
-      (void)motion::sampleIntervals(p.translationMeters,p.arcTurnRadians,p.sampling);
-      (void)motion::sampleIntervals(0,p.spinRadians,p.sampling);
-    }
+    validateOptions(r.options);
+    validateFootprint(r.footprint);
+    model.validate();
   } catch (const std::exception&) {
     result.status=PlanStatus::InvalidRequest;return result;
   }
@@ -503,44 +452,18 @@ PlanResult plan(const PlanRequest& r) {
     if (checkedPose(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
     ++result.diagnostics.searchPoseChecks;
     const auto& opt=r.options;
-    // Both models produce immutable SE(2)-local trajectories ONCE per plan.
-    // Search expansion only transforms cached points; no numerical solver.
-    struct SearchPrimitive {
-      Gear gear;
-      double curvature;
-      motion::LocalPrimitive local;
-    };
-    std::vector<SearchPrimitive> primitiveCatalog;
+    // Policy-specific catalog built once per request; reusable local samples
+    // are rigidly transformed at every successor without integrating again.
     const motion::SampleLimits templateLimits{
       opt.searchSampleSpacingMeters,opt.searchMaxBodyPointMotionMeters,
       checker.maxBodyRadius(),std::numeric_limits<double>::max(),
       opt.maxSamplesPerSection};
-    if(opt.model==PlanOptions::Model::Ackermann) {
-      const auto catalog=buildPrimitiveCatalog(
-          opt.search,opt.minimumTurningRadiusMeters,templateLimits);
-      primitiveCatalog.reserve(catalog.size());
-      for(const auto& primitive:catalog)
-        primitiveCatalog.push_back({primitive.gear,primitive.curvature,primitive.local});
-    } else {
-      differential_drive::PrimitiveConfig cfg=opt.diffPrimitives;
-      cfg.sampling=templateLimits;
-      const differential_drive::Model model(opt.diffParameters);
-      const auto catalog=differential_drive::buildCatalog(model,cfg);
-      primitiveCatalog.reserve(catalog.size());
-      for(const auto& primitive:catalog) {
-        const auto& local=primitive.local;
-        const bool spin=local.extentKind==motion::ExtentKind::RotationRadians;
-        const auto gear=spin?Gear::None:
-            (local.signedTranslationMeters>0?Gear::Forward:Gear::Reverse);
-        const double curvature=spin?0:
-            local.headingChangeRadians/local.signedTranslationMeters;
-        primitiveCatalog.push_back({gear,curvature,local});
-      }
-    }
+    const auto primitiveCatalog=model.catalog(templateLimits);
     result.diagnostics.primitiveTemplatesBuilt=primitiveCatalog.size();
     std::vector<Node> nodes;
     nodes.reserve(std::min<std::size_t>(opt.maxGeneratedNodes,20000));
-    std::unordered_map<SearchKey,Label,KeyHash> active(0,KeyHash{&result.diagnostics});
+    std::unordered_map<typename Policy::Key,Label,typename Policy::Hash> active(
+        0,model.keyHash(&result.diagnostics));
     if(opt.searchLabelReserve)active.reserve(opt.searchLabelReserve);
     result.diagnostics.labelPeakBuckets=active.bucket_count();
     SearchOpenQueue open(opt.openQueueMode);
@@ -573,7 +496,7 @@ PlanResult plan(const PlanRequest& r) {
         return raw;
       return raw*opt.performanceHeuristicWeight;
     };
-    const auto startKey=quantize(r.start,Gear::None,opt.search);
+    const auto startKey=model.key(r.start,Gear::None);
     const double initialH=weightedEstimate(r.start);
     nodes.push_back({r.start,startKey,Gear::None,0.0,initialH,0.0,0,{}});
     const auto initialBucketCount=active.bucket_count();
@@ -645,7 +568,8 @@ PlanResult plan(const PlanRequest& r) {
       // Copy only expansion fields, not the complete MotionSection. A
       // reference would dangle if the node vector reallocates for children.
       const auto& candidate=nodes[item.node];
-      const struct {Pose2D pose; SearchKey key; Gear gear; double g,h,clearanceCost;} current{
+      const struct {typename Policy::State pose; typename Policy::Key key;
+                    typename Policy::Mode gear; double g,h,clearanceCost;} current{
         candidate.pose,candidate.key,candidate.gear,candidate.g,candidate.h,candidate.clearanceCost};
       const auto label=[&] {
         HotPathTimer lookupTimer(result.diagnostics.labelLookupNanoseconds);
@@ -780,24 +704,12 @@ PlanResult plan(const PlanRequest& r) {
         }
       }
       for (const auto& primitive : primitiveCatalog) {
-          const Gear gear=primitive.gear;
-          const double k=primitive.curvature;
           const auto* local=primitive.local.samples.empty()?nullptr:&primitive.local;
-          const bool spin=primitive.local.extentKind==motion::ExtentKind::RotationRadians;
-          const auto sec=spin
-              ? makeRotationSection(current.pose,primitive.local.headingChangeRadians)
-              : (local
-                  ? MotionSection{current.pose,local->endpoint(current.pose),gear,k,
-                                  primitive.local.extent}
-                  : makeSection(current.pose,gear,k,primitive.local.extent));
+          const auto sec=model.materialize(current.pose,primitive);
           ++result.diagnostics.primitiveTemplateInstantiations;
-          const Gear nextGear=spin?current.gear:gear;
-          const auto key=quantize(sec.end,nextGear,opt.search);
-          // A zero-translation spin MUST have a strictly positive cost.
-          // Preserve incoming gear through a spin for subsequent switch fees.
-          const double cost=spin
-              ? opt.rotationCostMetersPerRadian*std::abs(sec.turnRadians)
-              : edgeCost(sec.lengthMeters,gear,current.gear,opt.search);
+          const auto nextGear=model.nextMode(current.gear,primitive);
+          const auto key=model.key(sec.end,nextGear);
+          const double cost=model.edgeCost(current.gear,primitive,sec);
           const double lowerG=current.g+cost;
           if (!std::isfinite(lowerG)) {result.status=PlanStatus::InternalError;return result;}
           const auto found=[&] {
@@ -879,5 +791,23 @@ PlanResult plan(const PlanRequest& r) {
     result.status=PlanStatus::InternalError;
   }
   return result;
+}
+
+PlanResult plan(const PlanRequest& request) {
+  switch(request.options.model) {
+  case PlanOptions::Model::Ackermann:
+    return planImpl(request,planning::AckermannPolicy{request});
+  case PlanOptions::Model::DifferentialDrive:
+    return planImpl(request,planning::DifferentialDrivePolicy{request});
+  }
+  PlanResult invalid;
+  if(request.map) {
+    invalid.mapRevision=request.map->revision;
+    invalid.mapFrameId=request.map->frameId;
+    invalid.mapSourceId=request.map->sourceId;
+  }
+  invalid.effectiveOccupancy=request.occupancy;
+  invalid.status=PlanStatus::InvalidRequest;
+  return invalid;
 }
 } // namespace hybrid_astar::ackermann
