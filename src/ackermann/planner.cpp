@@ -414,7 +414,7 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
   if (!r.map || !finite(r.start) || !finite(r.goal)) return result;
   try {
     validateOptions(r.options);
-    validateFootprint(r.footprint);
+    validateFootprint(model.footprint());
     model.validate();
   } catch (const std::exception&) {
     result.status=PlanStatus::InvalidRequest;return result;
@@ -435,14 +435,14 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     result.status=PlanStatus::Cancelled;return result;
   }
   try {
-    const ExactCollisionChecker checker(*r.map,r.occupancy,r.footprint);
+    const ExactCollisionChecker checker(*r.map,r.occupancy,model.footprint());
     std::unique_ptr<ConservativeDiscPrefilter> prefilter;
     if (r.options.discPrefilterCount)
       prefilter=std::make_unique<ConservativeDiscPrefilter>(
-           *r.map,r.occupancy,r.footprint,r.options.discPrefilterCount);
+           *r.map,r.occupancy,model.footprint(),r.options.discPrefilterCount);
     std::unique_ptr<ClearanceScorer> clearance;
     if(r.options.clearanceWeight>0)
-      clearance=std::make_unique<ClearanceScorer>(*r.map,r.occupancy,r.footprint,
+      clearance=std::make_unique<ClearanceScorer>(*r.map,r.occupancy,model.footprint(),
                  r.options.clearanceWeight,r.options.clearanceInfluenceRadiusMeters);
     const auto checkedPose=[&](const Pose2D& pose) {
       ++result.diagnostics.exactCollisionPoseCalls;
