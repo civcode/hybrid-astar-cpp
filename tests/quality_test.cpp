@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/planner.hpp"
 #include <cmath>
 #include <iostream>
@@ -6,7 +7,7 @@
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 static void require(bool yes,const char* why) {if(!yes) throw std::runtime_error(why);}
-int main() {
+static void runLegacyAssertions() {
   auto map=std::make_shared<MapSnapshot>();
   map->width=map->height=200;map->resolutionMeters=.2;
   map->cells.assign(40000,0);
@@ -65,4 +66,8 @@ int main() {
   require(interrupted.terminationReason==TerminationReason::CancelledAfterIncumbent,"cancellation reason");
   require(interrupted.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,"cancelled search preserved checked path");
   std::cout << "QUALITY PASS\n";
+}
+
+TEST_CASE("quality_test contracts", "[quality_test]") {
+  runLegacyAssertions();
 }

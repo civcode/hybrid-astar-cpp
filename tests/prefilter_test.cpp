@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/cover_prefilter.hpp"
 #include <cmath>
 #include <iostream>
@@ -7,7 +8,7 @@
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 static void require(bool x,const char* msg) {if(!x) throw std::runtime_error(msg);}
-int main() {
+static void runLegacyAssertions() {
   std::mt19937_64 rng(198260);
   std::uniform_real_distribution<double> xy(-2,25),yaw(-3.15,3.15);
   std::uniform_int_distribution<int> cell(0,99);
@@ -48,4 +49,8 @@ int main() {
   require(a.diagnostics.finalPoseChecks>0,"independent final samples");
   require(a.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,"no sweep evidence upgrade");
   std::cout<<"PREFILTER PASS\n";
+}
+
+TEST_CASE("prefilter_test contracts", "[prefilter_test]") {
+  runLegacyAssertions();
 }

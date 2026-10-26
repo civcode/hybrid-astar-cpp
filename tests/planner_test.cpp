@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/planner.hpp"
 #include <cmath>
 #include <iostream>
@@ -18,7 +19,7 @@ static MapSnapshot makeMap(double resolution=.2) {
 }
 static void expect(bool x,const char* message) { if(!x) throw std::runtime_error(message); }
 
-int main() {
+static void runLegacyAssertions() {
   const double pi=std::numbers::pi;
   {
     auto forward=makeSection({1,2,0},Gear::Forward,0,0.5);
@@ -184,4 +185,8 @@ int main() {
     expect(plan(request).status==PlanStatus::InvalidMap,"malformed snapshot distinct");
   }
   std::cout<<"planner tests passed\n";
+}
+
+TEST_CASE("planner_test contracts", "[planner_test]") {
+  runLegacyAssertions();
 }

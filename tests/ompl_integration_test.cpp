@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/steering/reeds_shepp_evaluator.hpp"
 #include <cmath>
 #include <iostream>
@@ -15,7 +16,7 @@ static double yawError(double a,double b) {
   return std::abs(std::remainder(a-b,2*std::numbers::pi));
 }
 
-int main() {
+static void runLegacyAssertions() {
   std::mt19937_64 rng(20261026);
   std::uniform_real_distribution<double> pos(-10,10),yaw(-3.14159,3.14159);
   for(double radius:{.5,1.,4.,9.}) {
@@ -97,4 +98,8 @@ int main() {
     require(blocked.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,
             "collision evidence from independent strict path validation");
   std::cout<<"OMPL RANDOMIZED INTEGRATION PASS\n";
+}
+
+TEST_CASE("ompl_integration_test contracts", "[ompl_integration_test]") {
+  runLegacyAssertions();
 }

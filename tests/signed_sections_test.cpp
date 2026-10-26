@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/steering/signed_sections.hpp"
 #include <array>
 #include <cmath>
@@ -8,7 +9,7 @@ using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 using namespace hybrid_astar::steering;
 static void require(bool okay,const char* msg) {if(!okay) throw std::runtime_error(msg);}
-int main() {
+static void runLegacyAssertions() {
   const Pose2D start{20,20,0};
   const std::array<SignedSegment,5> parts{{{SegmentTurn::Straight,2},
     {SegmentTurn::Straight,-2},{SegmentTurn::Straight,1},
@@ -51,4 +52,8 @@ int main() {
   require(fallback.status==PlanStatus::Success&&fallback.diagnostics.analyticAccepted==0,
           "cost-gated path falls back to primitive search");
   std::cout<<"SIGNED SECTIONS PASS\n";
+}
+
+TEST_CASE("signed_sections_test contracts", "[signed_sections_test]") {
+  runLegacyAssertions();
 }

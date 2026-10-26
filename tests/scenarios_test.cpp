@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/planner.hpp"
 #include <cmath>
 #include <iostream>
@@ -11,7 +12,7 @@ static std::shared_ptr<MapSnapshot> map() {
   m->cells.assign(m->width*m->height,0);m->revision=21;
   return m;
 }
-int main() {
+static void runLegacyAssertions() {
   {
     auto m=map();PlanRequest q;
     q.map=m;q.start={20,20,0};q.goal={18,20,0};
@@ -105,4 +106,8 @@ int main() {
             "zero strict final work allowance is invalid");
   }
   std::cout<<"SCENARIOS PASS\n";
+}
+
+TEST_CASE("scenarios_test contracts", "[scenarios_test]") {
+  runLegacyAssertions();
 }

@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/curved_shortcuts.hpp"
 #include "hybrid_astar/ackermann/refinement.hpp"
 #include <cmath>
@@ -19,7 +20,7 @@ static PlanResult given(const PlanRequest& r,const std::vector<MotionSection>& p
   p.modelGeometryValid=true;p.collisionEvidence=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
   return p;
 }
-int main() {
+static void runLegacyAssertions() {
   const Pose2D start{20,20,0};
   std::mt19937 gen(75642);
   std::uniform_real_distribution<double> coord(-10.,10.),angle(-3.1,3.1);
@@ -84,4 +85,8 @@ int main() {
   require(bounded.exactPoseChecks<=settings.maxTotalPoseChecks,
           "global strict pose-check budget never exceeded");
   std::cout<<"CURVED SHORTCUTS PASS\n";
+}
+
+TEST_CASE("curved_shortcuts_test contracts", "[curved_shortcuts_test]") {
+  runLegacyAssertions();
 }

@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/steering/reeds_shepp.hpp"
 #include "hybrid_astar/steering/reeds_shepp_evaluator.hpp"
 #include <array>
@@ -9,7 +10,7 @@ using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 using namespace hybrid_astar::steering;
 static void check(bool yes,const char* reason){if(!yes) throw std::runtime_error(reason);}
-int main() {
+static int runLegacyAssertions() {
   ReedsSheppEvaluator evaluator(4.0);
   const Pose2D start{20,20,0};
   check(evaluator.shortestPath(start,start).empty(),"zero RS path");
@@ -54,4 +55,10 @@ int main() {
   const auto identical=planWithReedsShepp(request);
   check(identical.status==PlanStatus::Success&&identical.sections.empty(),"zero-path goal completion");
   return 0;
+}
+
+TEST_CASE("ompl_smoke contracts", "[ompl_smoke]") {
+  const int exitCode=runLegacyAssertions();
+  INFO("Legacy assertion exit code: " << exitCode);
+  REQUIRE(exitCode == 0);
 }

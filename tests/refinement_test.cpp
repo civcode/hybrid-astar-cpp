@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/refinement.hpp"
 #include <atomic>
 #include <cmath>
@@ -31,7 +32,7 @@ static PlanResult raw(const PlanRequest& req,const std::vector<MotionSection>& p
   r.weightedCostMeters=-999;
   return r;
 }
-int main() {
+static void runLegacyAssertions() {
   auto clear=map();
   PlanRequest req;req.map=clear;req.start={20,20,0};req.goal={22,20,0};
   const auto a=makeSection(req.start,Gear::Forward,0,2);
@@ -130,4 +131,8 @@ int main() {
        withClearance.path.weightedCostMeters>=2,
        "weighted cost includes nonnegative oriented clearance objective");
   std::cout<<"REFINEMENT PASS\n";
+}
+
+TEST_CASE("refinement_test contracts", "[refinement_test]") {
+  runLegacyAssertions();
 }

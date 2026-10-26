@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/clearance.hpp"
 #include <cmath>
 #include <iostream>
@@ -6,7 +7,7 @@
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 static void require(bool ok,const char* why) {if(!ok) throw std::runtime_error(why);}
-int main() {
+static void runLegacyAssertions() {
   auto map=std::make_shared<MapSnapshot>();
   map->width=map->height=400;map->resolutionMeters=.1;
   map->cells.assign(160000,0);
@@ -35,4 +36,8 @@ int main() {
   request.options.clearanceWeight=-1;
   require(plan(request).status==PlanStatus::InvalidRequest,"negative objective forbidden");
   std::cout<<"CLEARANCE PASS\n";
+}
+
+TEST_CASE("clearance_test contracts", "[clearance_test]") {
+  runLegacyAssertions();
 }

@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.20)
 project(hybrid_astar_cpp VERSION 0.1.0 LANGUAGES CXX)
 
 option(HYBRID_ASTAR_ENABLE_OMPL "Build OMPL-backed steering adapter" OFF)
-option(HYBRID_ASTAR_BUILD_TESTS "Build standalone smoke tests" ON)
+option(HYBRID_ASTAR_BUILD_TESTS "Build Catch2 v3 unit and integration tests" ON)
+
+if(HYBRID_ASTAR_BUILD_TESTS)
+  find_package(Catch2 3 CONFIG REQUIRED)
+endif()
 option(HYBRID_ASTAR_BUILD_BENCHMARKS "Build optional manually run planner benchmark" OFF)
 option(HYBRID_ASTAR_BUILD_APP "Build the optional localhost browser planning demo" OFF)
 
@@ -115,4 +119,20 @@ if(HYBRID_ASTAR_BUILD_APP)
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/demo_http_test.py $<TARGET_FILE:hybrid_astar_demo>)
     endif()
   endif()
+endif()
+
+# Catch2 v3 is the actual assertion/runner framework for every C++ test.
+# Keep the existing named CTest suites for stable local invocation.
+if(HYBRID_ASTAR_BUILD_TESTS)
+  foreach(_case IN ITEMS
+      hybrid_astar_core_smoke hybrid_astar_planner_test
+      hybrid_astar_quality_test hybrid_astar_prefilter_test
+      hybrid_astar_clearance_test hybrid_astar_signed_sections_test
+      hybrid_astar_scenarios_test hybrid_astar_refinement_test
+      hybrid_astar_curved_shortcuts_test hybrid_astar_demo_test
+      hybrid_astar_ompl_smoke hybrid_astar_ompl_integration_test)
+    if(TARGET ${_case})
+      target_link_libraries(${_case} PRIVATE Catch2::Catch2WithMain)
+    endif()
+  endforeach()
 endif()

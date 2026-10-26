@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "apps/demo/demo.hpp"
 #include <cmath>
 #include <iostream>
@@ -6,7 +7,7 @@ using namespace hybrid_astar;
 using namespace hybrid_astar::demo;
 using namespace hybrid_astar::ackermann;
 static void require(bool v,const char* msg){if(!v)throw std::runtime_error(msg);}
-int main() {
+static void runLegacyAssertions() {
   auto open=run({});
   require(open.original.status==PlanStatus::Success,"open plan success");
   require(open.original.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,
@@ -39,4 +40,8 @@ int main() {
   try{Options bad;bad.start=Pose2D{1e10,20,0};run(bad);}catch(const std::invalid_argument&){rejected=true;}
   require(rejected,"invalid pose rejected");
   std::cout<<"DEMO PASS\n";
+}
+
+TEST_CASE("demo_test contracts", "[demo_test]") {
+  runLegacyAssertions();
 }

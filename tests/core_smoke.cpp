@@ -1,3 +1,4 @@
+#include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/search_config.hpp"
 #include "fixtures/passenger_car.hpp"
 #include "hybrid_astar/collision/options.hpp"
@@ -9,7 +10,7 @@
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 
-int main() {
+static int runLegacyAssertions() {
   SearchConfig c;
   validate(c);
   if (c.yawBins != 72) return 1;
@@ -82,4 +83,10 @@ int main() {
     return 29;
   } catch (const std::invalid_argument&) {}
   return 0;
+}
+
+TEST_CASE("core_smoke contracts", "[core_smoke]") {
+  const int exitCode=runLegacyAssertions();
+  INFO("Legacy assertion exit code: " << exitCode);
+  REQUIRE(exitCode == 0);
 }
