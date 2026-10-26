@@ -61,6 +61,7 @@ concept PlanarSearchModel = requires(
     -> std::convertible_to<std::size_t>;
   requires std::equality_comparable<typename Policy::Key>;
   { policy.validate() } -> std::same_as<void>;
+  { policy.footprint() } -> std::same_as<ackermann::Footprint>;
   { policy.catalog(limits) } -> std::same_as<std::vector<typename Policy::Primitive>>;
   { policy.key(state,previous) } -> std::same_as<typename Policy::Key>;
   { policy.materialize(state,primitive) } -> std::same_as<typename Policy::Section>;
@@ -98,6 +99,7 @@ public:
   using Primitive=PlanarPrimitive;
   virtual ~PlanarPolicy()=default;
   virtual void validate() const=0;
+  virtual ackermann::Footprint footprint() const=0;
   virtual std::vector<Primitive> catalog(const motion::SampleLimits&) const=0;
   virtual Key key(State,Mode) const=0;
   virtual Section materialize(State,const Primitive&) const=0;
@@ -120,6 +122,7 @@ public:
                   "The current runtime adapter accepts rigid SE2 search policies");
   }
   void validate() const override {policy_.validate();}
+  ackermann::Footprint footprint() const override {return policy_.footprint();}
   std::vector<Primitive> catalog(const motion::SampleLimits& s) const override {
     return policy_.catalog(s);
   }
@@ -150,6 +153,7 @@ public:
   using Primitive=PlanarPrimitive;
   explicit AckermannPolicy(const ackermann::PlanRequest& r):request_(r) {}
   void validate() const noexcept {}
+  ackermann::Footprint footprint() const {return request_.footprint;}
   std::vector<Primitive> catalog(const motion::SampleLimits& limits) const {
     const auto built=ackermann::buildPrimitiveCatalog(
         request_.options.search,request_.options.minimumTurningRadiusMeters,limits);
@@ -210,6 +214,7 @@ public:
                                  effectiveSamples());
     (void)motion::sampleIntervals(0,c.spinRadians,effectiveSamples());
   }
+  ackermann::Footprint footprint() const {return request_.footprint;}
   std::vector<Primitive> catalog(const motion::SampleLimits& limits) const {
     auto config=request_.options.diffPrimitives;
     config.sampling=limits;
