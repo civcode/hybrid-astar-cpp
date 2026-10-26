@@ -55,11 +55,12 @@ actuator safety.
 1. Four wheel-rate mapping and invalid controls/geometry.
 2. Exact combined body twist versus independent numerical integration.
 3. Fourteen bounded cached primitives and endpoints.
-4. Deterministic end-to-end lateral-goal search, strict returned path checks
+4. W11 runtime-policy adapter equivalence to the built-in mecanum entry point.
+5. Deterministic end-to-end lateral-goal search, strict returned path checks
    against the pinned map and provenance.
-5. Intermediate collision along a lateral-plus-turn segment.
-6. Invalid wheel constraints and unsupported connector/clearance options.
-7. The demo HTTP regression covers lateral section JSON and rejects
+6. Intermediate collision along a lateral-plus-turn segment.
+7. Invalid wheel constraints and unsupported connector/clearance options.
+8. The demo HTTP regression covers lateral section JSON and rejects
    incompatible OMPL options.
 
 A local C++20 ASan/UBSan **standalone formula smoke** has passed for

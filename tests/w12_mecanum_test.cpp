@@ -129,6 +129,31 @@ TEST_CASE("Mecanum planner reaches a sideways goal without rotating its body","[
   REQUIRE(std::abs(repeated.weightedCostMeters-planned.weightedCostMeters)<1e-8);
 }
 
+TEST_CASE("W11 runtime adapter reuses the identical mecanum search kernel","[w12][policy]") {
+  auto r=request();
+  const auto native=a::plan(r);
+  const po::PlanarPolicyAdapter<po::MecanumPolicy> adapter{po::MecanumPolicy{r}};
+  const auto external=a::planWithPolicy(r,adapter);
+  REQUIRE(native.status==a::PlanStatus::Success);
+  REQUIRE(external.status==native.status);
+  REQUIRE(external.diagnostics.expanded==native.diagnostics.expanded);
+  REQUIRE(external.diagnostics.generated==native.diagnostics.generated);
+  REQUIRE(external.diagnostics.primitiveTemplatesBuilt==native.diagnostics.primitiveTemplatesBuilt);
+  REQUIRE(external.sections.size()==native.sections.size());
+  REQUIRE(external.mapRevision==native.mapRevision);
+  REQUIRE(external.mapFrameId==native.mapFrameId);
+  REQUIRE(external.mapSourceId==native.mapSourceId);
+  REQUIRE(external.collisionEvidence==native.collisionEvidence);
+  REQUIRE(std::abs(external.weightedCostMeters-native.weightedCostMeters)<1e-9);
+  for(std::size_t i=0;i<native.sections.size();++i) {
+    const auto& lhs=native.sections[i];
+    const auto& rhs=external.sections[i];
+    REQUIRE(lhs.kind==rhs.kind);
+    REQUIRE(std::hypot(lhs.end.x-rhs.end.x,lhs.end.y-rhs.end.y)<1e-9);
+    REQUIRE(std::abs(mo::wrapAngle(lhs.end.yaw-rhs.end.yaw))<1e-9);
+  }
+}
+
 TEST_CASE("Combined holonomic sections are exact and independently sweep across obstacles","[w12][collision]") {
   const auto start=Pose2D{10,10,0};
   const auto section=a::makeHolonomicSection(start,0,2,.5);
