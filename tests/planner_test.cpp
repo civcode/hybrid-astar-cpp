@@ -105,6 +105,9 @@ int main() {
     expect(!result.trajectoryActuatorFeasible,"no actuator assertion");
     expect(result.mapRevision==7,"map provenance");
     expect(result.weightedCostMeters>0,"costed motion");
+    request.cancelled=std::make_shared<std::atomic_bool>(true);
+    expect(plan(request).status==PlanStatus::Cancelled,"cancelled status");
+    request.cancelled.reset();
     request.options.maxExpansions=1;
     expect(plan(request).status==PlanStatus::BudgetExceeded,"bounded work not no path");
     request.options.maxExpansions=15000;
