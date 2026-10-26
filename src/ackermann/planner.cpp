@@ -429,7 +429,8 @@ PlanResult plan(const PlanRequest& r) {
           const auto status=checkMotion(sec,checker,opt.finalSampleSpacingMeters,
                          opt.finalMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
                          result.diagnostics.finalPoseChecks,r.cancelled.get());
-          if (status==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
+          if (status==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
+            result.status=PlanStatus::Cancelled;return result;}
           if (status==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
           valid=status==MotionStatus::Clear;
         }
@@ -470,7 +471,8 @@ PlanResult plan(const PlanRequest& r) {
             const auto check=checkMotion(normalized,checker,opt.searchSampleSpacingMeters,
                   opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
                   result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics);
-            if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
+            if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
+            result.status=PlanStatus::Cancelled;return result;}
             if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
             if (check==MotionStatus::Colliding) {valid=false;break;}
             double extra=0;
@@ -502,7 +504,8 @@ PlanResult plan(const PlanRequest& r) {
               const auto check=checkMotion(part,checker,opt.finalSampleSpacingMeters,
                     opt.finalMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
                     result.diagnostics.finalPoseChecks,r.cancelled.get());
-              if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
+              if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
+            result.status=PlanStatus::Cancelled;return result;}
               if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
               finalValid=check==MotionStatus::Clear;
             }
@@ -531,7 +534,8 @@ PlanResult plan(const PlanRequest& r) {
           const auto check=checkMotion(sec,checker,opt.searchSampleSpacingMeters,
                      opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
                      result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics);
-          if (check==MotionStatus::Cancelled) {result.status=PlanStatus::Cancelled;return result;}
+          if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
+            result.status=PlanStatus::Cancelled;return result;}
           if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
           if (check==MotionStatus::Colliding) continue;
           double extra=0;
