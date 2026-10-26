@@ -65,7 +65,7 @@ struct LocalPrimitive {
     return compose(anchor,evaluate(lambda));
   }
   Pose2D endpoint(const Pose2D& anchor) const {
-    return compose(anchor,samples.back().localPose);
+    return compose(anchor,samples.empty()?evaluate(1.0):samples.back().localPose);
   }
 };
 
