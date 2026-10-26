@@ -598,8 +598,26 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
         }
         bool valid=checkedPose(r.start)==PoseCollision::Clear;
         ++result.diagnostics.finalPoseChecks;
+        Pose2D continuousEnd=r.start;
         for (const auto& sec : reverse) {
           if (!valid) break;
+          // Independent endpoint/continuity checks are essential for an
+          // externally supplied model policy. Never trust a claimed section
+          // end that does not agree with the section's exact evaluator.
+          if(!finite(sec.start)||!finite(sec.end)||
+             goalErrorXY(sec.start,continuousEnd)>1e-6||
+             goalErrorYaw(sec.start,continuousEnd)>1e-6) {
+            valid=false;break;
+          }
+          Pose2D actualEnd;
+          try {actualEnd=sec.evaluate(sec.progressExtent());}
+          catch(const std::exception&) {valid=false;break;}
+          if(!finite(actualEnd) ||
+             goalErrorXY(actualEnd,sec.end)>1e-6 ||
+             goalErrorYaw(actualEnd,sec.end)>1e-6) {
+            valid=false;break;
+          }
+          continuousEnd=actualEnd;
           const auto status=checkMotion(sec,checker,opt.finalSampleSpacingMeters,
                          opt.finalMaxBodyPointMotionMeters,opt.maxFinalSamplesPerSection,
                          result.diagnostics.finalPoseChecks,r.cancelled.get(),
@@ -610,8 +628,13 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
             result.status=PlanStatus::ValidationIncomplete;return result;}
           valid=status==MotionStatus::Clear;
         }
+        if(valid && (goalErrorXY(continuousEnd,current.pose)>1e-6 ||
+                     goalErrorYaw(continuousEnd,current.pose)>1e-6 ||
+                     goalErrorXY(continuousEnd,r.goal)>opt.goalXYToleranceMeters+1e-9 ||
+                     goalErrorYaw(continuousEnd,r.goal)>opt.goalYawToleranceRadians+1e-9))
+          valid=false;
         if (valid) {
-          saveCandidate(reverse,current.pose,current.gear,current.g,current.clearanceCost);
+          saveCandidate(reverse,continuousEnd,current.gear,current.g,current.clearanceCost);
           if (opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
             return finishIncumbent(TerminationReason::FirstValidated);
         }
