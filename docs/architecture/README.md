@@ -5,6 +5,7 @@ The baseline and ADRs are historical architecture proposals; the first C++20 Ack
 | Document | Focus |
 | --- | --- |
 | [Current implementation](current-implementation.md) | Normative shipped behavior, evidence, open W0–W9 work packages |
+| [W7–W8 verification](w7-w8-verification-notes.md) | Conservative EDT pose-bypass argument, optional improvement/clearance, exploratory benchmark regression |
 | [Consolidated synthesis](Hybrid_AStar_Consolidated_Specification.md) | Original three-review proposed architecture and decision register |
 | [Requirements](requirements.md) | Traceable capabilities, constraints, non-goals |
 | [Components](components.md) | Ownership, dependency direction, data flow |
