@@ -2,11 +2,12 @@
 > specification](architecture/Hybrid_AStar_Consolidated_Specification.md)
 > has been imported. The normative current behavior and remaining W0-W9 gates
 > are tracked in [current-implementation.md](architecture/current-implementation.md).
-> This older checklist and ADR references may predate the verified vertical
+> The current Ackermann primitives use exact constant-curvature integration, not RK4. This older checklist and ADR references may predate the verified vertical
 > slice and must not override the current contract. **Still pending:** OMPL-ON
 > integration verification and benchmarks for signed connector (W5),
 > performance-grid benchmarks and any reachability proof (W6),
-> optional EDT/disc proof review and broader benchmarks (W7),\n> clearance-weight tuning and downstream path refinement (W8),
+> optional EDT/disc proof review and broader benchmarks (W7),
+> clearance-weight tuning and downstream path refinement (W8),
 > future chassis/actuation and ROS adapters (W9). No swept/actuator safety
 > certification or validated global optimality is claimed.
 
@@ -27,8 +28,8 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [x] Accept OQ-001 **single retained node per model-specific discretized key** (ADR-0013, superseding ADR-0010); [x] accept OQ-003 canonical `(segmentIndex, lambda)` path position (ADR-0011).
 - [ ] Benchmark single-key pruning against feasible-path recovery and post-refinement quality in narrow passages; revisit extra arrival labels only if evidence warrants a separate future decision.
 - [x] Accept OQ-002 geometric length for translation and angular/configuration extent for stationary motion (ADR-0012).
-- [ ] Define only the initial Ackermann fixed-control primitive extent and RK4 execution contract needed for the first vertical slice (OQ-002). Defer generalized typed extent APIs and OQ-024 downstream speed-profile feasibility/retiming unless a concrete test reveals a blocker.
-- [x] Accept initial **combined RS+obstacle-field performance default** (not certified admissible) and separately selectable certified Euclidean/zero fallback, with truthful reporting (ADRs 0015,0027).
+- [ ] Define only the initial Ackermann fixed-control primitive extent and exact closed-form arc execution contract needed for the first vertical slice (OQ-002). Defer generalized typed extent APIs and OQ-024 downstream speed-profile feasibility/retiming unless a concrete test reveals a blocker.
+- [x] Retain the historical optional **combined RS+obstacle-field noncertified performance mode** alongside the current **certified Euclidean goal-region default**, with truthful reporting (ADRs 0015,0027; current contract supersedes their older default choice).
 - [x] Accept OQ-007 three-state fixed-curvature Ackermann primitives (ADR-0014).
 - [x] Accept OQ-008 pose-tolerance default of 0.25 m / 10 degrees with optional extra-state goal constraints (ADR-0016).
 - [x] Accept OQ-006 unknown-cell semantics/policy and known-free frontier default (ADR-0017); selectable per request, map data unchanged.
@@ -37,7 +38,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [x] Accept **lean MVP and evidence-driven complexity**: rigorous contracts/tests, early working vertical slice, defer speculative modules (ADR-0020).
 - [x] Clarify intended **search → downstream path optimization** boundary: search is a collision-checked, model-feasible path initializer; evaluate quality after refinement rather than overengineering raw search, with independently validated optimized output and raw-path fallback (ADR-0020).
 - [x] Accept **obstacle-aware optimization whenever refinement is enabled**: use map obstacles/clearance during optimization, pinned snapshot and occupancy policy, full transformed collision bodies and independent final validation (ADR-0024).
-- [x] Accept initial Ackermann search cost weights, resolution/gear key, RK4 primitive and collision sample defaults (ADR-0025); further model-generalized effort costs remain OQ-004/OQ-024.
+- [x] Accept initial Ackermann search cost weights, resolution/gear key, **exact closed-form primitive** and collision sample defaults (ADR-0025; historical RK4 wording superseded); further model-generalized effort costs remain OQ-004/OQ-024.
 - [ ] Finish native occupancy/frame/handle ABI (OQ-023) and mutable cache concurrency (OQ-012) only to the extent necessary for first runnable MVP.
 - [ ] Agree [quality metrics](architecture/quality.md), reference hardware/scenarios and initial budgets where feasible.
 - [ ] Review [verification matrix](architecture/verification.md), Catch2 property and oracle tests.
