@@ -1,3 +1,5 @@
+> **Current implementation precedence (2026-10-26):** This file preserves the baseline design history/proposal. Where defaults, collision assurance, Ackermann integration, heuristics or RS scheduling differ, follow the [current implementation contract](current-implementation.md) and its work-package statuses. The [consolidated external reviews](Hybrid_AStar_Consolidated_Specification.md) are proposed design guidance, **not** an already approved ADR or evidence of completed features.
+
 # Verification strategy — draft v0.1
 
 Verification starts with the contract, not after the feature. Use **Catch2 v3**, CTest and deterministic test inputs. Run tests and benchmarks locally. GitHub Actions must not execute automatically; no workflow is required for the documentation baseline.
