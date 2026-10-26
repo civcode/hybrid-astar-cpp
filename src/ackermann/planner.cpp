@@ -70,7 +70,8 @@ void validateOptions(const PlanOptions& o) {
       !std::isfinite(o.finalSampleSpacingMeters) || o.finalSampleSpacingMeters<=0 ||
       !std::isfinite(o.searchMaxBodyPointMotionMeters) || o.searchMaxBodyPointMotionMeters<=0 ||
       !std::isfinite(o.finalMaxBodyPointMotionMeters) || o.finalMaxBodyPointMotionMeters<=0 ||
-      o.maxSamplesPerSection<2 || o.maxFinalSamplesPerSection<2 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
+      o.maxSamplesPerSection<2 || o.maxFinalSamplesPerSection<2 ||
+      o.maxTotalFinalPoseChecks==0 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
       o.discPrefilterCount>64 ||
       !std::isfinite(o.clearanceWeight) || o.clearanceWeight<0 ||
       !std::isfinite(o.clearanceInfluenceRadiusMeters) || o.clearanceInfluenceRadiusMeters<=0 ||
@@ -197,7 +198,8 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
                          double step, double bodyStep, std::size_t limit, std::size_t& checks,
                          const std::atomic_bool* cancel,
                          const ConservativeDiscPrefilter* prefilter=nullptr,
-                         PlanDiagnostics* stats=nullptr) {
+                         PlanDiagnostics* stats=nullptr,
+                         std::size_t maxTotalChecks=std::numeric_limits<std::size_t>::max()) {
   if (!std::isfinite(section.lengthMeters) || section.lengthMeters<0) return MotionStatus::Incomplete;
   // Upper bound on translation+rotation of EVERY body point per interval.
   const double factor=1.0+checker.maxBodyRadius()*std::abs(section.curvature);
@@ -206,6 +208,7 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
   const std::size_t n=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(divisions)));
   for (std::size_t i=0;i<=n;++i) {
     if (cancel && cancel->load(std::memory_order_relaxed)) return MotionStatus::Cancelled;
+    if (checks>=maxTotalChecks) return MotionStatus::Incomplete;
     const auto pose=section.evaluate(i==n ? section.lengthMeters :
                         section.lengthMeters*static_cast<double>(i)/n);
     if (prefilter && prefilter->definitelyClear(pose)) {
@@ -423,16 +426,22 @@ PlanResult plan(const PlanRequest& r) {
         std::size_t id=item.node;
         while (id!=0) {reverse.push_back(nodes[id].via);id=nodes[id].parent;}
         std::reverse(reverse.begin(),reverse.end());
+        if(result.diagnostics.finalPoseChecks>=opt.maxTotalFinalPoseChecks) {
+          if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
+          result.status=PlanStatus::ValidationIncomplete;return result;
+        }
         bool valid=checker.check(r.start)==PoseCollision::Clear;
         ++result.diagnostics.finalPoseChecks;
         for (const auto& sec : reverse) {
           if (!valid) break;
           const auto status=checkMotion(sec,checker,opt.finalSampleSpacingMeters,
                          opt.finalMaxBodyPointMotionMeters,opt.maxFinalSamplesPerSection,
-                         result.diagnostics.finalPoseChecks,r.cancelled.get());
+                         result.diagnostics.finalPoseChecks,r.cancelled.get(),
+                    nullptr,nullptr,opt.maxTotalFinalPoseChecks);
           if (status==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
             result.status=PlanStatus::Cancelled;return result;}
-          if (status==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
+          if (status==MotionStatus::Incomplete) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
+            result.status=PlanStatus::ValidationIncomplete;return result;}
           valid=status==MotionStatus::Clear;
         }
         if (valid) {
@@ -474,14 +483,16 @@ PlanResult plan(const PlanRequest& r) {
                   result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics);
             if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
             result.status=PlanStatus::Cancelled;return result;}
-            if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
+            if (check==MotionStatus::Incomplete) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
+            result.status=PlanStatus::ValidationIncomplete;return result;}
             if (check==MotionStatus::Colliding) {valid=false;break;}
             double extra=0;
             if(clearance) {
               try {extra=clearance->sectionCost(normalized,opt.searchSampleSpacingMeters,
                     opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
                     result.diagnostics.clearanceSamples);}
-              catch(const std::invalid_argument&) {result.status=PlanStatus::ValidationIncomplete;return result;}
+              catch(const std::invalid_argument&) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
+            result.status=PlanStatus::ValidationIncomplete;return result;}
             }
             weighted+=baseCost+extra;
             analyticClearance+=extra;
@@ -498,16 +509,22 @@ PlanResult plan(const PlanRequest& r) {
             while (id!=0) {candidate.push_back(nodes[id].via);id=nodes[id].parent;}
             std::reverse(candidate.begin(),candidate.end());
             candidate.insert(candidate.end(),tail.begin(),tail.end());
+            if(result.diagnostics.finalPoseChecks>=opt.maxTotalFinalPoseChecks) {
+              if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
+              result.status=PlanStatus::ValidationIncomplete;return result;
+            }
             bool finalValid=checker.check(r.start)==PoseCollision::Clear;
             ++result.diagnostics.finalPoseChecks;
             for (const auto& part:candidate) {
               if (!finalValid) break;
               const auto check=checkMotion(part,checker,opt.finalSampleSpacingMeters,
                     opt.finalMaxBodyPointMotionMeters,opt.maxFinalSamplesPerSection,
-                    result.diagnostics.finalPoseChecks,r.cancelled.get());
+                    result.diagnostics.finalPoseChecks,r.cancelled.get(),
+                    nullptr,nullptr,opt.maxTotalFinalPoseChecks);
               if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
             result.status=PlanStatus::Cancelled;return result;}
-              if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
+              if (check==MotionStatus::Incomplete) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
+            result.status=PlanStatus::ValidationIncomplete;return result;}
               finalValid=check==MotionStatus::Clear;
             }
             if (finalValid) {
@@ -537,14 +554,16 @@ PlanResult plan(const PlanRequest& r) {
                      result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics);
           if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
             result.status=PlanStatus::Cancelled;return result;}
-          if (check==MotionStatus::Incomplete) {result.status=PlanStatus::ValidationIncomplete;return result;}
+          if (check==MotionStatus::Incomplete) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
+            result.status=PlanStatus::ValidationIncomplete;return result;}
           if (check==MotionStatus::Colliding) continue;
           double extra=0;
           if (clearance) {
             try {extra=clearance->sectionCost(sec,opt.searchSampleSpacingMeters,
                       opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
                       result.diagnostics.clearanceSamples);}
-            catch(const std::invalid_argument&) {result.status=PlanStatus::ValidationIncomplete;return result;}
+            catch(const std::invalid_argument&) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
+            result.status=PlanStatus::ValidationIncomplete;return result;}
           }
           const double g=lowerG+extra;
           if (!std::isfinite(g)) {result.status=PlanStatus::InternalError;return result;}
