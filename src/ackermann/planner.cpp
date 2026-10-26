@@ -710,6 +710,11 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
           const auto nextGear=model.nextMode(current.gear,primitive);
           const auto key=model.key(sec.end,nextGear);
           const double cost=model.edgeCost(current.gear,primitive,sec);
+          // Custom policies must never create zero/negative-cost cycles or
+          // nonfinite priorities; a stationary turn has strictly positive cost.
+          if(!std::isfinite(cost)||cost<=0) {
+            result.status=PlanStatus::InvalidRequest;return result;
+          }
           const double lowerG=current.g+cost;
           if (!std::isfinite(lowerG)) {result.status=PlanStatus::InternalError;return result;}
           const auto found=[&] {
@@ -795,6 +800,21 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
 
 PlanResult planWithPolicy(const PlanRequest& request,
                           const planning::PlanarPolicy& policy) {
+  // An arbitrary model cannot silently inherit Ackermann-specific analytic
+  // connectors or distance-only clearance integration. Future adapters may
+  // expose independently validated model-specific connector capabilities.
+  if(request.analyticConnector||request.analyticDistance||
+     request.options.clearanceWeight>0) {
+    PlanResult invalid;
+    if(request.map) {
+      invalid.mapRevision=request.map->revision;
+      invalid.mapFrameId=request.map->frameId;
+      invalid.mapSourceId=request.map->sourceId;
+    }
+    invalid.effectiveOccupancy=request.occupancy;
+    invalid.status=PlanStatus::InvalidRequest;
+    return invalid;
+  }
   return planImpl(request,policy);
 }
 
