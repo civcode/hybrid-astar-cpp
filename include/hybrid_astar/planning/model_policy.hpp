@@ -116,6 +116,7 @@ public:
   explicit PlanarPolicyAdapter(Policy policy):policy_(std::move(policy)) {
     static_assert(std::same_as<typename Policy::State,State> &&
                   std::same_as<typename Policy::Key,Key> &&
+                  std::same_as<typename Policy::Hash,Hash> &&
                   std::same_as<typename Policy::Mode,Mode> &&
                   std::same_as<typename Policy::Section,Section> &&
                   std::same_as<typename Policy::Primitive,Primitive>,
