@@ -63,7 +63,7 @@ Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed
     if (n+1>maxChecks-checks) return Check::Incomplete;
     for (std::size_t i=0;i<=n;++i) {
       if (cancelled(req)) return Check::Cancelled;
-      const auto pose=sec.evaluate(sec.lengthMeters*double(i)/double(n));
+      const auto pose=sec.evaluate(i==n ? sec.lengthMeters : sec.lengthMeters*double(i)/double(n));
       ++checks;
       if (checker.check(pose)!=PoseCollision::Clear) return Check::Invalid;
     }
