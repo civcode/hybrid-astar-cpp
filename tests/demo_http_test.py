@@ -9,11 +9,12 @@ import sys
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlencode
 
 
-def get(url, method="GET"):
+def get(url, method="GET", data=None, headers=None):
     try:
-        with urlopen(Request(url, method=method), timeout=8) as response:
+        with urlopen(Request(url, method=method, data=data, headers=headers or {}), timeout=12) as response:
             return response.status, response.headers, response.read().decode()
     except HTTPError as exc:
         return exc.code, exc.headers, exc.read().decode()
@@ -42,6 +43,7 @@ def main(exe):
         for resource, content in [("/", "Planning Lab"),
                                   ("/style.css", "map-wrap"),
                                   ("/app.js", "replan"),
+                                  ("/map_editor.js", "MapEditor"),
                                   ("/map_geometry.js", "MapGeometry")]:
             code, _, body = get(base + resource)
             assert code == 200 and content in body, resource
@@ -62,8 +64,46 @@ def main(exe):
                             "scenario=open&startx=nan&starty=15&startyaw=0"]:
             code, _, body = get(base + "/api/plan?" + invalid)
             assert code == 400 and "error" in json.loads(body), invalid
+        # Planning POST requires a bounded URL-encoded body, not a naked POST.
         code, _, body = get(base + "/api/plan", method="POST")
+        assert code == 400 and "error" in json.loads(body)
+        code, _, body = get(base + "/", method="POST")
         assert code == 405 and "error" in json.loads(body)
+        def post(fields):
+            payload = urlencode(fields).encode()
+            return get(base + "/api/plan", method="POST", data=payload,
+                       headers={"Content-Type": "application/x-www-form-urlencoded"})
+        base_route = json.loads(post({"scenario":"reverse"})[2])
+        assert base_route["original"]["status"] == "Success"
+        assert base_route["revision"] == 1
+        # Cell (40,60) intersects the start footprint at x=10,y=15.
+        cell = 60*200+40
+        code, _, body = post({"scenario":"reverse", "edits":f"{cell}:100",
+                              "editRevision":"1"})
+        obstacle = json.loads(body)
+        assert code == 200 and obstacle["revision"] == 2
+        assert obstacle["original"]["status"] == "StartInCollision"
+        assert obstacle["original"]["collisionEvidence"] == "None"
+        assert [40,60,1,100] in obstacle["mapRuns"]
+        # The previous validated path was pinned to its original revision.
+        assert base_route["original"]["mapRevision"] == 1
+        code, _, body = post({"scenario":"reverse", "edits":"", "editRevision":"2"})
+        restored = json.loads(body)
+        assert code == 200 and restored["revision"] == 3
+        assert restored["original"]["status"] == "Success"
+        assert restored["original"]["mapRevision"] == 3
+        for illegal in ({"edits":f"{cell}:100"},
+                        {"editRevision":"1","edits":f"{cell}:100,{cell}:0"},
+                        {"editRevision":"1","edits":"999999:100"},
+                        {"editRevision":"1","edits":"0:25"},
+                        {"editRevision":"NaN","edits":"0:100"}):
+            code, _, body = post({"scenario":"reverse", **illegal})
+            assert code == 400 and "error" in json.loads(body), illegal
+        code, _, body = get(base + "/api/plan", method="POST",
+                             data=b"scenario=reverse",
+                             headers={"Content-Type":"text/plain"})
+        assert code == 400 and "error" in json.loads(body)
+
         with tempfile.TemporaryDirectory() as directory:
             pgm = Path(directory) / "open-field.pgm"
             pgm.write_bytes(b"P5\n160 120\n255\n" + bytes([255]) * (160 * 120))
