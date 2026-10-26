@@ -45,7 +45,34 @@ are enabled automatically. The executable also supports
 See the [app README](apps/demo/README.md) for full usage, API and limitations.
 No GitHub Actions workflow is required.
 
+## Docker: dependencies, tests and demo
+
+The root [Dockerfile](Dockerfile) builds a reproducible Ubuntu 24.04 C++20
+environment with **Catch2 v3, Boost, Eigen3 and OMPL 2.0.2 from source**.
+The optional browser demo lives under [`apps/demo/`](apps/demo/README.md).
+Run it locally without first installing toolchains or OMPL:
+
+```bash
+docker compose up --build demo
+# Browse http://127.0.0.1:8765
+```
+
+Explicitly execute the **Catch2/CTest** and real-OMPL integration suites:
+
+```bash
+docker compose run --build --rm test
+```
+
+The Compose mapping publishes **only 127.0.0.1 on your host**. The Docker
+build and test are manual, not GitHub Actions automation. See the
+[complete Docker guide](docs/docker.md) for CLI planning and benchmarks.
+**Docker execution has not yet been validated in this assistant environment**
+because no Docker engine is installed here.
+
 ## Build and test the Ackermann vertical slice
+
+Catch2 **v3** is required for test builds. If you only need the core/demo
+without Catch2, configure with `-DHYBRID_ASTAR_BUILD_TESTS=OFF`.
 
 ```bash
 cmake -S . -B build -DHYBRID_ASTAR_ENABLE_OMPL=OFF
@@ -142,7 +169,7 @@ for regression fixtures, budgets and unresolved quality gates.
 ## Conventions
 
 - C++20, standard CMake; core has **zero ROS 2 dependencies**.
-- Catch2 v3 for tests, cxxopts for CLI tools, nlohmann/json and yaml-cpp in serialization/configuration adapters, Eigen3 where useful, and optional Ceres Solver for refinement.
+- Catch2 v3 **actually powers the C++ test executables** (rather than standalone `main()` assert runners). Other planned libraries include cxxopts for CLI tools, nlohmann/json and yaml-cpp in serialization/configuration adapters, Eigen3 where useful, and optional Ceres Solver for refinement.
 - OMPL is the selected runtime Dubins/Reeds–Shepp provider, isolated behind project-native steering APIs; the in-house solver is low priority.
 - Kinematic models are controlled differential equations with admissible controls and body-frame transforms; [mathematical specification](docs/architecture/kinematic-models.md) and [ADR-0008](docs/adr/0008-motion-model-capabilities.md).
 - Existing civcode reference repositories inform design but **must not be vendored or copied**.
