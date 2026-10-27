@@ -388,3 +388,31 @@ enforcement. No GitHub Actions triggers are added.
 
 The demo ships built-in maps and local PGM/YAML imports. Reading arbitrary
 ROS OccupancyGrid messages or publishing ROS paths remains future work.
+
+### Ackermann RS connector and independent refinement controls
+
+In an **OMPL-enabled Planning Lab**, Ackermann preselects **Reeds–Shepp
+analytic connector** together with the checked **Obstacle-grid heuristic**.
+The new **RS distance heuristic** checkbox is **off by default**: it triggers
+an expensive OMPL Reeds–Shepp distance computation for search-state guidance
+and can be enabled when route quality warrants additional planning time.
+RS distance is only available with Ackermann + RS connector + obstacle-grid
+heuristic; selecting a different model or disabling either parent checkbox
+clears the optional setting.
+
+HTTP clients can send `ompl=1&performance=1&rsDistance=0` (default
+connector-only configuration) or `rsDistance=1` (extra RS distance guidance).
+CLI callers use `--ompl` and optionally `--rs-distance`. C++ users call
+`steering::planWithReedsShepp(request)` for connector-only or pass `true`
+for RS distance guidance. Bare `ackermann::plan(request)` remains
+independent of OMPL and requires an explicitly supplied connector.
+
+**Strict post-path refinement** uses bounded local/medium Ackermann section
+windows across the route, not just large windows anchored at section zero.
+**Native curved CSC candidates** may now be enabled at the same time as RS
+refinement. All candidates undergo the same complete-path independent sampled
+full-footprint collision/kinematics and strict weighted-cost-improvement tests;
+for one Ackermann window the lowest-cost accepted candidate is selected.
+Both proposal providers, the original verified path and all existing work
+limits remain in place. This is discrete geometric shortcutting, not a
+steering-rate-continuous trajectory optimizer.
