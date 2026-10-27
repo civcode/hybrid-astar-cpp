@@ -44,13 +44,15 @@ enum class PoseCollision { Clear, Colliding };
 // Contact (including map boundary contact) counts as collision.
 class ExactCollisionChecker {
 public:
-  ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy, Footprint footprint);
+  ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy,
+                        Footprint footprint, double inflationMeters = 0.0);
   PoseCollision check(const Pose2D& pose) const;
   double maxBodyRadius() const noexcept;
 private:
   const MapSnapshot& map_;
   OccupancyPolicy policy_;
   Footprint footprint_;
+  double inflationMeters_ = 0.0;
   double originCos_, originSin_; // map-frame rotation reused for every pose check
 };
 
@@ -109,6 +111,9 @@ struct PlanOptions {
   double performanceHeuristicWeight = 1.0; // no default inflation; optional weight [1,3]
   std::size_t gridMaxTotalSettlements = 100000; // optional performance grid; bounded by reachable cells
   bool gridPreventDiagonalCornerCutting = true; // false only for controlled A/B trials
+  // Geometric Minkowski offset of the *physical* footprint by a disk.
+  // 0 preserves the legacy checker; applied to search and final validation.
+  double footprintInflationMeters = 0.0;
   double clearanceWeight = 0.0; // zero by default: equivalent-meter integral
   double clearanceInfluenceRadiusMeters = 0.40;
   std::size_t discPrefilterCount = 0; // 0=off, optionally benchmark 4 or 5 // finite lazy Dijkstra budget

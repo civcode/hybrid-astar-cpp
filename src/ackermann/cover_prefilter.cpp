@@ -42,14 +42,14 @@ void squaredDistance1D(const std::vector<double>& f,std::vector<double>& out) {
 }
 }
 ConservativeDiscPrefilter::ConservativeDiscPrefilter(const MapSnapshot& m, OccupancyPolicy p,
-                                                     Footprint footprint,std::size_t count)
+                                                     Footprint footprint,std::size_t count,double inflationMeters)
  :map_(m) {
   // Reuse full map, occupancy and footprint validation; no bypass if invalid.
-  ExactCollisionChecker checker(m,p,footprint);
+  ExactCollisionChecker checker(m,p,footprint,inflationMeters);
   if (count==0||count>64) throw std::invalid_argument("disc count must be 1..64");
   const double width=footprint.frontX-footprint.rearX;
   const double halfStrip=width/(2.0*count);
-  radiusMeters_=std::hypot(footprint.halfWidth,halfStrip);
+  radiusMeters_=std::hypot(footprint.halfWidth,halfStrip)+inflationMeters;
   if (!std::isfinite(radiusMeters_) || radiusMeters_<=0) throw std::invalid_argument("invalid disc cover");
   for(std::size_t j=0;j<count;++j)
     centers_.push_back(footprint.rearX+(double(j)+.5)*width/double(count));

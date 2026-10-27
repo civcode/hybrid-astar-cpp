@@ -3,6 +3,7 @@
 #include "hybrid_astar/planning/model_policy.hpp"
 #include "hybrid_astar/ackermann/cover_prefilter.hpp"
 #include "hybrid_astar/ackermann/clearance.hpp"
+#include "hybrid_astar/ackermann/geometry_distance.hpp"
 #include "hybrid_astar/ackermann/hotpath_profiler.hpp"
 
 #include <algorithm>
@@ -24,7 +25,7 @@ constexpr double tau = 2.0 * pi;
 constexpr double epsilon = 1e-10; // meters; map boundary/contact conservative
 bool finite(const Pose2D& p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.yaw); }
 double wrap(double radians) { return std::remainder(radians, tau); }
-struct Vec2 { double x, y; };
+using Vec2=geometry::Point2;
 double dot(Vec2 a, Vec2 b) { return a.x*b.x + a.y*b.y; }
 
 // Separating axes are the two square axes and two rectangle edge normals.
@@ -87,6 +88,7 @@ void validateOptions(const PlanOptions& o) {
        o.openQueueMode!=OpenQueueMode::IndexedFourAry) ||
       !std::isfinite(o.performanceHeuristicWeight) ||
       o.performanceHeuristicWeight<1 || o.performanceHeuristicWeight>3 ||
+      !std::isfinite(o.footprintInflationMeters) || o.footprintInflationMeters<0 ||
       !std::isfinite(o.clearanceWeight) || o.clearanceWeight<0 ||
       !std::isfinite(o.clearanceInfluenceRadiusMeters) || o.clearanceInfluenceRadiusMeters<=0 ||
       (o.solutionPolicy!=SolutionPolicy::FirstStrictlyValidated &&
@@ -314,17 +316,21 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
 }
 } // namespace
 
-ExactCollisionChecker::ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy, Footprint footprint)
-  : map_(map), policy_(policy), footprint_(footprint),
+ExactCollisionChecker::ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy,
+                                             Footprint footprint,double inflationMeters)
+  : map_(map), policy_(policy), footprint_(footprint), inflationMeters_(inflationMeters),
     originCos_(std::cos(map.origin.yaw)),originSin_(std::sin(map.origin.yaw)) {
   validateMap(map_,policy_); validateFootprint(footprint_);
+  if(!std::isfinite(inflationMeters_)||inflationMeters_<0)
+    throw std::invalid_argument("Invalid footprint inflation margin");
   if (policy_.unknown==UnknownPolicy::Reject &&
       std::find(map_.cells.begin(),map_.cells.end(),static_cast<std::int8_t>(-1))!=map_.cells.end())
     throw std::domain_error("Unknown map rejected");
 }
 
 double ExactCollisionChecker::maxBodyRadius() const noexcept {
-  return std::hypot(std::max(std::abs(footprint_.rearX),std::abs(footprint_.frontX)),footprint_.halfWidth);
+  return std::hypot(std::max(std::abs(footprint_.rearX),std::abs(footprint_.frontX)),
+                    footprint_.halfWidth)+inflationMeters_;
 }
 
 PoseCollision ExactCollisionChecker::check(const Pose2D& pose) const {
@@ -346,19 +352,28 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose) const {
     auto& v=poly[i]; v={x0+c*body[i].x-s*body[i].y,y0+s*body[i].x+c*body[i].y};
     if (!std::isfinite(v.x)||!std::isfinite(v.y)) throw std::invalid_argument("Overflowed body transform");
     // Contacts with finite map edges are blocked, even Unknown::Free.
-    if (v.x<=epsilon||v.y<=epsilon||v.x>=boundX-epsilon||v.y>=boundY-epsilon)
+    if (v.x<=inflationMeters_+epsilon||v.y<=inflationMeters_+epsilon||
+        v.x>=boundX-inflationMeters_-epsilon||
+        v.y>=boundY-inflationMeters_-epsilon)
       return PoseCollision::Colliding;
     minx=std::min(minx,v.x);maxx=std::max(maxx,v.x);
     miny=std::min(miny,v.y);maxy=std::max(maxy,v.y);
   }
-  const auto firstX=static_cast<std::size_t>(std::max(0.0,std::floor((minx-epsilon)/map_.resolutionMeters)));
-  const auto firstY=static_cast<std::size_t>(std::max(0.0,std::floor((miny-epsilon)/map_.resolutionMeters)));
-  const auto lastX=static_cast<std::size_t>(std::min(static_cast<double>(map_.width-1),std::floor((maxx+epsilon)/map_.resolutionMeters)));
-  const auto lastY=static_cast<std::size_t>(std::min(static_cast<double>(map_.height-1),std::floor((maxy+epsilon)/map_.resolutionMeters)));
+  const auto firstX=static_cast<std::size_t>(std::max(0.0,std::floor((minx-inflationMeters_-epsilon)/map_.resolutionMeters)));
+  const auto firstY=static_cast<std::size_t>(std::max(0.0,std::floor((miny-inflationMeters_-epsilon)/map_.resolutionMeters)));
+  const auto lastX=static_cast<std::size_t>(std::min(static_cast<double>(map_.width-1),std::floor((maxx+inflationMeters_+epsilon)/map_.resolutionMeters)));
+  const auto lastY=static_cast<std::size_t>(std::min(static_cast<double>(map_.height-1),std::floor((maxy+inflationMeters_+epsilon)/map_.resolutionMeters)));
   for (std::size_t y=firstY;y<=lastY;++y) {
     for (std::size_t x=firstX;x<=lastX;++x) {
-      if (blocked(map_.cells[y*map_.width+x],policy_) &&
-          overlapsSquare(poly,x*map_.resolutionMeters,y*map_.resolutionMeters,map_.resolutionMeters))
+      if (!blocked(map_.cells[y*map_.width+x],policy_))continue;
+      const double sx=x*map_.resolutionMeters,sy=y*map_.resolutionMeters;
+      if(overlapsSquare(poly,sx,sy,map_.resolutionMeters))
+        return PoseCollision::Colliding;
+      // Zero-margin fast path: preserve the previous SAT-only behavior.
+      if(inflationMeters_>0 &&
+         geometry::separatedConvexPolygonSquareDistanceSquared(
+             poly,sx,sy,map_.resolutionMeters)<=
+             geometry::square(inflationMeters_+epsilon))
         return PoseCollision::Colliding;
     }
   }
@@ -473,11 +488,13 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     result.status=PlanStatus::Cancelled;return result;
   }
   try {
-    const ExactCollisionChecker checker(*r.map,r.occupancy,model.footprint());
+    const ExactCollisionChecker checker(*r.map,r.occupancy,model.footprint(),
+                                        r.options.footprintInflationMeters);
     std::unique_ptr<ConservativeDiscPrefilter> prefilter;
     if (r.options.discPrefilterCount)
       prefilter=std::make_unique<ConservativeDiscPrefilter>(
-           *r.map,r.occupancy,model.footprint(),r.options.discPrefilterCount);
+           *r.map,r.occupancy,model.footprint(),r.options.discPrefilterCount,
+           r.options.footprintInflationMeters);
     std::unique_ptr<ClearanceScorer> clearance;
     if(r.options.clearanceWeight>0)
       clearance=std::make_unique<ClearanceScorer>(*r.map,r.occupancy,model.footprint(),

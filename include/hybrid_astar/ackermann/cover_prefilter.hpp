@@ -11,7 +11,8 @@ namespace hybrid_astar::ackermann {
 class ConservativeDiscPrefilter {
 public:
   ConservativeDiscPrefilter(const MapSnapshot& map, OccupancyPolicy policy,
-                           Footprint footprint, std::size_t discCount = 4);
+                           Footprint footprint, std::size_t discCount = 4,
+                           double inflationMeters = 0.0);
   bool definitelyClear(const Pose2D& pose) const;
   std::size_t discCount() const noexcept { return centers_.size(); }
 private:

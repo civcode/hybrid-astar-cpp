@@ -1,4 +1,5 @@
 #include "hybrid_astar/ackermann/clearance.hpp"
+#include "hybrid_astar/ackermann/geometry_distance.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -6,15 +7,7 @@
 #include <stdexcept>
 namespace hybrid_astar::ackermann {
 namespace {
-struct Point { double x,y; };
-inline double sq(double x) {return x*x;}
-// Squared distance from a point to a finite segment. For two closed convex
-// polygons known not to overlap, min endpoint-to-edge distances is exact.
-double toEdgeSquared(Point p,Point a,Point b) {
-  const double dx=b.x-a.x,dy=b.y-a.y,denom=sq(dx)+sq(dy);
-  const double t=denom>0?std::clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/denom,0.0,1.0):0.0;
-  return sq(p.x-a.x-t*dx)+sq(p.y-a.y-t*dy);
-}
+using Point=geometry::Point2;
 bool isBlocked(std::int8_t value,OccupancyPolicy policy) {
   return value==-1 ? policy.unknown!=UnknownPolicy::Free : value>policy.maxTraversableOccupancy;
 }
@@ -56,14 +49,8 @@ double ClearanceScorer::poseClearanceMeters(const Pose2D& pose) const {
   for(std::size_t y=lowy;y<=highy;++y) for(std::size_t x=lowx;x<=highx;++x) {
     if(!isBlocked(map_.cells[y*map_.width+x],occupancy_)) continue;
     const double lx=x*r,ly=y*r;
-    const std::array<Point,4> square{{{lx,ly},{lx+r,ly},{lx+r,ly+r},{lx,ly+r}}};
-    for(const auto p:poly) {
-      const double nearx=std::clamp(p.x,lx,lx+r),neary=std::clamp(p.y,ly,ly+r);
-      bestSq=std::min(bestSq,sq(p.x-nearx)+sq(p.y-neary));
-    }
-    for(const auto p:square)
-      for(std::size_t e=0;e<4;++e)
-        bestSq=std::min(bestSq,toEdgeSquared(p,poly[e],poly[(e+1)%4]));
+     bestSq=std::min(bestSq,
+         geometry::separatedConvexPolygonSquareDistanceSquared(poly,lx,ly,r));
     if(bestSq<=0) return 0;
   }
   return std::sqrt(bestSq);
