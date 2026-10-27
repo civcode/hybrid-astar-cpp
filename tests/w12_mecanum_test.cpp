@@ -224,6 +224,11 @@ TEST_CASE("Off-grid mecanum goal uses strictly validated exact holonomic termina
   }
   const auto planned=a::plan(r);
   REQUIRE(planned.status==a::PlanStatus::Success);
+  REQUIRE(planned.diagnostics.terminalConnectionAttempts>0);
+  REQUIRE(planned.diagnostics.terminalConnectionAttempts<=32);
+  REQUIRE(planned.diagnostics.terminalValidated>0);
+  REQUIRE(planned.diagnostics.terminalCandidates>=
+          planned.diagnostics.terminalValidated+planned.diagnostics.terminalRejected);
   REQUIRE(planned.goalXYErrorMeters<1e-8);
   REQUIRE(planned.goalYawErrorRadians<1e-8);
   REQUIRE(planned.collisionEvidence==a::CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
@@ -248,7 +253,14 @@ TEST_CASE("Mecanum navigates warehouse gaps to a rotated, off-lattice target",
   INFO("mecanum warehouse status="<<static_cast<int>(result.status)
        <<" expanded="<<result.diagnostics.expanded
        <<" generated="<<result.diagnostics.generated
-       <<" final checks="<<result.diagnostics.finalPoseChecks);
+       <<" final checks="<<result.diagnostics.finalPoseChecks
+       <<" terminal attempts="<<result.diagnostics.terminalConnectionAttempts
+       <<" terminal candidates="<<result.diagnostics.terminalCandidates
+       <<" terminal validated="<<result.diagnostics.terminalValidated
+       <<" terminal rejected="<<result.diagnostics.terminalRejected);
+  REQUIRE(result.diagnostics.terminalConnectionAttempts<=32);
+  REQUIRE(result.diagnostics.terminalCandidates>=
+          result.diagnostics.terminalValidated+result.diagnostics.terminalRejected);
   REQUIRE(result.status==a::PlanStatus::Success);
   REQUIRE(result.collisionEvidence==a::CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
   REQUIRE(result.goalXYErrorMeters<=r.options.goalXYToleranceMeters+1e-8);
