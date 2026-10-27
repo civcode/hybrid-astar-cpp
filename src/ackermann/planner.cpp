@@ -308,7 +308,8 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
       if (stats) {
         ++stats->exactCollisionPoseCalls;
         HotPathTimer collisionTimer(stats->exactCollisionNanoseconds);
-        status=checker.check(pose);
+        status=checker.check(pose,stats->collectCollisionWork?
+                            &stats->collisionWork:nullptr);
       } else status=checker.check(pose);
       if (status==PoseCollision::Colliding) return MotionStatus::Colliding;
     }
@@ -466,7 +467,7 @@ double ExactCollisionChecker::maxBodyRadius() const noexcept {
                     footprint_.halfWidth)+inflationMeters_;
 }
 
-PoseCollision ExactCollisionChecker::check(const Pose2D& pose) const {
+PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCounters* work) const {
   if (!finite(pose)) throw std::invalid_argument("Nonfinite collision pose");
   const double yaw=pose.yaw-map_.origin.yaw;
   const double c=std::cos(yaw),s=std::sin(yaw);
@@ -487,8 +488,10 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose) const {
     // Contacts with finite map edges are blocked, even Unknown::Free.
     if (v.x<=inflationMeters_+epsilon||v.y<=inflationMeters_+epsilon||
         v.x>=boundX-inflationMeters_-epsilon||
-        v.y>=boundY-inflationMeters_-epsilon)
+        v.y>=boundY-inflationMeters_-epsilon) {
+      if(work)++work->boundaryRejections;
       return PoseCollision::Colliding;
+    }
     minx=std::min(minx,v.x);maxx=std::max(maxx,v.x);
     miny=std::min(miny,v.y);maxy=std::max(maxy,v.y);
   }
@@ -498,16 +501,20 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose) const {
   const auto lastY=static_cast<std::size_t>(std::min(static_cast<double>(map_.height-1),std::floor((maxy+inflationMeters_+epsilon)/map_.resolutionMeters)));
   for (std::size_t y=firstY;y<=lastY;++y) {
     for (std::size_t x=firstX;x<=lastX;++x) {
+      if(work)++work->candidateCells;
       if (!blocked(map_.cells[y*map_.width+x],policy_))continue;
+      if(work) {++work->occupiedCells;++work->satTests;}
       const double sx=x*map_.resolutionMeters,sy=y*map_.resolutionMeters;
       if(overlapsSquare(poly,sx,sy,map_.resolutionMeters))
         return PoseCollision::Colliding;
       // Zero-margin fast path: preserve the previous SAT-only behavior.
-      if(inflationMeters_>0 &&
-         geometry::separatedConvexPolygonSquareDistanceSquared(
+      if(inflationMeters_>0) {
+        if(work)++work->distanceTests;
+        if(geometry::separatedConvexPolygonSquareDistanceSquared(
              poly,sx,sy,map_.resolutionMeters)<=
              geometry::square(inflationMeters_+epsilon))
-        return PoseCollision::Colliding;
+          return PoseCollision::Colliding;
+      }
     }
   }
   return PoseCollision::Clear;
@@ -632,10 +639,12 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     if(r.options.clearanceWeight>0)
       clearance=std::make_unique<ClearanceScorer>(*r.map,r.occupancy,model.footprint(),
                  r.options.clearanceWeight,r.options.clearanceInfluenceRadiusMeters);
+    result.diagnostics.collectCollisionWork=r.options.collectCollisionWork;
     const auto checkedPose=[&](const Pose2D& pose) {
       ++result.diagnostics.exactCollisionPoseCalls;
       HotPathTimer timer(result.diagnostics.exactCollisionNanoseconds);
-      return checker.check(pose);
+      return checker.check(pose,result.diagnostics.collectCollisionWork?
+                           &result.diagnostics.collisionWork:nullptr);
     };
     if (checkedPose(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
     ++result.diagnostics.searchPoseChecks;

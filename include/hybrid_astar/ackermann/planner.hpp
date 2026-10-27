@@ -40,13 +40,23 @@ struct Footprint {
 };
 
 enum class PoseCollision { Clear, Colliding };
+// Optional, request-local collision broad-phase instrumentation. A single
+// call to the checker may terminate early on the first collision; these
+// counts reflect cells actually visited, not bounding-box area.
+struct CollisionWorkCounters {
+  std::uint64_t candidateCells = 0; // map-grid cells examined in inflated AABB
+  std::uint64_t occupiedCells = 0;  // visited cells classified as obstacles
+  std::uint64_t satTests = 0;       // rectangle-vs-square intersection checks
+  std::uint64_t distanceTests = 0;  // exact continuous margin checks after SAT misses
+  std::uint64_t boundaryRejections = 0; // poses rejected at map boundary
+};
 // Construction validates the ENTIRE immutable snapshot and policy once.
 // Contact (including map boundary contact) counts as collision.
 class ExactCollisionChecker {
 public:
   ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy,
                         Footprint footprint, double inflationMeters = 0.0);
-  PoseCollision check(const Pose2D& pose) const;
+  PoseCollision check(const Pose2D& pose,CollisionWorkCounters* work=nullptr) const;
   double maxBodyRadius() const noexcept;
 private:
   const MapSnapshot& map_;
@@ -120,7 +130,8 @@ struct PlanOptions {
   double footprintInflationMeters = 0.0;
   double clearanceWeight = 0.0; // zero by default: equivalent-meter integral
   double clearanceInfluenceRadiusMeters = 0.40;
-  std::size_t discPrefilterCount = 0; // 0=off, optionally benchmark 4 or 5 // finite lazy Dijkstra budget
+  std::size_t discPrefilterCount = 0; // 0=off, optionally benchmark 4 or 5
+  bool collectCollisionWork = false; // opt-in broad-phase counters; adds overhead
   double minimumTurningRadiusMeters = 4.0;
   double goalXYToleranceMeters = 0.25;
   double goalYawToleranceRadians = 0.17453292519943295; // 10 degrees
@@ -167,6 +178,8 @@ struct PlanDiagnostics {
   std::size_t labelPeakSize = 0, hashCalls = 0;
   std::size_t searchMotionCalls = 0, finalMotionCalls = 0;
   std::size_t exactCollisionPoseCalls = 0;
+  CollisionWorkCounters collisionWork{}; // zero unless collectCollisionWork enabled
+  bool collectCollisionWork = false;
   // Timing counters are nonzero only with HYBRID_ASTAR_PROFILE_HOTPATHS=ON.
   // Motion timings INCLUDE nested exact-collision timings: do not sum.
   std::uint64_t labelLookupNanoseconds = 0, labelWriteNanoseconds = 0;
