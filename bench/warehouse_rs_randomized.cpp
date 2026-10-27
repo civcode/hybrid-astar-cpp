@@ -28,7 +28,6 @@ using namespace hybrid_astar::ackermann;
 
 namespace {
 constexpr std::size_t scenarioCount=100;
-constexpr double minDirectDistanceMeters=25.0; // Focus on warehouse-scale trips.
 constexpr double pi=std::numbers::pi_v<double>;
 // Distance bands are only diagnostic metadata; no per-band acceptance quota.
 constexpr std::array<double,5> distanceEdges{0.,12.,20.,30.,60.};
@@ -102,7 +101,6 @@ Scenario nextCandidate(std::mt19937_64& rng,const ExactCollisionChecker& checker
     ++poseDraws;
     const auto start=randomPose(rng),goal=randomPose(rng);
     const double distance=std::hypot(start.x-goal.x,start.y-goal.y);
-    if(distance<minDirectDistanceMeters)continue;
     if(checker.check(start)!=PoseCollision::Clear ||
        checker.check(goal)!=PoseCollision::Clear)continue;
     std::size_t band=0;
@@ -215,9 +213,8 @@ int main(int argc,char** argv) {
       "path_cost_m,path_length_m,reverse_length_m\n";
 
     while(qualified<scenarioCount && candidates<maxCandidates) {
-      // Draw on the full unchanged warehouse map. A large XY separation
-      // reduces trivial single-shot connectors, but the *actual measured*
-      // search-expansion requirement is the final acceptance condition.
+      // Draw collision-free pairs on the full map without prefiltering
+      // by XY separation; actual planner expansions decide difficulty.
       const auto s=nextCandidate(rng,checker,poseDraws,maxPoseDraws);
       ++candidates;
       std::array<Observation,2> observed{};
@@ -272,7 +269,7 @@ int main(int argc,char** argv) {
       <<" accepted="<<qualified
       <<" evaluated_candidates="<<candidates<<" sampled_pose_pairs="<<poseDraws
       <<" min_expansions_both="<<minimum<<" budget="<<budget
-      <<" min_direct_distance_m="<<minDirectDistanceMeters<<'\n'
+      <<'\n'
       <<"rejected_failure_any="<<rejectedFailure
       <<" rejected_under_minimum_any="<<rejectedExpansions
       <<" (both_under="<<rejectedBothFast
