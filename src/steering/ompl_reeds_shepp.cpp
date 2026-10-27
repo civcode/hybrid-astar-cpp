@@ -98,12 +98,12 @@ double reedsSheppDistance(const Pose2D& from,const Pose2D& goal,
 // heuristic mode on the request remains honored when the flag is false.
 // The true flag additionally installs the OMPL RS distance estimate.
 ackermann::PlanResult planWithReedsShepp(ackermann::PlanRequest request,
-                                        bool usePerformanceHeuristic) {
+                                        bool useReedsSheppDistanceHeuristic) {
   ReedsSheppEvaluator evaluator(request.options.minimumTurningRadiusMeters);
   request.analyticConnector=[&evaluator](const Pose2D& from,const Pose2D& goal) {
     return evaluator.shortestPath(from,goal);
   };
-  if(usePerformanceHeuristic) {
+  if(useReedsSheppDistanceHeuristic) {
     request.options.heuristicMode=ackermann::HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
     request.analyticDistance=[&evaluator](const Pose2D& from,const Pose2D& goal) {
       return evaluator.distance(from,goal);
@@ -114,12 +114,12 @@ ackermann::PlanResult planWithReedsShepp(ackermann::PlanRequest request,
 ReedsSheppRefinementResult planAndRefineWithReedsShepp(
     ackermann::PlanRequest request,
     ackermann::RefinementOptions refinementOptions,
-    bool usePerformanceHeuristic) {
+    bool useReedsSheppDistanceHeuristic) {
   ReedsSheppEvaluator evaluator(request.options.minimumTurningRadiusMeters);
   request.analyticConnector=[&evaluator](const Pose2D& from,const Pose2D& goal) {
     return evaluator.shortestPath(from,goal);
   };
-  if(usePerformanceHeuristic) {
+  if(useReedsSheppDistanceHeuristic) {
     request.options.heuristicMode=ackermann::HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
     request.analyticDistance=[&evaluator](const Pose2D& from,const Pose2D& goal) {
       return evaluator.distance(from,goal);
