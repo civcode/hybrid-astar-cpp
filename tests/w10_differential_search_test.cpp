@@ -32,7 +32,11 @@ TEST_CASE("Differential drive can plan a positive-cost stationary turn",
   REQUIRE(r.mapRevision==42);
   REQUIRE(r.mapSourceId=="w10-test");
   REQUIRE(r.diagnostics.primitiveTemplatesBuilt==8);
-  REQUIRE(r.diagnostics.primitiveTemplatePoseChecks>0);
+  // A same-XY goal now uses a directly validated terminal spin at the first
+  // expansion; no search primitive needs to be collision-sampled.
+  REQUIRE(r.diagnostics.terminalConnectionAttempts==1);
+  REQUIRE(r.diagnostics.terminalValidated==1);
+  REQUIRE(r.diagnostics.finalPoseChecks>0);
   REQUIRE(r.goalXYErrorMeters<=q.options.goalXYToleranceMeters);
   REQUIRE(r.goalYawErrorRadians<=q.options.goalYawToleranceRadians);
   REQUIRE(r.weightedCostMeters>0);
@@ -61,6 +65,22 @@ TEST_CASE("Differential drive can plan a positive-cost stationary turn",
   REQUIRE(repeated.diagnostics.expanded==r.diagnostics.expanded);
   REQUIRE(std::abs(repeated.weightedCostMeters-r.weightedCostMeters)<1e-9);
 }
+TEST_CASE("Differential search still samples cached motion primitives away from goal",
+          "[w10][search][primitives]") {
+  auto q=basic();
+  // More than the 1m terminal-link threshold away; the planner must expand
+  // and check ordinary 0.5m translations and rotation primitives.
+  q.goal={13,10,0};
+  q.options.maxExpansions=1;
+  const auto result=plan(q);
+  REQUIRE(result.status==PlanStatus::BudgetExceeded);
+  REQUIRE(result.diagnostics.expanded==1);
+  REQUIRE(result.diagnostics.primitiveTemplatesBuilt==8);
+  REQUIRE(result.diagnostics.terminalConnectionAttempts==0);
+  REQUIRE(result.diagnostics.primitiveTemplatePoseChecks>0);
+  REQUIRE(result.diagnostics.searchMotionCalls>0);
+}
+
 TEST_CASE("Independent final validation samples a rotating footprint",
           "[w10][collision][spin]") {
   auto q=basic();
