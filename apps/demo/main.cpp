@@ -225,6 +225,7 @@ void handle(int client,const std::shared_ptr<const hybrid_astar::ackermann::MapS
     } else params=queryAt==std::string_view::npos?std::string_view{}:url.substr(queryAt+1);
     if(route=="/"||route=="/index.html")sendReply(client,200,"text/html; charset=utf-8",loadAsset("index.html"));
     else if(route=="/map_geometry.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("map_geometry.js"));
+    else if(route=="/map_editor.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("map_editor.js"));
     else if(route=="/app.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("app.js"));
     else if(route=="/style.css")sendReply(client,200,"text/css; charset=utf-8",loadAsset("style.css"));
     else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson(customMap.get()));
