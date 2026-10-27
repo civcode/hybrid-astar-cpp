@@ -51,6 +51,42 @@ TEST_CASE("Mecanum stationary stops cost more than equivalent moving turns",
   REQUIRE_THROWS_AS(invalid.validate(),std::invalid_argument);
 }
 
+TEST_CASE("Mecanum validated terminal link merges unnecessary final spin into moving twist",
+          "[w12][smoothing][no-stop]") {
+  auto r=request();
+  // The exact near-goal connector deliberately constructs strafe+spin.
+  // With ample clearance, it should be merged into a single simultaneous
+  // moving turn without changing the exact requested SE(2) endpoint.
+  r.goal={10.65,10.35,.5};
+  r.options.goalXYToleranceMeters=.02;
+  r.options.goalYawToleranceRadians=.02;
+  r.options.mecanumMergeIntermediateSpins=false;
+  const auto baseline=a::plan(r);
+  REQUIRE(baseline.status==a::PlanStatus::Success);
+  bool hadSpin=false;
+  for(const auto& section:baseline.sections)
+    hadSpin|=section.kind==a::MotionKind::RotateInPlace;
+  REQUIRE(hadSpin);
+  r.options.mecanumMergeIntermediateSpins=true;
+  const auto improved=a::plan(r);
+  REQUIRE(improved.status==a::PlanStatus::Success);
+  REQUIRE(improved.diagnostics.expanded==baseline.diagnostics.expanded);
+  REQUIRE(improved.diagnostics.mecanumSpinShortcutsAccepted>=1);
+  REQUIRE(improved.sections.size()<baseline.sections.size());
+  REQUIRE(improved.weightedCostMeters<baseline.weightedCostMeters);
+  for(const auto& section:improved.sections)
+    REQUIRE(section.kind==a::MotionKind::HolonomicTwist);
+  REQUIRE(improved.goalXYErrorMeters<1e-6);
+  REQUIRE(improved.goalYawErrorRadians<1e-6);
+  REQUIRE(improved.collisionEvidence==
+          a::CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  const a::ExactCollisionChecker checker(*r.map,r.occupancy,r.footprint);
+  for(const auto& section:improved.sections)
+    for(int step=0;step<=100;++step)
+      REQUIRE(checker.check(section.evaluate(
+          section.progressExtent()*double(step)/100))==a::PoseCollision::Clear);
+}
+
 TEST_CASE("Mecanum wheel mapping bounds are enforced on all four wheels","[w12][model]") {
   const me::Model model;
   auto rates=model.wheelRates({0,.5,0});
