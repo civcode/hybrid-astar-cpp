@@ -1,8 +1,9 @@
-// Manual-only matched-pair RS performance test: 100 randomized warehouse
-// start/goal scenarios, tested in BOTH modes (200 planning runs total).
-// Produces a CSV on stdout and an aggregate comparison on stderr.
-// Usage: hybrid_astar_warehouse_rs_randomized [seed=20261027] [max_expansions=1000000]
-// Deliberately not a CTest: a million-expansion budget on 200 calls is expensive.
+// Manual-only matched-pair RS benchmark. Sample randomized warehouse poses
+// until 100 pairs BOTH succeed with >=10k search expansions (configurable).
+// Screened-out pairs are counted but never included in the accepted CSV.
+// Usage: executable [seed=20261027] [max_expansions=1000000]
+//                   [min_expansions=10000] [max_candidates=20000]
+// Never part of automatic CTest: potentially thousands of planning requests.
 #include "bench/warehouse_rs_fixture.hpp"
 #include "hybrid_astar/steering/reeds_shepp_evaluator.hpp"
 #include <algorithm>
@@ -17,6 +18,7 @@
 #include <memory>
 #include <numbers>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -26,11 +28,10 @@ using namespace hybrid_astar::ackermann;
 
 namespace {
 constexpr std::size_t scenarioCount=100;
-constexpr std::size_t scenariosPerBand=25;
+constexpr double minDirectDistanceMeters=25.0; // Focus on warehouse-scale trips.
 constexpr double pi=std::numbers::pi_v<double>;
-// Straight-line start/goal separation bands, in metres. Neither configuration
-// uses these distances for gating analytic expansion.
-constexpr std::array<double,5> distanceEdges{6.,12.,20.,30.,60.};
+// Distance bands are only diagnostic metadata; no per-band acceptance quota.
+constexpr std::array<double,5> distanceEdges{0.,12.,20.,30.,60.};
 
 struct Scenario {
   Pose2D start,goal;
@@ -41,6 +42,7 @@ struct Observation {
   double milliseconds=0;
   std::size_t expanded=0;
   bool success=false;
+  std::string csvRow; // Buffer output until BOTH modes qualify.
 };
 struct Summary {
   std::vector<double> times,expansions;
@@ -94,36 +96,21 @@ double uniform01(std::mt19937_64& rng) {
 Pose2D randomPose(std::mt19937_64& rng) {
   return {50.*uniform01(rng),40.*uniform01(rng),2*pi*uniform01(rng)-pi};
 }
-std::vector<Scenario> makeScenarios(const PlanRequest& request,std::uint64_t seed) {
-  std::mt19937_64 rng(seed);
-  ExactCollisionChecker checker(*request.map,request.occupancy,
-                                request.footprint,request.options.footprintInflationMeters);
-  std::vector<Scenario> scenarios;
-  scenarios.reserve(scenarioCount);
-  // 25 randomly sampled pairs per separation band, to prevent near-goal easy
-  // cases from dominating the comparison. Both modes get IDENTICAL poses.
-  for(std::size_t band=0;band+1<distanceEdges.size();++band) {
-    std::size_t attempts=0;
-    while(scenarios.size()<(band+1)*scenariosPerBand) {
-      if(++attempts>2000000)
-        throw std::runtime_error("Could not sample 25 collision-free pairs in a distance band");
-      const auto start=randomPose(rng);
-      const auto goal=randomPose(rng);
-      const double d=std::hypot(start.x-goal.x,start.y-goal.y);
-      if(d<distanceEdges[band]||d>=distanceEdges[band+1])continue;
-      if(checker.check(start)!=PoseCollision::Clear ||
-         checker.check(goal)!=PoseCollision::Clear)continue;
-      scenarios.push_back({start,goal,band,d});
-    }
+Scenario nextCandidate(std::mt19937_64& rng,const ExactCollisionChecker& checker,
+                       std::size_t& poseDraws,std::size_t maxPoseDraws) {
+  while(poseDraws<maxPoseDraws) {
+    ++poseDraws;
+    const auto start=randomPose(rng),goal=randomPose(rng);
+    const double distance=std::hypot(start.x-goal.x,start.y-goal.y);
+    if(distance<minDirectDistanceMeters)continue;
+    if(checker.check(start)!=PoseCollision::Clear ||
+       checker.check(goal)!=PoseCollision::Clear)continue;
+    std::size_t band=0;
+    while(band+1<distanceEdges.size()-1 &&
+          distance>=distanceEdges[band+1])++band;
+    return {start,goal,band,distance};
   }
-  if(scenarios.size()!=scenarioCount)
-    throw std::runtime_error("Expected exactly 100 paired scenarios");
-  // Shuffle distance bands to avoid a systematic easy-to-hard runtime trend.
-  for(std::size_t i=scenarios.size()-1;i>0;--i) {
-    const auto j=static_cast<std::size_t>(rng()% (i+1));
-    std::swap(scenarios[i],scenarios[j]);
-  }
-  return scenarios;
+  throw std::runtime_error("Exceeded collision-free candidate sampling limit");
 }
 double quantile(std::vector<double> data,double fraction) {
   if(data.empty())return std::numeric_limits<double>::quiet_NaN();
@@ -167,89 +154,151 @@ Observation runMode(PlanRequest request,bool distanceHeuristic,
      (!distanceHeuristic && distanceCalls!=0))
     throw std::runtime_error("RS callback configuration or diagnostics mismatch");
   const auto& diag=result.diagnostics;
-  std::cout<<scenarioId<<','<<order<<','<<seed<<','<<band<<','
-           <<directDistance<<','
-           <<request.start.x<<','<<request.start.y<<','<<request.start.yaw<<','
-           <<request.goal.x<<','<<request.goal.y<<','<<request.goal.yaw<<','
-           <<modeName(distanceHeuristic?1:0)<<','
-           <<budget<<','<<statusName(result.status)<<','
-           <<terminationName(result.terminationReason)<<','
-           <<elapsed<<','<<diag.expanded<<','<<diag.generated<<','
-           <<diag.searchPoseChecks<<','<<diag.finalPoseChecks<<','
-           <<diag.gridSettlements<<','<<diag.analyticAttempts<<','
-           <<diag.analyticAccepted<<','<<pathCalls<<','<<distanceCalls<<',';
+  std::ostringstream line;
+  line<<std::fixed<<std::setprecision(6);
+  line<<scenarioId<<','<<order<<','<<seed<<','<<band<<','
+      <<directDistance<<','
+      <<request.start.x<<','<<request.start.y<<','<<request.start.yaw<<','
+      <<request.goal.x<<','<<request.goal.y<<','<<request.goal.yaw<<','
+      <<modeName(distanceHeuristic?1:0)<<','
+      <<budget<<','<<statusName(result.status)<<','
+      <<terminationName(result.terminationReason)<<','
+      <<elapsed<<','<<diag.expanded<<','<<diag.generated<<','
+      <<diag.searchPoseChecks<<','<<diag.finalPoseChecks<<','
+      <<diag.gridSettlements<<','<<diag.analyticAttempts<<','
+      <<diag.analyticAccepted<<','<<pathCalls<<','<<distanceCalls<<',';
   if(result.status==PlanStatus::Success)
-    std::cout<<result.weightedCostMeters<<','<<result.geometricLengthMeters
-             <<','<<result.reverseLengthMeters;
+    line<<result.weightedCostMeters<<','<<result.geometricLengthMeters
+        <<','<<result.reverseLengthMeters;
   else
-    std::cout<<",,";
-  std::cout<<'\n'<<std::flush;
-  return {elapsed,diag.expanded,result.status==PlanStatus::Success};
+    line<<",,";
+  return {elapsed,diag.expanded,result.status==PlanStatus::Success,line.str()};
+
 }
 }
 
 int main(int argc,char** argv) {
   try {
-    if(argc>3)throw std::invalid_argument(
-      "Usage: hybrid_astar_warehouse_rs_randomized [seed=20261027] [max_expansions=1000000]");
+    if(argc>5)throw std::invalid_argument(
+      "Usage: hybrid_astar_warehouse_rs_randomized [seed=20261027] "
+      "[max_expansions=1000000] [min_expansions=10000] [max_candidates=20000]");
     const auto seed=argc>1?unsignedArg(argv[1],std::numeric_limits<std::uint64_t>::max()):
                            std::uint64_t{20261027};
     const auto budget=argc>2?unsignedArg(argv[2],1'000'000):
                              std::uint64_t{1'000'000};
-    if(budget<100)throw std::invalid_argument("Expansion budget must be at least 100");
+    const auto minimum=argc>3?unsignedArg(argv[3],1'000'000):
+                              std::uint64_t{10'000};
+    const auto maxCandidates=argc>4?unsignedArg(argv[4],100'000):
+                                   std::uint64_t{20'000};
+    if(budget<100||minimum<1||minimum>budget||maxCandidates<scenarioCount)
+      throw std::invalid_argument("Invalid budget, minimum expansions, or candidate limit");
+
     const auto fixture=bench::warehouseReedsSheppRequest();
-    const auto scenarios=makeScenarios(fixture,seed);
+    const ExactCollisionChecker checker(*fixture.map,fixture.occupancy,
+        fixture.footprint,fixture.options.footprintInflationMeters);
+    std::mt19937_64 rng(seed);
+    std::size_t poseDraws=0,candidates=0,qualified=0;
+    std::size_t rejectedFailure=0,rejectedExpansions=0;
+    std::size_t rejectedFastAOnly=0,rejectedFastBOnly=0,rejectedBothFast=0;
+    std::size_t anySuccessA=0,anySuccessB=0,anyExpandedA=0,anyExpandedB=0;
+    const auto maxPoseDraws=static_cast<std::size_t>(maxCandidates)*200;
+
     std::array<Summary,2> summaries{};
     std::vector<double> matchedRatios;
-    std::size_t bothSuccess=0,onlyConnector=0,onlyDistance=0,neitherSuccess=0;
+    std::size_t fasterConnector=0,fasterDistance=0;
     std::cout<<std::fixed<<std::setprecision(6);
     std::cout<<"scenario,order,seed,distance_band,direct_distance_m,"
       "start_x,start_y,start_yaw_rad,goal_x,goal_y,goal_yaw_rad,"
       "mode,expansion_limit,status,termination,elapsed_ms,expanded,generated,"
       "search_pose_checks,final_pose_checks,grid_settlements,analytic_attempts,"
       "analytic_accepted,rs_path_calls,rs_distance_calls,"
-      "path_cost_m,path_length_m,reverse_length_m\n";
-    for(std::size_t i=0;i<scenarios.size();++i) {
-      const auto& s=scenarios[i];
+      "path_cost_m,path_length_m,reverse_length_m\\n";
+
+    while(qualified<scenarioCount && candidates<maxCandidates) {
+      // Draw on the full unchanged warehouse map. A large XY separation
+      // reduces trivial single-shot connectors, but the *actual measured*
+      // search-expansion requirement is the final acceptance condition.
+      const auto s=nextCandidate(rng,checker,poseDraws,maxPoseDraws);
+      ++candidates;
       std::array<Observation,2> observed{};
-      // Alternate A/B then B/A by scenario, controlling for cache/thermal
-      // effects; each run gets a fresh planner/evaluator and identical map.
-      for(std::size_t j=0;j<2;++j) {
-        const std::size_t mode=(i+j)%2;
+      // Alternate A/B then B/A by CANDIDATE (not accepted-case index).
+      for(std::size_t order=0;order<2;++order) {
+        const std::size_t mode=(candidates-1+order)%2;
         auto request=fixture;
         request.start=s.start;request.goal=s.goal;
         request.options.maxExpansions=static_cast<std::size_t>(budget);
         request.options.maxGeneratedNodes=static_cast<std::size_t>(budget*4);
-        observed[mode]=runMode(request,mode==1,i+1,j+1,seed,
+        observed[mode]=runMode(request,mode==1,qualified+1,order+1,seed,
                                s.directDistance,s.distanceBand,budget);
-        summaries[mode].times.push_back(observed[mode].milliseconds);
-        summaries[mode].expansions.push_back(double(observed[mode].expanded));
-        summaries[mode].successes+=observed[mode].success;
       }
-      if(observed[0].success && observed[1].success) {
-        ++bothSuccess;
+      anySuccessA+=observed[0].success;
+      anySuccessB+=observed[1].success;
+      anyExpandedA+=observed[0].expanded>=minimum;
+      anyExpandedB+=observed[1].expanded>=minimum;
+
+      const bool fastA=observed[0].expanded<minimum;
+      const bool fastB=observed[1].expanded<minimum;
+      if(!observed[0].success||!observed[1].success) {
+        ++rejectedFailure;
+      } else if(fastA||fastB) {
+        ++rejectedExpansions;
+        if(fastA && fastB)++rejectedBothFast;
+        else if(fastA)++rejectedFastAOnly;
+        else ++rejectedFastBOnly;
+      } else {
+        ++qualified;
+        // ONLY qualifying paired paths are included in the primary CSV.
+        for(std::size_t mode=0;mode<2;++mode) {
+          std::cout<<observed[mode].csvRow<<'\\n';
+          summaries[mode].times.push_back(observed[mode].milliseconds);
+          summaries[mode].expansions.push_back(double(observed[mode].expanded));
+          ++summaries[mode].successes;
+        }
         matchedRatios.push_back(observed[1].milliseconds/
                                 std::max(1e-9,observed[0].milliseconds));
-      } else if(observed[0].success)++onlyConnector;
-      else if(observed[1].success)++onlyDistance;
-      else ++neitherSuccess;
+        fasterConnector+=observed[0].milliseconds<observed[1].milliseconds;
+        fasterDistance+=observed[1].milliseconds<observed[0].milliseconds;
+      }
+      if(candidates%100==0 || (qualified>0 && qualified%10==0 &&
+          candidates%20==0))
+        std::cerr<<"progress candidates="<<candidates<<" accepted="<<qualified
+                 <<" rejected_failures="<<rejectedFailure
+                 <<" rejected_easy="<<rejectedExpansions<<'\\n';
+      // Keep complete qualified CSV output useful even when interrupted.
+      if(qualified>0 && qualified%10==0)std::cout<<std::flush;
     }
-    std::cerr<<std::fixed<<std::setprecision(3);
-    std::cerr<<"seed="<<seed<<" scenarios=100 paired_runs=200 budget="<<budget<<'\n';
+    std::cerr<<std::fixed<<std::setprecision(3)
+      <<"seed="<<seed<<" target="<<scenarioCount
+      <<" accepted="<<qualified
+      <<" evaluated_candidates="<<candidates<<" sampled_pose_pairs="<<poseDraws
+      <<" min_expansions_both="<<minimum<<" budget="<<budget
+      <<" min_direct_distance_m="<<minDirectDistanceMeters<<'\\n'
+      <<"rejected_failure_any="<<rejectedFailure
+      <<" rejected_under_minimum_any="<<rejectedExpansions
+      <<" (both_under="<<rejectedBothFast
+      <<" connector_only_under="<<rejectedFastAOnly
+      <<" distance_only_under="<<rejectedFastBOnly<<")\\n"
+      <<"all_candidates_connector_success="<<anySuccessA
+      <<" all_candidates_distance_success="<<anySuccessB
+      <<" all_candidates_connector_at_least_min="<<anyExpandedA
+      <<" all_candidates_distance_at_least_min="<<anyExpandedB<<'\\n';
     for(std::size_t mode=0;mode<2;++mode)
-      std::cerr<<modeName(mode)<<" success="<<summaries[mode].successes
-               <<"/100 median_ms="<<quantile(summaries[mode].times,.5)
+      std::cerr<<modeName(mode)<<" qualified="<<summaries[mode].successes
+               <<" median_ms="<<quantile(summaries[mode].times,.5)
                <<" p95_ms="<<quantile(summaries[mode].times,.95)
-               <<" median_expanded="<<quantile(summaries[mode].expansions,.5)<<'\n';
-    std::cerr<<"both_success="<<bothSuccess
-             <<" connector_only_success="<<onlyConnector
-             <<" distance_only_success="<<onlyDistance
-             <<" neither_success="<<neitherSuccess
-             <<" median_distance_to_connector_time_ratio_on_both_success="
-             <<quantile(matchedRatios,.5)<<'\n';
+               <<" median_expanded="<<quantile(summaries[mode].expansions,.5)<<'\\n';
+    std::cerr<<"qualified_connector_faster="<<fasterConnector
+             <<" qualified_distance_faster="<<fasterDistance
+             <<" median_distance_to_connector_time_ratio="
+             <<quantile(matchedRatios,.5)<<'\\n';
+    if(qualified<scenarioCount) {
+      std::cerr<<"ERROR: could not find 100 qualifying pairs within max_candidates="
+               <<maxCandidates<<"; partial results preserved in CSV.\\n";
+      return 2;
+    }
     return 0;
   } catch(const std::exception& error) {
-    std::cerr<<"warehouse RS randomized benchmark failed: "<<error.what()<<'\n';
+    std::cerr<<"warehouse RS randomized benchmark failed: "<<error.what()<<'\\n';
     return 1;
   }
 }
