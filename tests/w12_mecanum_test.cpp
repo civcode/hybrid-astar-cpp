@@ -190,3 +190,82 @@ TEST_CASE("Incompatible mecanum connectors and impossible wheels fail closed","[
   r.options.mecanumPrimitives.translationMeters=0;
   REQUIRE(a::plan(r).status==a::PlanStatus::InvalidRequest);
 }
+
+TEST_CASE("Off-grid mecanum goal uses strictly validated exact holonomic terminal motion",
+          "[w12][search][terminal]") {
+  auto r=request();
+  r.goal={10.19,10.33,-.65}; // neither translation nor yaw is on the primitive lattice
+  const po::MecanumPolicy policy{r};
+  REQUIRE(policy.strictSearchSampling());
+  REQUIRE(policy.additionalGoalLowerBound(r.start,r.goal,r.options.goalYawToleranceRadians)>0);
+  const auto candidates=policy.terminalConnections(r.start,r.goal);
+  REQUIRE(candidates.size()==2);
+  const me::Model model{r.options.mecanumParameters};
+  for(const auto& tail:candidates) {
+    REQUIRE(tail.size()==2);
+    Pose2D current=r.start;
+    for(const auto& part:tail) {
+      REQUIRE(std::hypot(part.start.x-current.x,part.start.y-current.y)<1e-8);
+      REQUIRE(policy.terminalEdgeCost(part)>0);
+      if(part.kind==a::MotionKind::HolonomicTwist) {
+        const double distance=part.lengthMeters;
+        const double scale=std::min(r.options.mecanumPrimitives.translationSpeed,
+            .99*model.parameters().wheelRadiusMeters*
+            model.parameters().maxAbsWheelAngularRate/
+            ((std::abs(part.forwardMeters)+std::abs(part.lateralMeters))/distance));
+        REQUIRE(model.valid({scale*part.forwardMeters/distance,
+                             scale*part.lateralMeters/distance,0}));
+      }
+      current=part.evaluate(part.progressExtent());
+    }
+    REQUIRE(std::hypot(current.x-r.goal.x,current.y-r.goal.y)<1e-8);
+    REQUIRE(std::abs(mo::wrapAngle(current.yaw-r.goal.yaw))<1e-8);
+  }
+  const auto planned=a::plan(r);
+  REQUIRE(planned.status==a::PlanStatus::Success);
+  REQUIRE(planned.goalXYErrorMeters<1e-8);
+  REQUIRE(planned.goalYawErrorRadians<1e-8);
+  REQUIRE(planned.collisionEvidence==a::CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  a::ExactCollisionChecker checker(*r.map,r.occupancy,r.footprint);
+  for(const auto& part:planned.sections) {
+    for(int j=0;j<=100;++j)
+      REQUIRE(checker.check(part.evaluate(part.progressExtent()*double(j)/100))==
+              a::PoseCollision::Clear);
+  }
+  const po::PlanarPolicyAdapter<po::MecanumPolicy> adapter{po::MecanumPolicy{r}};
+  const auto external=a::planWithPolicy(r,adapter);
+  REQUIRE(external.status==planned.status);
+  REQUIRE(external.diagnostics.expanded==planned.diagnostics.expanded);
+  REQUIRE(external.sections.size()==planned.sections.size());
+  REQUIRE(std::abs(external.weightedCostMeters-planned.weightedCostMeters)<1e-9);
+}
+
+TEST_CASE("Mecanum navigates warehouse gaps to a rotated, off-lattice target",
+          "[w12][search][warehouse]") {
+  auto map=std::make_shared<a::MapSnapshot>();
+  map->width=200;map->height=160;map->resolutionMeters=.25;
+  map->frameId="warehouse/map";map->sourceId="warehouse-repro";map->revision=1313;
+  map->cells.assign(map->width*map->height,0);
+  const auto occupied=[&](int x0,int y0,int x1,int y1) {
+    for(int y=y0;y<y1;++y)for(int x=x0;x<x1;++x)
+      map->cells[std::size_t(y)*map->width+std::size_t(x)]=100;
+  };
+  occupied(48,12,53,48);occupied(48,92,53,145);
+  occupied(94,0,99,46);occupied(94,100,99,160);
+  occupied(141,12,146,55);occupied(141,104,146,145);
+  auto r=request();
+  r.map=map;
+  r.start={4.77,5.62,0};
+  r.goal={31.01,3.41,-.5*std::numbers::pi_v<double>};
+  r.options.maxExpansions=1'000'000;
+  r.options.maxGeneratedNodes=4'000'000;
+  const auto result=a::plan(r);
+  INFO("mecanum warehouse status="<<static_cast<int>(result.status)
+       <<" expanded="<<result.diagnostics.expanded
+       <<" generated="<<result.diagnostics.generated
+       <<" final checks="<<result.diagnostics.finalPoseChecks);
+  REQUIRE(result.status==a::PlanStatus::Success);
+  REQUIRE(result.collisionEvidence==a::CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  REQUIRE(result.goalXYErrorMeters<=r.options.goalXYToleranceMeters+1e-8);
+  REQUIRE(result.goalYawErrorRadians<=r.options.goalYawToleranceRadians+1e-8);
+}
