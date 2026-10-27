@@ -135,3 +135,70 @@ TEST_CASE("Existing Ackermann mode still uses six templates",
   REQUIRE(result.diagnostics.primitiveTemplatesBuilt==6);
   REQUIRE(result.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
 }
+
+TEST_CASE("Differential exact goal-yaw boundary does not depend on rounding",
+          "[w10][search][goal-tolerance]") {
+  auto q=basic();
+  q.start={10,10,-80*pi/180.};
+  q.goal={10,10,-90*pi/180.};
+  q.options.maxExpansions=1;
+  q.options.maxGeneratedNodes=100;
+  // Conversion from degrees normally places this difference slightly
+  // outside a 10-degree double-precision tolerance without numerical slack.
+  const auto result=plan(q);
+  REQUIRE(result.status==PlanStatus::Success);
+  REQUIRE(result.sections.empty());
+  REQUIRE(result.diagnostics.expanded<=1);
+  REQUIRE(result.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  REQUIRE(result.goalYawErrorRadians<=q.options.goalYawToleranceRadians+1e-9);
+}
+
+TEST_CASE("Differential exact terminal turn repairs heading-lattice mismatch",
+          "[w10][search][goal-tolerance][terminal]") {
+  auto q=basic();
+  q.start={10,10,-79.8*pi/180.};
+  q.goal={10,10,-90*pi/180.};
+  q.options.maxExpansions=1;
+  q.options.maxGeneratedNodes=100;
+  REQUIRE(std::abs(q.start.yaw-q.goal.yaw)>q.options.goalYawToleranceRadians);
+  const auto result=plan(q);
+  INFO("status="<<int(result.status)<<", terminal attempts="
+       <<result.diagnostics.terminalConnectionAttempts
+       <<", accepted="<<result.diagnostics.terminalValidated);
+  REQUIRE(result.status==PlanStatus::Success);
+  REQUIRE(result.diagnostics.terminalConnectionAttempts==1);
+  REQUIRE(result.diagnostics.terminalValidated==1);
+  REQUIRE(result.sections.size()==1);
+  REQUIRE(result.sections.front().kind==MotionKind::RotateInPlace);
+  REQUIRE(result.goalXYErrorMeters<=q.options.goalXYToleranceMeters+1e-9);
+  REQUIRE(result.goalYawErrorRadians<=q.options.goalYawToleranceRadians+1e-9);
+  REQUIRE(result.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  ExactCollisionChecker checker(*q.map,q.occupancy,q.footprint);
+  const auto& turn=result.sections.front();
+  for(int i=0;i<=100;++i)
+    REQUIRE(checker.check(turn.evaluate(turn.progressExtent()*double(i)/100))==
+            PoseCollision::Clear);
+}
+
+TEST_CASE("Differential terminal turn cannot bypass blocked swept footprint",
+          "[w10][collision][terminal]") {
+  auto q=basic();
+  q.footprint={-1.,1.,.10};
+  auto mutableMap=std::make_shared<MapSnapshot>(*q.map);
+  mutableMap->cells[std::size_t(10.85/.2)*mutableMap->width+
+                    std::size_t(10.0/.2)]=100;
+  q.map=mutableMap;
+  q.start={10,10,0};
+  q.goal={10,10,pi};
+  q.options.maxExpansions=1;
+  ExactCollisionChecker checker(*q.map,q.occupancy,q.footprint);
+  REQUIRE(checker.check(q.start)==PoseCollision::Clear);
+  REQUIRE(checker.check(q.goal)==PoseCollision::Clear);
+  const auto result=plan(q);
+  REQUIRE(result.status!=PlanStatus::Success);
+  REQUIRE(result.diagnostics.terminalConnectionAttempts>=1);
+  REQUIRE(result.diagnostics.terminalRejected>=1);
+  REQUIRE(result.collisionEvidence==CollisionEvidence::None);
+}

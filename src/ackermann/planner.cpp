@@ -734,8 +734,11 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
           }
         }
       }
-      if (goalErrorXY(current.pose,r.goal)<=opt.goalXYToleranceMeters &&
-          goalErrorYaw(current.pose,r.goal)<=opt.goalYawToleranceRadians) {
+      // Use the same small numerical slack as the independent final goal
+      // check. A requested -80 deg versus -90 deg is mathematically within
+      // the default 10-deg tolerance but may round just outside it.
+      if (goalErrorXY(current.pose,r.goal)<=opt.goalXYToleranceMeters+1e-9 &&
+          goalErrorYaw(current.pose,r.goal)<=opt.goalYawToleranceRadians+1e-9) {
         std::vector<MotionSection> reverse;
         std::size_t id=item.node;
         while (id!=0) {reverse.push_back(nodes[id].via);id=nodes[id].parent;}

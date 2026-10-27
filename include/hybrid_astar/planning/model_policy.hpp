@@ -286,6 +286,27 @@ public:
     return ackermann::edgeCost(section.lengthMeters,p.gear,incoming,
                                 request_.options.search);
   }
+  // Fixed 22.5-degree turn primitives need not land inside an arbitrary
+  // goal-yaw tolerance. Near the goal's XY region, try an exact bounded-rate
+  // stationary turn. The shared planner independently checks the entire
+  // prefix and the rotation's swept footprint before accepting a candidate.
+  std::vector<std::vector<Section>> terminalConnections(State from,State goal) const {
+    const auto& options=request_.options;
+    if(std::hypot(from.x-goal.x,from.y-goal.y)>
+       options.goalXYToleranceMeters+1e-9)
+      return {};
+    const double yawDelta=motion::wrapAngle(goal.yaw-from.yaw);
+    if(!std::isfinite(yawDelta)||
+       std::abs(yawDelta)<=options.goalYawToleranceRadians+1e-9)
+      return {};
+    return {{ackermann::makeRotationSection(from,yawDelta)}};
+  }
+  double terminalEdgeCost(const Section& section) const noexcept {
+    if(section.kind!=ackermann::MotionKind::RotateInPlace)
+      return std::numeric_limits<double>::quiet_NaN();
+    return request_.options.rotationCostMetersPerRadian*
+           std::abs(section.turnRadians);
+  }
 private:
   motion::SampleLimits effectiveSamples() const {
     const auto& r=request_;
