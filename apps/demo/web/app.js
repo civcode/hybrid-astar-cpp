@@ -64,7 +64,20 @@ function drawPose(p,color,g,body=false) {
     const xx=p[0]+Math.cos(p[2])*u-Math.sin(p[2])*v;
     const yy=p[1]+Math.sin(p[2])*u+Math.cos(p[2])*v;
     const [sx,sy]=mapPoint(xx,yy,g);if(!i)ctx.moveTo(sx,sy);else ctx.lineTo(sx,sy);
-  });ctx.closePath();ctx.fill();ctx.stroke();
+  });ctx.closePath();
+  // Stroke the physical polygon boundary by +/- the requested continuous
+  // distance. Round joins visualize the true Minkowski offset, unlike
+  // drawing a larger axis-aligned rectangle.
+  const inflation=snapshot&&routeValid
+      ?Number(snapshot.footprintInflationMeters||0)
+      :($('inflate').checked?Number($('inflationMeters').value):0);
+  if(inflation>0 && Number.isFinite(inflation)) {
+    ctx.save();ctx.lineJoin='round';
+    ctx.lineWidth=2*inflation*g.scale;
+    ctx.strokeStyle='rgba(255,188,102,.45)';
+    ctx.stroke();ctx.restore();
+  }
+  ctx.fill();ctx.stroke();
 }
 function drawSections(path,g,muted=false) {
   if(!path)return;

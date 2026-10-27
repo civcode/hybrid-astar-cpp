@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <numbers>
+#include <stdexcept>
 
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;

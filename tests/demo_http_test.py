@@ -78,6 +78,25 @@ def main(exe):
         assert code == 200 and result["original"]["status"] == "Success"
         assert result["original"]["validated"] is True
         assert result["original"]["heuristicCertifiedAdmissible"] is False
+        assert result["footprintInflationMeters"] == 0.0
+        for enabled, configured, expected in (
+            ("1", "0.05", 0.05), ("1", "0.1", 0.1), ("0", "0.1", 0.0)
+        ):
+            code, _, margin_body = get(
+                base + "/api/plan?scenario=open&inflate=" + enabled
+                + "&inflationMeters=" + configured)
+            parsed_margin = json.loads(margin_body)
+            assert code == 200 and parsed_margin["original"]["status"] == "Success", margin_body
+            assert abs(parsed_margin["footprintInflationMeters"] - expected) < 1e-12
+            assert parsed_margin["original"]["validated"] is True
+        for invalid_margin in (
+            "inflate=1&inflationMeters=-0.01",
+            "inflate=1&inflationMeters=11",
+            "inflate=1&inflationMeters=nan",
+            "inflate=2&inflationMeters=0.05",
+        ):
+            code, _, margin_body = get(base + "/api/plan?scenario=open&" + invalid_margin)
+            assert code == 400 and "error" in json.loads(margin_body), invalid_margin
         assert result["original"]["reverseLength"] >= 3.5
         code, _, body = get(base + "/api/plan?scenario=reverse&performance=0")
         certified = json.loads(body)

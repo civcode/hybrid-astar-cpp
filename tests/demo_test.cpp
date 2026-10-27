@@ -22,6 +22,18 @@ static void runLegacyAssertions() {
   const auto json=toJson(open);
   require(json.find("\"mapRuns\":[]")!=std::string::npos,"empty occupancy serialized");
   require(json.find("\"status\":\"Success\"")!=std::string::npos,"JSON contains success");
+  Options inflated;inflated.footprintInflationEnabled=true;
+  inflated.footprintInflationMeters=.05;
+  const auto marginResult=run(inflated);
+  require(marginResult.original.status==PlanStatus::Success,
+          "5cm geometric inflation preserves open scenario");
+  require(std::abs(marginResult.request.options.footprintInflationMeters-.05)<1e-12,
+          "demo propagates enabled metric inflation");
+  require(toJson(marginResult).find("\"footprintInflationMeters\":0.05")!=std::string::npos,
+          "demo serializes effective inflation margin");
+  inflated.footprintInflationEnabled=false;
+  require(run(inflated).request.options.footprintInflationMeters==0,
+          "disabling inflation restores original footprint");
   Options reverse;reverse.scenario="reverse";
   auto r=run(reverse);
   require(r.original.status==PlanStatus::Success,"reverse route");
