@@ -94,6 +94,20 @@ static void runLegacyAssertions() {
     require(newSpins<oldSpins,
             "accepted moving-twist shortcut removes stationary spins");
   }
+  Options mecanumSmoothed;
+  mecanumSmoothed.model="mecanum";
+  mecanumSmoothed.scenario="open";
+  mecanumSmoothed.refine=true;
+  const auto holonomicSmooth=run(mecanumSmoothed);
+  require(holonomicSmooth.original.status==PlanStatus::Success,
+          "mecanum search succeeds with refinement requested");
+  require(holonomicSmooth.refinement.has_value(),
+          "mecanum refinement is available in Planning Lab");
+  require(holonomicSmooth.refinement->path.status==PlanStatus::Success,
+          "mecanum refinement retains a strictly checked route");
+  require(holonomicSmooth.refinement->path.weightedCostMeters<=
+          holonomicSmooth.original.weightedCostMeters+1e-8,
+          "mecanum refinement never increases weighted cost");
   Options unreachable;unreachable.scenario="blocked";
   unreachable.start=Pose2D{15,20,0};unreachable.goal=Pose2D{35,20,0};
   auto impossible=run(unreachable);

@@ -222,11 +222,78 @@ TEST_CASE("Differential post-refiner rejects a colliding swept rotation",
   REQUIRE(result.path.sections.empty());
 }
 
-TEST_CASE("Mecanum remains unsupported by Ackermann/differential post-refiner",
-          "[differential][refinement][model]") {
+TEST_CASE("Mecanum geometric refinement removes zigzags using moving twists",
+          "[mecanum][refinement][smoothing]") {
   auto req=openRequest();
   req.options.model=PlanOptions::Model::Mecanum;
-  req.goal=req.start;
-  const auto result=refinePath(req,raw(req,{}));
-  REQUIRE(result.status==RefinementStatus::InvalidInput);
+  req.options.footprintInflationMeters=.5;
+  req.options.mecanumStationarySpinPenaltyMeters=.35;
+  const auto first=makeHolonomicSection(req.start,0,1,0);
+  const auto second=makeHolonomicSection(first.end,2,0,0);
+  const auto third=makeHolonomicSection(second.end,0,-1,0);
+  req.goal=third.end;
+  const auto result=refinePath(req,raw(req,{first,second,third}));
+  INFO("status="<<int(result.status)<<" accepted="<<result.accepted
+       <<" attempted="<<result.attempted);
+  REQUIRE(result.status==RefinementStatus::Improved);
+  REQUIRE(result.accepted>0);
+  REQUIRE(result.path.status==PlanStatus::Success);
+  REQUIRE(result.path.sections.size()<3);
+  REQUIRE(result.path.weightedCostMeters<4.0);
+  REQUIRE(result.path.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  for(const auto& section:result.path.sections)
+    REQUIRE(section.kind==MotionKind::HolonomicTwist);
+  checkDense(req,result.path);
+}
+
+TEST_CASE("Mecanum strict refinements cannot cut through inflated occupied cells",
+          "[mecanum][refinement][inflation][collision]") {
+  auto req=openRequest();
+  req.options.model=PlanOptions::Model::Mecanum;
+  req.options.footprintInflationMeters=.15;
+  req.start={4,4,0};
+  const auto first=makeHolonomicSection(req.start,0,3,0);
+  const auto second=makeHolonomicSection(first.end,6,0,0);
+  const auto third=makeHolonomicSection(second.end,0,-3,0);
+  req.goal=third.end;
+  auto blocked=std::make_shared<MapSnapshot>(*req.map);
+  for(std::size_t j=28;j<55;++j)
+    blocked->cells[j*blocked->width+70]=100; // crosses straight shortcut
+  req.map=blocked;
+  const auto result=refinePath(req,raw(req,{first,second,third}));
+  REQUIRE(result.path.status==PlanStatus::Success);
+  REQUIRE(result.path.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  REQUIRE(result.path.weightedCostMeters<=12.0+1e-8);
+  ExactCollisionChecker checker(*req.map,req.occupancy,req.footprint,
+                                req.options.footprintInflationMeters);
+  for(const auto& section:result.path.sections)
+    for(int k=0;k<=100;++k)
+      REQUIRE(checker.check(section.evaluate(
+          section.progressExtent()*double(k)/100))==PoseCollision::Clear);
+}
+
+TEST_CASE("Differential rolling refinement avoids a splice immediately beside a stop",
+          "[differential][refinement][no-stop][splice]") {
+  auto req=openRequest();
+  req.start={6,6,0};
+  const auto approach=makeSection(req.start,Gear::Forward,0,1);
+  const auto stop=makeRotationSection(approach.end,.4);
+  const auto curve=makeSection(stop.end,Gear::Forward,0,2);
+  const auto finish=makeRotationSection(curve.end,-.4);
+  req.goal=finish.end;
+  RefinementOptions opt;
+  opt.maxAttempts=50;
+  const auto result=refinePath(req,raw(req,{approach,stop,curve,finish}),{},opt);
+  REQUIRE(result.path.status==PlanStatus::Success);
+  // The refiner can replace a stop only when its replacement window includes
+  // that stop. It cannot decorate the stop with a new shorter rolling chord.
+  for(std::size_t j=1;j<result.path.sections.size();++j) {
+    const auto& prev=result.path.sections[j-1];
+    const auto& next=result.path.sections[j];
+    if(prev.kind==MotionKind::RotateInPlace)
+      REQUIRE(next.kind!=MotionKind::RotateInPlace);
+  }
+  checkDense(req,result.path);
 }

@@ -120,6 +120,14 @@ def main(exe):
             smooth["refinement"]["path"]["collisionEvidence"]
             == "FullFootprintBodyMotionAdaptiveSampled"
         )
+        code, _, body = get(base + "/api/plan?scenario=open&model=mecanum&refine=1"
+                            "&inflate=1&inflationMeters=0.05")
+        mecanum = json.loads(body)
+        assert code == 200 and mecanum["original"]["status"] == "Success", body
+        assert mecanum["refinement"] is not None
+        assert mecanum["refinement"]["path"]["status"] == "Success"
+        assert mecanum["refinement"]["path"]["validated"] is True
+        assert mecanum["refinement"]["path"]["cost"] <= mecanum["original"]["cost"] + 1e-8
         # Work budgets are request-tunable. Hitting one is a limit, never a NoPath.
         # Keep this starvation check on certified Euclidean ordering: the
         # new default obstacle-grid can solve the warehouse with fewer nodes.
