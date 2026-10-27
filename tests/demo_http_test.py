@@ -60,6 +60,13 @@ def main(exe):
         assert len(referenced) > 20 and len(defined) > 20
         missing = referenced - defined
         assert not missing, f"index.html lacks element ids used by app.js: {sorted(missing)}"
+        assert re.search(r'id="inflationMeters"[^>]*step="0\\.05"', page), (
+            "footprint margin spinner must step by 0.05 m"
+        )
+        assert 'id="refine"' in page and "Strict post-path refinement" in page
+        assert "mecanum||!$('refine').checked" in script, (
+            "mecanum only disables curved CSC, not strict holonomic refinement"
+        )
         # Every button on this page is wired by id, so a dropped opening tag (which
         # leaves an orphan </button> and no element) is a markup defect too.
         tags = re.findall(r"<(/?)button\b([^>]*)>", page)

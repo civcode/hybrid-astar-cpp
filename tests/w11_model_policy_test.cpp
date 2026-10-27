@@ -210,4 +210,7 @@ TEST_CASE("Strict final checker rejects a model's forged endpoints",
   REQUIRE(result.status!=a::PlanStatus::Success);
   REQUIRE(result.collisionEvidence==a::CollisionEvidence::None);
   REQUIRE(result.mapRevision==51);
+  if(result.status==a::PlanStatus::StrictValidationFailed)
+    REQUIRE(result.diagnostics.strictGoalCandidates+
+            result.diagnostics.terminalRejected>0);
 }
