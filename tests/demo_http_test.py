@@ -97,7 +97,10 @@ def main(exe):
         assert smooth["refinement"]["path"] is not None
         assert smooth["refinement"]["path"]["status"] == "Success"
         assert smooth["refinement"]["path"]["cost"] <= smooth["original"]["cost"] + 1e-8
-        assert smooth["refinement"]["path"]["collisionEvidence"] ==             "FullFootprintBodyMotionAdaptiveSampled"
+        assert (
+            smooth["refinement"]["path"]["collisionEvidence"]
+            == "FullFootprintBodyMotionAdaptiveSampled"
+        )
         # Work budgets are request-tunable. Hitting one is a limit, never a NoPath.
         # Keep this starvation check on certified Euclidean ordering: the
         # new default obstacle-grid can solve the warehouse with fewer nodes.

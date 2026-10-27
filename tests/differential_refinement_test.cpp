@@ -4,6 +4,7 @@
 #include <memory>
 #include <numbers>
 #include <vector>
+#include <initializer_list>
 
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
@@ -97,6 +98,37 @@ TEST_CASE("Differential zigzags shorten to validated direct motions",
     REQUIRE_FALSE(refined.path.trajectoryActuatorFeasible);
     checkDense(req,refined.path);
   }
+}
+
+TEST_CASE("Differential native CSC removes a redundant reverse cusp",
+          "[differential][refinement][curved]") {
+  auto req=openRequest();
+  req.start={6,6,0};
+  std::vector<MotionSection> sections;
+  auto append=[&](Gear gear,double curvature,double length) {
+    sections.push_back(makeSection(
+        sections.empty()?req.start:sections.back().end,gear,curvature,length));
+  };
+  append(Gear::Forward,1/.75,.45);
+  append(Gear::Forward,0,2);
+  append(Gear::Forward,-1/.75,.45);
+  append(Gear::Forward,0,1);
+  append(Gear::Reverse,0,1);
+  req.goal=sections.back().end;
+  RefinementOptions options;
+  options.useCurvatureBoundedShortcuts=true;
+  options.differentialCurveRadiusMeters=.75;
+  const auto result=refinePath(req,raw(req,sections),{},options);
+  INFO("status="<<int(result.status)<<" attempts="<<result.attempted
+       <<" accepted="<<result.accepted);
+  REQUIRE(result.path.status==PlanStatus::Success);
+  REQUIRE(result.accepted>0);
+  REQUIRE(result.path.weightedCostMeters<5);
+  bool curved=false;
+  for(const auto& section:result.path.sections)
+    curved|=section.kind==MotionKind::Translate&&std::abs(section.curvature)>.5;
+  REQUIRE(curved);
+  checkDense(req,result.path);
 }
 
 TEST_CASE("Differential refiner keeps original if stricter work cap prevents verification",
