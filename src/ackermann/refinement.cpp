@@ -375,8 +375,53 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
       };
       if(req.options.model==PlanOptions::Model::DifferentialDrive||
          req.options.model==PlanOptions::Model::Mecanum) {
-        // Spread the bounded attempt budget along long, oscillating routes.
-        // Otherwise widest-first only tries windows starting at section zero.
+        if(req.options.model==PlanOptions::Model::DifferentialDrive && n>=24) {
+          // Reserve a bounded fraction of the attempt budget for local cleanup.
+          // The coarse multiscale windows below can miss intermediate endpoints
+          // (e.g. [0,14) on a 95-section route), leaving redundant initial
+          // spins even when a strictly cheaper rolling CSC connection exists.
+          // Seed all four route quarters before prioritizing stops and changes
+          // in curvature; no quarter can consume the entire local allowance.
+          constexpr std::size_t quarters=4;
+          constexpr std::array<std::size_t,4> localWidths{14,10,18,6};
+          std::array<std::vector<std::size_t>,quarters> anchors;
+          for(std::size_t quarter=0;quarter<quarters;++quarter)
+            anchors[quarter].push_back(quarter*n/quarters);
+          const auto& sections=result.path.sections;
+          const auto pushAnchor=[&](std::size_t section) {
+            const auto start=section>2?section-2:0;
+            const auto quarter=std::min(quarters-1,quarters*start/n);
+            auto& bucket=anchors[quarter];
+            if(std::find(bucket.begin(),bucket.end(),start)==bucket.end())
+              bucket.push_back(start);
+          };
+          // Explicitly prioritize windows spanning existing stationary turns.
+          for(std::size_t i=0;i<n;++i)
+            if(sections[i].kind==MotionKind::RotateInPlace)
+              pushAnchor(i);
+          // Then cover local curvature discontinuities and oscillations.
+          for(std::size_t i=1;i<n;++i)
+            if(sections[i-1].kind==MotionKind::Translate &&
+               sections[i].kind==MotionKind::Translate &&
+               std::abs(sections[i-1].curvature-sections[i].curvature)>1e-6)
+              pushAnchor(i);
+          const auto localQuota=std::min(remaining,
+              std::max<std::size_t>(16,remaining/5));
+          for(std::size_t rank=0;windows.size()<localQuota;++rank) {
+            bool any=false;
+            for(const auto width:localWidths)
+              for(std::size_t quarter=0;quarter<quarters &&
+                  windows.size()<localQuota;++quarter) {
+                if(rank>=anchors[quarter].size())continue;
+                any=true;
+                const auto i=anchors[quarter][rank];
+                if(i+1<n)add(i,std::min(n,i+width));
+              }
+            if(!any)break;
+          }
+        }
+        // Spread the remaining bounded attempt budget across longer scales.
+        // The selection buffer never relaxes strict validation or work caps.
         const std::array<std::size_t,7> widths{
           n,std::min(n,std::size_t{48}),std::min(n,std::size_t{24}),
           std::min(n,std::size_t{12}),std::min(n,std::size_t{6}),
