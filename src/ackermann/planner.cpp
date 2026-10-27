@@ -490,10 +490,22 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     const auto& opt=r.options;
     // Policy-specific catalog built once per request; reusable local samples
     // are rigidly transformed at every successor without integrating again.
+    // A model may require the same collision sampling density during
+    // search as during independent final-path verification.
+    const bool strictSearchSampling=[&]() {
+      if constexpr(requires {model.strictSearchSampling();})
+        return model.strictSearchSampling();
+      return false;
+    }();
+    const double edgeStep=strictSearchSampling
+        ? std::min(opt.searchSampleSpacingMeters,opt.finalSampleSpacingMeters)
+        : opt.searchSampleSpacingMeters;
+    const double edgeBodyStep=strictSearchSampling
+        ? std::min(opt.searchMaxBodyPointMotionMeters,opt.finalMaxBodyPointMotionMeters)
+        : opt.searchMaxBodyPointMotionMeters;
     const motion::SampleLimits templateLimits{
-      opt.searchSampleSpacingMeters,opt.searchMaxBodyPointMotionMeters,
-      checker.maxBodyRadius(),std::numeric_limits<double>::max(),
-      opt.maxSamplesPerSection};
+      edgeStep,edgeBodyStep,checker.maxBodyRadius(),
+      std::numeric_limits<double>::max(),opt.maxSamplesPerSection};
     const auto primitiveCatalog=model.catalog(templateLimits);
     result.diagnostics.primitiveTemplatesBuilt=primitiveCatalog.size();
     std::vector<Node> nodes;
@@ -522,6 +534,10 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
           } catch (const std::exception&) { /* keep finite fallbacks */ }
         }
       }
+      if constexpr(requires {
+          model.additionalGoalLowerBound(p,r.goal,opt.goalYawToleranceRadians);
+        })
+        h+=model.additionalGoalLowerBound(p,r.goal,opt.goalYawToleranceRadians);
       return h;
     };
     // Inflation affects only the already noncertified performance ordering.
@@ -553,6 +569,7 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     result.diagnostics.openQueuePeakStorageBytes=open.storageBytes();
     result.diagnostics.generated=1;
     bool strictFailure=false;
+    std::size_t terminalConnectionAttempts=0;
     PlanResult incumbent;
     bool hasIncumbent=false;
     std::size_t firstValidatedExpansion=0;
@@ -622,6 +639,95 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
       }
       label->second.expanded=true;
       ++result.diagnostics.expanded;
+      // Ideal holonomic models can connect arbitrary nearby SE(2) targets
+      // instead of hoping a fixed-size primitive lands inside tolerances.
+      // Terminal links are never trusted: independently validate the entire
+      // chain, not just the final connection. Bound attempts and pose checks.
+      if(!hasIncumbent && terminalConnectionAttempts<32 &&
+         goalErrorXY(current.pose,r.goal)<=std::max(1.0,opt.goalXYToleranceMeters)) {
+        if constexpr(requires {
+            model.terminalConnections(current.pose,r.goal);
+            model.terminalEdgeCost(typename Policy::Section{});
+          }) {
+          const auto tails=model.terminalConnections(current.pose,r.goal);
+          if(!tails.empty()) {
+            ++terminalConnectionAttempts;
+            for(const auto& tail:tails) {
+              if(tail.empty())continue;
+              bool valid=true;
+              double cost=current.g;
+              Pose2D endpoint=current.pose;
+              for(const auto& section:tail) {
+                if(!finite(section.start)||!finite(section.end)||
+                   goalErrorXY(section.start,endpoint)>1e-6||
+                   goalErrorYaw(section.start,endpoint)>1e-6) {valid=false;break;}
+                const double delta=model.terminalEdgeCost(section);
+                if(!std::isfinite(delta)||delta<=0||!std::isfinite(cost+delta)) {
+                  valid=false;break;
+                }
+                const auto status=checkMotion(section,checker,edgeStep,edgeBodyStep,
+                    opt.maxSamplesPerSection,result.diagnostics.searchPoseChecks,
+                    r.cancelled.get(),prefilter.get(),&result.diagnostics);
+                if(status==MotionStatus::Cancelled) {
+                  result.status=PlanStatus::Cancelled;return result;
+                }
+                if(status==MotionStatus::Incomplete) {
+                  result.status=PlanStatus::ValidationIncomplete;return result;
+                }
+                if(status!=MotionStatus::Clear) {valid=false;break;}
+                endpoint=section.end;cost+=delta;
+              }
+              if(!valid||goalErrorXY(endpoint,r.goal)>opt.goalXYToleranceMeters+1e-9||
+                 goalErrorYaw(endpoint,r.goal)>opt.goalYawToleranceRadians+1e-9)
+                continue;
+              std::vector<MotionSection> candidate;
+              std::size_t id=item.node;
+              while(id!=0) {candidate.push_back(nodes[id].via);id=nodes[id].parent;}
+              std::reverse(candidate.begin(),candidate.end());
+              candidate.insert(candidate.end(),tail.begin(),tail.end());
+              if(result.diagnostics.finalPoseChecks>=opt.maxTotalFinalPoseChecks) {
+                result.status=PlanStatus::ValidationIncomplete;return result;
+              }
+              valid=checkedPose(r.start)==PoseCollision::Clear;
+              ++result.diagnostics.finalPoseChecks;
+              Pose2D continuousEnd=r.start;
+              for(const auto& section:candidate) {
+                if(!valid)break;
+                if(!finite(section.start)||!finite(section.end)||
+                   goalErrorXY(section.start,continuousEnd)>1e-6||
+                   goalErrorYaw(section.start,continuousEnd)>1e-6) {
+                  valid=false;break;
+                }
+                Pose2D exact;
+                try {exact=section.evaluate(section.progressExtent());}
+                catch(const std::exception&) {valid=false;break;}
+                if(!finite(exact)||goalErrorXY(exact,section.end)>1e-6||
+                   goalErrorYaw(exact,section.end)>1e-6) {
+                  valid=false;break;
+                }
+                const auto status=checkMotion(section,checker,opt.finalSampleSpacingMeters,
+                    opt.finalMaxBodyPointMotionMeters,opt.maxFinalSamplesPerSection,
+                    result.diagnostics.finalPoseChecks,r.cancelled.get(),nullptr,
+                    &result.diagnostics,opt.maxTotalFinalPoseChecks,true);
+                if(status==MotionStatus::Cancelled) {
+                  result.status=PlanStatus::Cancelled;return result;
+                }
+                if(status==MotionStatus::Incomplete) {
+                  result.status=PlanStatus::ValidationIncomplete;return result;
+                }
+                valid=status==MotionStatus::Clear;
+                continuousEnd=exact;
+              }
+              if(valid&&goalErrorXY(continuousEnd,r.goal)<=opt.goalXYToleranceMeters+1e-9&&
+                 goalErrorYaw(continuousEnd,r.goal)<=opt.goalYawToleranceRadians+1e-9) {
+                saveCandidate(candidate,continuousEnd,current.gear,cost,current.clearanceCost);
+                if(opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
+                  return finishIncumbent(TerminationReason::FirstValidated);
+              } else strictFailure=true;
+            }
+          }
+        }
+      }
       if (goalErrorXY(current.pose,r.goal)<=opt.goalXYToleranceMeters &&
           goalErrorYaw(current.pose,r.goal)<=opt.goalYawToleranceRadians) {
         std::vector<MotionSection> reverse;
@@ -785,8 +891,8 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
           if (found!=active.end()&&found->second.bestG<=lowerG) {
             ++result.diagnostics.prunedByKey;continue;
           }
-          const auto check=checkMotion(sec,checker,opt.searchSampleSpacingMeters,
-                     opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
+          const auto check=checkMotion(sec,checker,edgeStep,
+                     edgeBodyStep,opt.maxSamplesPerSection,
                      result.diagnostics.searchPoseChecks,r.cancelled.get(),prefilter.get(),&result.diagnostics,
                      std::numeric_limits<std::size_t>::max(),false,local);
           if (check==MotionStatus::Cancelled) {if (hasIncumbent) return finishIncumbent(TerminationReason::CancelledAfterIncumbent);
