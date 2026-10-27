@@ -40,6 +40,10 @@
 <label class="check"><input type="checkbox" id="improve"/><span>Bounded incumbent improvement</span></label>
 <label class="check"><input type="checkbox" id="refine"/><span>Strict post-path refinement <small>(Ackermann / differential)</small></span></label>
 <label class="check nested"><input type="checkbox" id="curved"/><span>Native curved CSC candidates <small>(also differential)</small></span></label>
+<label class="check"><input type="checkbox" id="inflate"/><span>Geometric footprint safety margin</span></label>
+<label class="label" for="inflationMeters">Inflation distance <small>meters, outward on every side</small></label>
+<input id="inflationMeters" type="number" min="0" max="10" step="any" value="0.05" disabled/>
+<div class="hint">Continuous round-corner offset; does not dilate occupancy cells. Off by default.</div>
 <label class="label" for="budget">Search budget <small>expanded nodes</small></label>
 <input id="budget" type="number" min="100" max="1000000" step="5000" value="1000000"/>
 <button id="planButton" class="primary">Plan path <span>↗</span></button><button id="exportButton" class="secondary" disabled>Export path JSON ↓</button>

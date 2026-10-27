@@ -215,6 +215,8 @@ async function replan() {
   const params=new URLSearchParams();for(const key of keys)params.set(key,$(key).value);
   params.set('model',$('model').value);
   for(const key of ['ompl','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
+  params.set('inflate',$('inflate').checked?'1':'0');
+  params.set('inflationMeters',$('inflationMeters').value.trim());
   const budget=$('budget').value.trim();
   if(budget)params.set('budget',budget);
   params.set('editRevision',String(generation));
@@ -270,6 +272,11 @@ $('exportButton').addEventListener('click',()=>{
   setTimeout(()=>URL.revokeObjectURL(href),2000);
 });
 $('refine').addEventListener('change',syncModelOptions);
+$('inflate').addEventListener('change',()=>{
+  $('inflationMeters').disabled=!$('inflate').checked;
+  invalidateRoute();
+});
+$('inflationMeters').addEventListener('change',invalidateRoute);
 $('resetMap').addEventListener('click',()=>{
   if(!editMap.size)return;
   editMap.clear();generation++;showEditCount();invalidateRoute();replan();

@@ -185,6 +185,11 @@ Outcome run(const Options& opt) {
     out.request.options.rotationCostMetersPerRadian=.4;
   } else if(opt.model!="ackermann")
     throw std::invalid_argument("Unknown model (ackermann, differential or mecanum)");
+  if(!std::isfinite(opt.footprintInflationMeters)||
+     opt.footprintInflationMeters<0||opt.footprintInflationMeters>10)
+    throw std::invalid_argument("Footprint inflation must be between 0 and 10 m");
+  out.request.options.footprintInflationMeters=
+      opt.footprintInflationEnabled?opt.footprintInflationMeters:0.0;
   out.request.options.heuristicMode=opt.performanceHeuristic
       ?HeuristicMode::PerformanceReedsSheppAndObstacleGrid
       :HeuristicMode::CertifiedRegionEuclidean;
@@ -238,7 +243,8 @@ std::string toJson(const Outcome& out) {
   os<<"{\"model\":"<<quoted(out.request.options.model==PlanOptions::Model::DifferentialDrive?"differential":
                      out.request.options.model==PlanOptions::Model::Mecanum?"mecanum":"ackermann")
     <<",\"footprint\":["<<out.request.footprint.rearX<<','<<out.request.footprint.frontX
-    <<','<<out.request.footprint.halfWidth<<"],\"width\":"<<m.width<<",\"height\":"<<m.height<<",\"resolution\":"<<m.resolutionMeters
+    <<','<<out.request.footprint.halfWidth<<"],\"footprintInflationMeters\":"
+    <<out.request.options.footprintInflationMeters<<",\"width\":"<<m.width<<",\"height\":"<<m.height<<",\"resolution\":"<<m.resolutionMeters
     <<",\"frameId\":"<<quoted(m.frameId)<<",\"sourceId\":"<<quoted(m.sourceId)<<",\"revision\":"<<m.revision
     <<",\"origin\":";poseJson(os,m.origin);
   os<<",\"start\":";poseJson(os,out.request.start);

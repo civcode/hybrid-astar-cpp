@@ -20,6 +20,8 @@ struct Options {
   std::optional<std::size_t> maxExpansions;
   bool refine = false;
   bool curvedRefinement = false;
+  bool footprintInflationEnabled = false;
+  double footprintInflationMeters = 0.05; // UI value retained while disabled
   bool performanceHeuristic = true; // grid by default; false = certified Euclidean
   bool improve = false;
   bool ompl = false;
