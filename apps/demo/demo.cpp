@@ -187,6 +187,13 @@ Outcome run(const Options& opt) {
     out.request.options.solutionPolicy=SolutionPolicy::ImproveIncumbent;
     out.request.options.maxExtraExpansionsAfterFirst=700;
   }
+  // Explicit work budget. The generated-node ceiling scales with it so the
+  // frontier limit never silently becomes the effective budget.
+  if(opt.maxExpansions) {
+    out.request.options.maxExpansions=*opt.maxExpansions;
+    out.request.options.maxGeneratedNodes=
+      std::max<std::size_t>(out.request.options.maxGeneratedNodes,*opt.maxExpansions*4);
+  }
   const auto t0=std::chrono::steady_clock::now();
 #ifdef HYBRID_ASTAR_DEMO_WITH_OMPL
   if(opt.ompl) {
@@ -222,7 +229,11 @@ std::string toJson(const Outcome& out) {
     <<",\"origin\":";poseJson(os,m.origin);
   os<<",\"start\":";poseJson(os,out.request.start);
   os<<",\"goal\":";poseJson(os,out.request.goal);
-  os<<",\"milliseconds\":"<<out.elapsedMilliseconds<<",\"mapRuns\":[";
+  os<<",\"milliseconds\":"<<out.elapsedMilliseconds
+    <<",\"limits\":{\"maxExpansions\":"<<out.request.options.maxExpansions
+    <<",\"maxGeneratedNodes\":"<<out.request.options.maxGeneratedNodes
+    <<",\"maxFinalPoseChecks\":"<<out.request.options.maxTotalFinalPoseChecks<<"}";
+  os<<",\"mapRuns\":[";
   bool first=true;
   for(std::size_t y=0;y<m.height;++y) {
     for(std::size_t x=0;x<m.width;) {

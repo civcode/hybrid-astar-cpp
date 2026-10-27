@@ -71,6 +71,16 @@ bool flag(const std::string& value) {
   if(value=="0"||value=="false")return false;
   throw std::invalid_argument("Boolean option must be 0 or 1");
 }
+// Search work budget in expanded nodes. The demo is a single-threaded
+// browser service, so the ceiling stays far below the library default.
+std::size_t budgetValue(const std::string& value) {
+  std::size_t budget=0;
+  const auto [end,error]=std::from_chars(value.data(),value.data()+value.size(),budget);
+  if(value.empty()||error!=std::errc{}||end!=value.data()+value.size()||
+     budget<100||budget>1000000)
+    throw std::invalid_argument("Budget must be an integer between 100 and 1000000 expansions");
+  return budget;
+}
 Options requestOptions(const std::map<std::string,std::string>& params) {
   Options o;
   if(auto it=params.find("edits");it!=params.end())o.edits=hybrid_astar::demo::parseCellEdits(it->second);
@@ -89,6 +99,7 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   if(auto it=params.find("performance");it!=params.end())o.performanceHeuristic=flag(it->second);
   if(auto it=params.find("improve");it!=params.end())o.improve=flag(it->second);
   if(auto it=params.find("ompl");it!=params.end())o.ompl=flag(it->second);
+  if(auto it=params.find("budget");it!=params.end())o.maxExpansions=budgetValue(it->second);
   auto coords=[&](std::string_view prefix)->std::optional<Pose2D> {
     const std::string key(prefix);
     const auto x=params.find(key+'x'),y=params.find(key+'y'),heading=params.find(key+"yaw");
@@ -100,7 +111,7 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   o.start=coords("start");o.goal=coords("goal");
   for(const auto& [name,_]:params) {
     if(name!="scenario"&&name!="model"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="curved"&&name!="performance"&&
-       name!="improve"&&name!="ompl"&&name!="startx"&&name!="starty"&&
+       name!="improve"&&name!="ompl"&&name!="budget"&&name!="startx"&&name!="starty"&&
        name!="startyaw"&&name!="goalx"&&name!="goaly"&&name!="goalyaw")
       throw std::invalid_argument("Unknown option: "+name);
   }
@@ -257,7 +268,8 @@ void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<
 }
 #endif
 void usage(){std::cout<<"Usage: hybrid_astar_demo [--model ackermann|differential|mecanum] [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
-  " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS | --map-yaml FILE.yaml] [--output FILE.json --once] [--ompl] [--refine] [--curved] [--performance] [--improve]\n"
+  " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS | --map-yaml FILE.yaml] [--output FILE.json --once]"
+  " [--ompl] [--refine] [--curved] [--performance] [--improve] [--budget 100..1000000]\n"
   "Default: serve interactive UI on 127.0.0.1 only. --once prints machine-readable JSON.\n";}
 }
 int main(int argc,char** argv) {
@@ -309,6 +321,10 @@ int main(int argc,char** argv) {
       else if(arg=="--curved")options.curvedRefinement=true;
       else if(arg=="--performance")options.performanceHeuristic=true;
       else if(arg=="--improve")options.improve=true;
+      else if(arg=="--budget"){
+        if(i+1>=argc)throw std::invalid_argument("Missing budget");
+        options.maxExpansions=budgetValue(argv[++i]);
+      }
       else throw std::invalid_argument("Unknown flag: "+arg);
     }
     if(!mapFilename.empty()||!mapYamlFilename.empty())options.scenario="custom";

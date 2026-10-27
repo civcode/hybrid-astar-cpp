@@ -40,6 +40,8 @@
 <label class="check"><input type="checkbox" id="improve"/><span>Bounded incumbent improvement</span></label>
 <label class="check"><input type="checkbox" id="refine"/><span>Strict post-path refinement</span></label>
 <label class="check nested"><input type="checkbox" id="curved"/><span>Native curved CSC candidates</span></label>
+<label class="label" for="budget">Search budget <small>expanded nodes</small></label>
+<input id="budget" type="number" min="100" max="1000000" step="5000" placeholder="scenario default"/>
 <button id="planButton" class="primary">Plan path <span>↗</span></button><button id="exportButton" class="secondary" disabled>Export path JSON ↓</button>
 <div class="hint">Runs the C++ planner locally. Only strictly validated paths are shown as successful. Motion remains sampled, not swept-certified.</div>
 </aside>
@@ -53,6 +55,7 @@
 <div class="readout" id="message" role="status">Choose a scenario and plan a path.</div>
 <div class="metrics"><div><span>PATH COST</span><strong id="cost">—</strong></div><div><span>PATH LENGTH</span><strong id="length">—</strong></div>
 <div><span>REVERSE</span><strong id="reverseLen">—</strong></div><div><span>EXPANSIONS</span><strong id="expanded">—</strong></div>
+<div><span>EXPANSION LIMIT</span><strong id="limit">—</strong></div>
 <div><span>PLANNING TIME</span><strong id="elapsed">—</strong></div></div>
 </section></div><footer>Hybrid A* Planning Lab · Geometric path planning · No actuator or swept-volume safety claim</footer></main>
 <script src="/map_geometry.js" defer></script><script src="/map_editor.js" defer></script><script src="/app.js" defer></script></body></html>

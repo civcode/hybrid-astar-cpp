@@ -224,6 +224,7 @@ To calculate a path and print a JSON document without starting the server:
 ./build-demo/hybrid_astar_demo --once --scenario open \
   --start 10 15 0 --goal 19 16 20 --refine --curved
 ./build-demo/hybrid_astar_demo --once --scenario warehouse --performance
+./build-demo/hybrid_astar_demo --once --scenario warehouse --budget 60000
 ```
 
 The web UI calls these **loopback-only** HTTP endpoints:
@@ -240,7 +241,7 @@ Supported query fields: `scenario`, `startx`,
 `starty`, `startyaw`, `goalx`,
 `goaly`, `goalyaw`, `ompl`,
 `refine`, `curved`, `performance`,
-`improve`, `edits`, `editRevision`. Boolean options accept `0` or
+`improve`, `budget`, `edits`, `editRevision`. Boolean options accept `0` or
 `1`. Yaw values in the HTTP and CLI interfaces are in
 **degrees**. The actual C++ request is populated in radians.
 
@@ -250,6 +251,37 @@ bundled assets and binds to
 `127.0.0.1` by default. The explicit `--bind 0.0.0.0` option is for
 container networking; publish the Docker host port to **127.0.0.1 only**. It has no authentication or production-grade
 multiuser request scheduling and should **not** be internet-exposed.
+
+## Raise the search budget
+
+`BudgetExceeded` means the search stopped after spending its work limit. It is
+not a geometric `NoPath` proof, so the first diagnostic is the limit itself:
+every `/api/plan` and `--once` response reports the effective
+`limits.maxExpansions`, `limits.maxGeneratedNodes` and
+`limits.maxFinalPoseChecks`, and the web UI shows them as **Expansion limit**
+next to **Expansions**.
+
+Per-scenario defaults are small on purpose (`15000` expansions, `25000` for
+`warehouse` and imported maps, `5000` for the unreachable-wall fixture). Raise
+them per request:
+
+- **Browser:** *Search budget* field under Planning Options. Leave it empty to
+  keep the scenario default; any value from `100` to `1000000` overrides it.
+- **CLI:** `--budget EXPANSED_NODES` (same `100..1000000` range).
+- **HTTP:** `GET /api/plan?scenario=warehouse&budget=60000` or the same field in
+  a `POST /api/plan` form body.
+
+`maxGeneratedNodes` scales with the requested budget (at least `4x`, never
+below the scenario default), so the frontier ceiling cannot silently become the
+real limit. Costs are bounded but real: an exhaustible-but-unsolvable fixture
+at `budget=1000000` measures about 2.6 s and 290 MB RSS in the Release demo
+binary, while a solved `warehouse` request stays near 20 ms regardless of the
+limit. Out-of-range or non-integer budgets are rejected with `400` / exit code 2.
+
+Other quality/effort levers are orthogonal: `performance=1` enables the
+noncertified obstacle-grid heuristic, `improve=1` keeps searching for a better
+incumbent after the first validated path, and `refine`/`curved` post-process an
+already validated path.
 
 ## Manual verification
 

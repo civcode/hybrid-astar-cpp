@@ -15,6 +15,9 @@ struct Options {
   std::vector<CellEdit> edits;
   std::uint64_t editGeneration = 0;
   std::optional<Pose2D> start, goal;
+  // Optional work-budget override in expanded nodes. Empty keeps the
+  // scenario default. Clamped by the callers to a demo-safe range.
+  std::optional<std::size_t> maxExpansions;
   bool refine = false;
   bool curvedRefinement = false;
   bool performanceHeuristic = false;

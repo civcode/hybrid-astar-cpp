@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """No-dependency localhost server smoke; invoked by CTest only for the demo target."""
 import json
+import re
 import socket
 import tempfile
 from pathlib import Path
@@ -49,6 +50,28 @@ def main(exe):
                                   ("/map_geometry.js", "MapGeometry")]:
             code, _, body = get(base + resource)
             assert code == 200 and content in body, resource
+        # Browser bootstrap contract: app.js looks controls up by element id, so a
+        # missing element aborts listener registration and the page never leaves the
+        # "Preparing map…" overlay. Check the served markup against the served script.
+        _, _, page = get(base + "/")
+        _, _, script = get(base + "/app.js")
+        referenced = set(re.findall(r"\$\('([A-Za-z0-9_]+)'\)", script))
+        defined = set(re.findall(r'id="([A-Za-z0-9_]+)"', page))
+        assert len(referenced) > 20 and len(defined) > 20
+        missing = referenced - defined
+        assert not missing, f"index.html lacks element ids used by app.js: {sorted(missing)}"
+        # Every button on this page is wired by id, so a dropped opening tag (which
+        # leaves an orphan </button> and no element) is a markup defect too.
+        tags = re.findall(r"<(/?)button\b([^>]*)>", page)
+        assert all('id="' in attributes for slash, attributes in tags if slash == ""), \
+            "every <button> must carry an id the script can look up"
+        depth = 0
+        for slash, _ in tags:
+            depth += -1 if slash else 1
+            assert depth >= 0, "orphan </button> in the served page"
+        assert depth == 0, "unclosed <button> in the served page"
+        for control in ["planButton", "exportButton", "budget", "limit", "map", "overlay", "message"]:
+            assert f'id="{control}"' in page, control
         code, _, body = get(base + "/api/plan?scenario=reverse&startx=10&starty=15"
                             "&startyaw=0&goalx=6&goaly=15&goalyaw=0")
         result = json.loads(body)
@@ -59,6 +82,23 @@ def main(exe):
         warehouse = json.loads(body)
         assert code == 200 and warehouse["original"]["status"] == "Success"
         assert warehouse["mapRuns"]
+        # Work budgets are request-tunable. Hitting one is a limit, never a NoPath.
+        code, _, body = get(base + "/api/plan?scenario=warehouse&budget=2000")
+        starved = json.loads(body)
+        assert code == 200 and starved["original"]["status"] == "BudgetExceeded", body
+        assert starved["limits"]["maxExpansions"] == 2000
+        assert starved["original"]["expanded"] >= 2000
+        assert starved["original"]["collisionEvidence"] == "None"
+        code, _, body = get(base + "/api/plan?scenario=warehouse&budget=60000")
+        funded = json.loads(body)
+        assert code == 200 and funded["original"]["status"] == "Success"
+        assert funded["limits"]["maxExpansions"] == 60000
+        assert funded["limits"]["maxGeneratedNodes"] >= 60000
+        assert funded["original"]["collisionEvidence"] == "FullFootprintBodyMotionAdaptiveSampled"
+        for invalid_budget in ["scenario=warehouse&budget=0", "scenario=warehouse&budget=1000001",
+                               "scenario=warehouse&budget=abc"]:
+            code, _, body = get(base + "/api/plan?" + invalid_budget)
+            assert code == 400 and "error" in json.loads(body), invalid_budget
         for invalid in ["scenario=unlisted", "scenario=open&scenario=open",
                         "scenario=open&startx=nan&starty=15&startyaw=0",
                         "scenario=open&ompl=1"] if not json.loads(payload)["ompl"] else [
@@ -221,6 +261,14 @@ def main(exe):
         invalid = subprocess.run([exe, "--once", "--map-yaml", str(yaml_path),
                                   "--resolution", "1.0"], capture_output=True, text=True)
         assert invalid.returncode != 0
+        funded_cli = subprocess.run([exe, "--once", "--scenario", "warehouse", "--budget", "60000"],
+                                    capture_output=True, text=True)
+        assert funded_cli.returncode == 0
+        assert json.loads(funded_cli.stdout)["limits"]["maxExpansions"] == 60000
+        invalid_budget = subprocess.run([exe, "--once", "--scenario", "warehouse", "--budget", "7"],
+                                        capture_output=True, text=True)
+        assert invalid_budget.returncode != 0
+        assert "Budget must be an integer" in invalid_budget.stderr
         print("DEMO HTTP PASS")
     finally:
         proc.terminate()
