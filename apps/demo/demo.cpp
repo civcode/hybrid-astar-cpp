@@ -200,6 +200,7 @@ Outcome run(const Options& opt) {
     throw std::invalid_argument("Footprint inflation must be between 0 and 10 m");
   out.request.options.footprintInflationMeters=
       opt.footprintInflationEnabled?opt.footprintInflationMeters:0.0;
+  out.rsDistanceHeuristicEnabled=opt.rsDistanceHeuristic;
   out.request.options.heuristicMode=opt.performanceHeuristic
       ?HeuristicMode::PerformanceReedsSheppAndObstacleGrid
       :HeuristicMode::CertifiedRegionEuclidean;
@@ -263,6 +264,7 @@ std::string toJson(const Outcome& out) {
     <<out.request.options.footprintInflationMeters<<",\"width\":"<<m.width<<",\"height\":"<<m.height<<",\"resolution\":"<<m.resolutionMeters
     <<",\"frameId\":"<<quoted(m.frameId)<<",\"sourceId\":"<<quoted(m.sourceId)<<",\"revision\":"<<m.revision
     <<",\"origin\":";poseJson(os,m.origin);
+  os<<",\"rsDistanceHeuristic\":"<<(out.rsDistanceHeuristicEnabled?"true":"false");
   os<<",\"start\":";poseJson(os,out.request.start);
   os<<",\"goal\":";poseJson(os,out.request.goal);
   os<<",\"milliseconds\":"<<out.elapsedMilliseconds
