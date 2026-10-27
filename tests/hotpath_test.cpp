@@ -134,7 +134,7 @@ TEST_CASE("Four-disc safety remains conservative at obstacle contact and in narr
       if(status==PoseCollision::Colliding)collisionSeen=true;
       if(status==PoseCollision::Clear)clearSeen=true;
       INFO("x="<<pose.x<<", y="<<pose.y<<", yaw="<<yaw);
-      REQUIRE_FALSE(prefiltered&&status!=PoseCollision::Clear);
+      if(prefiltered) REQUIRE(status==PoseCollision::Clear);
     }
   REQUIRE(collisionSeen);
   REQUIRE(clearSeen);

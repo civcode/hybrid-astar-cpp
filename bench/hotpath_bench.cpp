@@ -30,7 +30,9 @@ struct Scenario {
 };
 double quantile(std::vector<double> v,double p) {
   std::sort(v.begin(),v.end());
-  return v.at(std::max<std::size_t>(1,std::size_t>(std::ceil(v.size()*p)))-1);
+  const auto rank=std::max<std::size_t>(
+      1,static_cast<std::size_t>(std::ceil(v.size()*p)));
+  return v.at(rank-1);
 }
 void equivalent(const PlanResult& a,const PlanResult& b) {
   if(a.status!=b.status || a.diagnostics.expanded!=b.diagnostics.expanded ||
