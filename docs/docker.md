@@ -324,33 +324,40 @@ ranking runtimes; failure at the same expansion budget is not a speed win.
 Benchmark timings are environment-specific. The 1M-expansion benchmark is
 **manual only**, never a CTest or GitHub Actions job.
 
-### 100 randomized matched-pair warehouse runs
+### 100 difficult randomized warehouse pairs (10,000+ expansions in BOTH modes)
 
-The manual `hybrid_astar_warehouse_rs_randomized` executable (a **single C++
-benchmark source file**, `bench/warehouse_rs_randomized.cpp`) draws exactly
-100 reproducible, randomized start/goal pose pairs on the same edited
-warehouse map. Each pair is tested twice:
+The manual benchmark `bench/warehouse_rs_randomized.cpp` now **keeps
+generating random candidate start/goal pairs until 100 qualifying scenarios
+have been found**. These are the same edited 50 x 40 m warehouse map, with
+0.25 m cells, 143 edited obstacle cells and 0.50 m footprint inflation.
 
-- `grid_plus_rs_connector`: adaptive RS connector, grid heuristic, no RS
-  distance estimate.
-- `grid_plus_rs_connector_and_distance`: same connector/scheduler/grid
-  heuristic with the additional RS distance estimate.
+Each candidate must have valid start and goal footprints (exact collision
+checker), at least **25 m direct XY separation** (to reduce trivial one-shot
+connections), and is planned in both configurations with the identical map,
+poses, 4 m minimum turn radius and adaptive RS attempt ratio of 3.5:
 
-The fixed seeded generator uses **25 pairs in each straight-line separation
-band** (6–12, 12–20, 20–30, and 30–60 metres). Every sampled start and
-goal must pass the exact collision checker for the physical Ackermann
-footprint **with 0.50 m inflation**. This avoids accidental
-start/goal-in-collision cases; it does not preselect routes guaranteed
-reachable. Pair-specific results and failures are both retained.
+- `grid_plus_rs_connector`: obstacle-grid heuristic + adaptive RS connector.
+- `grid_plus_rs_connector_and_distance`: the same, plus RS distance heuristic.
 
-Each pair uses identical poses, map/occupancy, 4 m minimum turning radius,
-search resolution, adaptive RS scheduling ratio (3.5), and expansion budget.
-The execution order alternates between A/B and B/A to reduce ordering
-effects. CSV includes seed, full poses, status, time, expansions, analytic
-attempts/acceptances, RS path/distance call counts, collision-validation
-work, and path cost/length when successful. A separate stderr summary
-contains success rates, median/p95 runtimes, median expansions, and
-paired runtime ratios **only where both configurations succeed**.
+A pair **QUALIFIES only if BOTH plans succeed with strict collision evidence
+and BOTH expand at least 10,000 nodes** (default). The output CSV contains
+exactly 200 rows on success: both results for each of the 100 qualified pairs.
+It includes full poses and costs, timings, expansion counts, validation counts
+and RS path/distance call counts. Rejected candidates are not included in
+runtime quantiles; the summary explicitly reports how many were screened out
+because of low expansions or planning failures, and how often only one mode
+was below the threshold. There is a configurable 20,000-candidate safety
+ceiling: if too few qualify, the executable exits nonzero and preserves the
+partial CSV rather than silently lowering the threshold.
+
+**Selection bias warning:** requiring both planners to expand at least 10k
+nodes intentionally excludes cases where one method solves an instance
+quickly and the other struggles, and requiring both to succeed excludes
+feasibility differences. This is a *conditional hard-case latency comparison*,
+not an unbiased benchmark of all warehouse tasks or a success-rate estimate.
+Retain the original unfiltered 100-case comparison as a complementary measure.
+The earlier 6–12/12–20/20–30/30–60 m fixed quotas have been removed because
+short cases rarely satisfy the 10k expansion filter.
 
 ```bash
 git fetch origin
@@ -358,19 +365,19 @@ git switch test/warehouse-reeds-shepp-ab
 git pull --ff-only
 BUILD_JOBS=28 TEST_JOBS=4 docker compose build test
 
-# Quick functional test (NOT the randomized performance comparison).
+# Fast functional regression, not the expensive randomized benchmark.
 BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
   ctest --test-dir build-docker -R ompl_smoke --output-on-failure
 
-# All 100 randomized scenarios in both modes: 200 full planning runs.
-# The seed and maximum expansion budget can be changed in the last two args.
+# Fixed seed, 1M expansion budget, minimum 10k expansions in BOTH modes.
+# Last argument is the maximum number of evaluated candidate pairs (20000).
 BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
-  ./build-docker/hybrid_astar_warehouse_rs_randomized 20261027 1000000 \
-  > warehouse-rs-randomized.csv 2> warehouse-rs-randomized-summary.txt
+  ./build-docker/hybrid_astar_warehouse_rs_randomized \
+  20261027 1000000 10000 20000 \
+  > warehouse-rs-hard.csv 2> warehouse-rs-hard-summary.txt
 ```
 
-This is a **manual-only** experiment; it is not added to CTest, GitHub
-Actions, or any automatic trigger. On a system with limited RAM, using 28
-parallel compiler jobs may exhaust memory; reduce `BUILD_JOBS` if needed.
-Use the same seed and budget when comparing code changes, and repeat with
-several seeds before drawing broad performance conclusions.
+The CSV is streamed as pairs qualify; progress and screening diagnostics
+are written to stderr. This experiment is manually invoked only, **not**
+registered as a CTest or GitHub Actions task. Repeat with other seeds to
+check robustness, and run benchmarks on an otherwise idle machine.
