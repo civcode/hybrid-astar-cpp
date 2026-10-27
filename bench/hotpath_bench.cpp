@@ -23,7 +23,8 @@ struct Variant {
 constexpr std::array<Variant,5> variants{{
     {"baseline",0,0},{"reserve_4096",4096,0},{"reserve_16384",16384,0},
     {"disc_4",0,4},{"reserve_4096_disc_4",4096,4}}};
-enum class Mode { Baseline, Warehouse, Heuristics, WarehouseHeuristics };
+enum class Mode { Baseline, Warehouse, Heuristics, WarehouseHeuristics,
+                  AckermannWarehouse, AckermannWarehouseHeuristics };
 struct Scenario {
   std::string name;
   PlanRequest request;
@@ -70,7 +71,11 @@ void csvHeader() {
       "label_lookup_ns,label_write_ns,hash_ns,exact_collision_ns,"
       "search_motion_ns,final_motion_ns,open_queue_ns,grid_queue_ns,"
       "model,heuristic,max_expansions,grid_settlements,grid_fallbacks,"
-      "terminal_state_attempts,terminal_candidates,terminal_validated,terminal_rejected\n";
+      "terminal_state_attempts,terminal_candidates,terminal_validated,terminal_rejected,"
+      "start_x,start_y,start_yaw,goal_x,goal_y,goal_yaw,footprint_margin_m,"
+      "reopened,pruned_by_key,strict_goal_candidates,strict_rejected_collision,"
+      "label_update_count,open_peak_size,open_peak_storage_bytes,"
+      "grid_peak_size,grid_peak_storage_bytes\n";
 }
 void csvRow(const Scenario& scene,const char* variant,const PlanOptions& options,
             int repeats,const std::vector<double>& times,const PlanResult& last) {
@@ -96,7 +101,15 @@ void csvRow(const Scenario& scene,const char* variant,const PlanOptions& options
     <<modelName(options.model)<<','<<heuristicName(options.heuristicMode)<<','
     <<options.maxExpansions<<','<<d.gridSettlements<<','<<d.gridFallbacks<<','
     <<d.terminalConnectionAttempts<<','<<d.terminalCandidates<<','
-    <<d.terminalValidated<<','<<d.terminalRejected<<'\n';
+    <<d.terminalValidated<<','<<d.terminalRejected<<','
+    <<scene.request.start.x<<','<<scene.request.start.y<<','
+    <<scene.request.start.yaw<<','<<scene.request.goal.x<<','
+    <<scene.request.goal.y<<','<<scene.request.goal.yaw<<','
+    <<options.footprintInflationMeters<<','
+    <<d.reopened<<','<<d.prunedByKey<<','<<d.strictGoalCandidates<<','
+    <<d.strictRejectedCollision<<','<<d.labelUpdates<<','
+    <<d.openQueuePeakSize<<','<<d.openQueuePeakStorageBytes<<','
+    <<d.gridQueuePeakSize<<','<<d.gridQueuePeakStorageBytes<<'\n';
 }
 void measure(const Scenario& scene,PlanRequest q,const char* variant,int repeats,
              bool warmup) {
@@ -121,19 +134,38 @@ int main(int argc,char** argv) {
       if(flag=="--warehouse")mode=Mode::Warehouse;
       else if(flag=="--heuristics")mode=Mode::Heuristics;
       else if(flag=="--warehouse-heuristics")mode=Mode::WarehouseHeuristics;
+      else if(flag=="--ackermann-warehouse")mode=Mode::AckermannWarehouse;
+      else if(flag=="--ackermann-warehouse-heuristics")
+        mode=Mode::AckermannWarehouseHeuristics;
       else throw std::invalid_argument("Unknown benchmark mode");
     }
     const bool warehouse=mode==Mode::Warehouse||mode==Mode::WarehouseHeuristics;
-    const bool heuristicAB=mode==Mode::Heuristics||mode==Mode::WarehouseHeuristics;
-    const int repeats=argc>first?number(argv[first],1,100):(warehouse?1:7);
-    const int budget=warehouse && argc>first+1?number(argv[first+1],100,1000000):1000000;
-    if(argc>first+1+int(warehouse))
-      throw std::invalid_argument("Usage: [repeats] or --warehouse [repeats] [budget] or "
-          "--heuristics [repeats] or --warehouse-heuristics [repeats] [budget]");
+    const bool ackermannWarehouse=mode==Mode::AckermannWarehouse||
+                                  mode==Mode::AckermannWarehouseHeuristics;
+    const bool largeCase=warehouse||ackermannWarehouse;
+    const bool heuristicAB=mode==Mode::Heuristics||
+        mode==Mode::WarehouseHeuristics||mode==Mode::AckermannWarehouseHeuristics;
+    const int repeats=argc>first?number(argv[first],1,100):(largeCase?1:7);
+    const int budget=largeCase && argc>first+1?
+        number(argv[first+1],100,1000000):1000000;
+    const std::string filter=ackermannWarehouse&&argc>first+2?argv[first+2]:"";
+    if(argc>first+1+int(largeCase)+int(ackermannWarehouse))
+      throw std::invalid_argument(
+          "Usage: [repeats] | --warehouse [repeats] [budget] | "
+          "--heuristics [repeats] | --warehouse-heuristics [repeats] [budget] | "
+          "--ackermann-warehouse[(-heuristics)] [repeats] [budget] [case_name]");
     std::vector<Scenario> scenes;
     if(warehouse) scenes.push_back({"mecanum_warehouse_off_grid",
                                      bench::mecanumWarehouseCase(std::size_t(budget))});
-    else for(auto&& s:bench::hardCases())
+    else if(ackermannWarehouse) {
+      for(auto&& [name,request]:
+          bench::ackermannWarehouseCases(std::size_t(budget))) {
+        if(filter.empty()||filter==name)
+          scenes.push_back({std::move(name),std::move(request)});
+      }
+      if(scenes.empty())
+        throw std::invalid_argument("Unknown Ackermann warehouse case name");
+    } else for(auto&& s:bench::hardCases())
       scenes.push_back({std::move(s.name),std::move(s.request)});
     csvHeader();
     for(const auto& scene:scenes) {
@@ -148,12 +180,12 @@ int main(int argc,char** argv) {
           q.options.performanceHeuristicWeight=1.0;
           q.options.discPrefilterCount=0;
           q.options.searchLabelReserve=0;
-          measure(scene,q,heuristicName(heuristic),repeats,!warehouse);
+          measure(scene,q,heuristicName(heuristic),repeats,!largeCase);
         }
         continue;
       }
       auto q=scene.request;
-      if(!warehouse) {
+      if(!largeCase) {
         // Historical five-way baseline for comparison to existing CSV runs.
         q.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
         q.options.performanceHeuristicWeight=1.2;
@@ -162,21 +194,21 @@ int main(int argc,char** argv) {
       }
       PlanResult reference;
       bool hasReference=false;
-      const std::size_t count=warehouse?3:variants.size();
+      const std::size_t count=largeCase?3:variants.size();
       for(std::size_t i=0;i<count;++i) {
         // Warehouse tests baseline, conservative discs and discs+reserve.
-        const auto& v=warehouse?
+        const auto& v=largeCase?
             (i==0?variants[0]:i==1?variants[3]:variants[4]):variants[i];
         q.options.searchLabelReserve=v.labelReserve;
         q.options.discPrefilterCount=v.discCount;
         std::vector<double> ms;
         PlanResult last;
-        for(int run=0;run<repeats+(warehouse?0:1);++run) {
+        for(int run=0;run<repeats+(largeCase?0:1);++run) {
           const auto start=std::chrono::steady_clock::now();
           auto result=plan(q);
           const auto end=std::chrono::steady_clock::now();
           if(hasReference)equivalent(reference,result);
-          if(warehouse||run)ms.push_back(
+          if(largeCase||run)ms.push_back(
               std::chrono::duration<double,std::milli>(end-start).count());
           last=std::move(result);
         }
