@@ -189,6 +189,15 @@ ctest --test-dir build-hotpath --output-on-failure
 ./build-hotpath/hybrid_astar_hotpath_bench 7 > hotpath.csv
 ```
 
+On `dev`, the benchmark also accepts `--warehouse [repeats] [budget]`,
+`--heuristics [repeats]` and `--warehouse-heuristics [repeats] [budget]`.
+Warehouse runs share the off-lattice mecanum CTest fixture and are manual
+because a 1M-expansion run may be expensive. The CSV now exposes exact-goal
+connector attempts/strict rejections and grid settlements/fallbacks.
+Four-disc direct-checker implication tests cover rotated maps, contacts,
+narrow gaps and mecanum. The default prefilter stays OFF pending validation.
+See [the expanded experiment guide](docs/architecture/w6-hotpath-profiling.md).
+
 A second profiling-**OFF** build is required to compare end-to-end
 latency without clock overhead. The [profiling and acceptance notes](
 docs/architecture/w6-hotpath-profiling.md) distinguish measurements

@@ -88,6 +88,30 @@ benchmarks and sanitizer tests have not been run here. Do not treat
 the new goal-connection behavior as proven until the manual Quick/CTest
 suite passes. No GitHub Actions was triggered by this work.
 
+## Performance profiling and 4-disc validation
+
+A shared `bench/warehouse_scenarios.hpp` fixture now supplies the exact
+warehouse map and off-lattice start/goal to both the W12 regression and the
+manual hotpath benchmark. The planner reports terminal connection attempts,
+candidate tails, strictly validated connections and rejected connections.
+These values appear in the opt-in `--warehouse` profiling CSV alongside
+collision calls, queue work and expansion counts.
+
+The dedicated `hotpath_test` CTest suite exercises the 4-disc conservative
+prefilter against the exact checker on rotated maps, boundary/contact poses,
+near-obstacle configurations and too-narrow gaps. It also compares a compact
+mecanum planning request with and without the prefilter. A direct prefilter
+`definitelyClear` result must **never** hide an actual footprint collision,
+and final validation still uses the independent exact checker.
+
+The production default remains `discPrefilterCount=0`. Do **not** enable
+four discs globally until the expanded invariance tests and profiled vs
+unprofiled benchmark suite pass on representative maps. The benchmark
+separately supports certified-Euclidean vs noncertified obstacle-grid A/B with
+identical planning budgets and initial states.
+
+See [hotpath benchmarking](w6-hotpath-profiling.md) for the commands.
+
 ## Tests and release gate
 
 `w12_mecanum_test` has been registered under Catch2/CTest:

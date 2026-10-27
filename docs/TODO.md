@@ -22,6 +22,18 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Performance follow-up — 2026-10-27
+
+- [x] Add manual mecanum warehouse profiling with shared exact regression
+  fixture, per-stage counters and terminal candidate/strict rejection counts.
+- [x] Add rotated-map/contact/narrow-gap/mecanum 4-disc prefilter equivalence
+  tests; retain default OFF pending execution and verification.
+- [x] Add exact-input certified Euclidean vs obstacle-grid heuristic A/B
+  benchmarks across hard scenarios and optional warehouse target.
+- [x] Make `PROFILE_HOTPATHS` an opt-in Docker Compose build argument.
+- [ ] Run CTest and representative ON/OFF profile comparisons; document
+  expansion, memory and latency outcomes before changing default behavior.
+
 ## W12 mecanum / holonomic search — 2026-10-26
 
 - [x] Add ideal four-wheel mecanum forward/lateral/angular control mapping,

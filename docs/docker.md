@@ -158,6 +158,34 @@ docker run --rm hybrid-astar:demo \
 
 Benchmarks are manual; they are not stable product latency promises.
 
+## Manual hotpath profiling experiments
+
+To profile the difficult mecanum warehouse geometry or compare the
+certified-Euclidean and obstacle-grid heuristics, enable the new opt-in
+`PROFILE_HOTPATHS` build argument. Default is `OFF`; `BUILD_JOBS`
+and `TEST_JOBS` continue to work independently.
+
+```bash
+PROFILE_HOTPATHS=ON BUILD_JOBS=8 docker compose build test
+
+# No rebuild between manual benchmark executions.
+PROFILE_HOTPATHS=ON docker compose run --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench --warehouse 1 1000000 > warehouse.csv
+
+PROFILE_HOTPATHS=ON docker compose run --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench --heuristics 7 > heuristics.csv
+
+# Optional A/B on the difficult warehouse configuration itself.
+PROFILE_HOTPATHS=ON docker compose run --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench --warehouse-heuristics 1 1000000 \
+  > warehouse-heuristics.csv
+```
+
+The warehouse modes are explicitly manual and can consume substantial CPU
+and RAM near 1 million expansions. Rebuild with `PROFILE_HOTPATHS=OFF`
+when comparing unbiased end-to-end runtimes. The 4-disc collision prefilter
+is **not** enabled globally; safety equivalence remains a test gate.
+
 ## Build without Docker
 
 Catch2 **v3.16.1 is fetched automatically by CMake** when tests are enabled

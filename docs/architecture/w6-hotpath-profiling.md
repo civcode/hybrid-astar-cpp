@@ -58,10 +58,75 @@ reserve_16384, disc_4 and reserve_4096_disc_4.
 Catch2 tests check result invariance, bad-reserve rejection and
 translated/rotated-map exact-collision equivalence.
 
+## Opt-in warehouse and heuristic A/B experiments (dev)
+
+`hybrid_astar_hotpath_bench` now has three **manual-only** modes, in
+addition to the historical five-variant hard-scenario benchmark:
+
+```bash
+# Run mecanum warehouse start=(4.77,5.62,0), goal=(31.01,3.41,-90deg)
+# at the 1M expansion ceiling; run each of three prefilter/hash variants
+# once (no warm-up to avoid doubling expensive work).
+./build-hotpath/hybrid_astar_hotpath_bench --warehouse 1 1000000 > warehouse.csv
+
+# Compare certified Euclidean vs obstacle-grid ordering on each of the
+# seven existing hard scenarios. Same map, model, budget and weight=1.0.
+./build-hotpath/hybrid_astar_hotpath_bench --heuristics 7 > heuristics.csv
+
+# Same heuristic A/B, but only for the difficult mecanum warehouse case.
+./build-hotpath/hybrid_astar_hotpath_bench --warehouse-heuristics 1 1000000 \
+    > warehouse-heuristics.csv
+```
+
+For quick experiments, reduce the optional warehouse expansion budget, e.g.
+`--warehouse 1 10000`; this can end at `BudgetExceeded` rather than a
+validated solution. Warehouse runs are never registered as a scheduled
+benchmark or as a new CI/CTest job; the existing W12 warehouse correctness
+regression remains in CTest.
+
+All benchmark modes share CSV columns. Additional fields are `model`,
+`heuristic`, `max_expansions`, `grid_settlements`, `grid_fallbacks`,
+`terminal_state_attempts`, `terminal_candidates`,
+`terminal_validated` and `terminal_rejected`. A terminal rejection is
+an attempted direct connection that did **not** pass the required full
+search/final validation; it must not be interpreted as a continuous-space
+impossibility proof. CSV `status` is the numeric `PlanStatus` enum
+(`0=Success`, `6=BudgetExceeded`, `9=StrictValidationFailed`).
+
+In a heuristic comparison, success/strict-collision evidence and budgets
+remain required, but the expanded nodes, first-found path and weighted cost
+**may differ** legitimately. For collision prefilter/hash-table A/B, the
+benchmark asserts equal status, expansions, generated nodes, cost, section
+count and strict evidence. `p50_ms`/`p95_ms` are measured wall-clock
+latencies, while individual stage nanosecond fields describe the last run;
+timings are nested rather than additive.
+
+### Docker Compose
+
+Docker profiling remains disabled by default. To enable it for a standalone
+benchmark image and redirect CSV cleanly from the following run:
+
+```bash
+PROFILE_HOTPATHS=ON BUILD_JOBS=8 docker compose build test
+PROFILE_HOTPATHS=ON docker compose run --rm test \
+    ./build-docker/hybrid_astar_hotpath_bench --warehouse 1 1000000 \
+    > warehouse.csv
+PROFILE_HOTPATHS=ON docker compose run --rm test \
+    ./build-docker/hybrid_astar_hotpath_bench --heuristics 7 \
+    > heuristics.csv
+```
+
+Repeat with `PROFILE_HOTPATHS=OFF` for overhead-free median/p95
+wall-clock comparisons. Do not mix profiled and unprofiled runs when
+comparing internal stage counters.
+
 ## Verification status
 
-The source changes, benchmark and tests are committed, but **actual hotpath
-timing results have not been collected in this environment**. Docker and
+The expanded benchmark, warehouse connector diagnostics and targeted
+collision-safety tests are committed on `dev`, but the new revisions have
+**not** completed a full local build or Docker/CTest run in this environment.
+User-supplied earlier hard-scenario timings are historical baseline evidence,
+not confirmation of the new warehouse results. Docker and
 Catch2 v3 are unavailable here and the entire checkout is not locally
 mounted. The next acceptance gate is a profiling-ON build plus a
 profiling-OFF latency run on the same host. Do not claim a dominant
