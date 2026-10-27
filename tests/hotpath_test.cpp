@@ -246,8 +246,12 @@ TEST_CASE("Collision cell-work counters are opt-in and do not change plans",
   REQUIRE(measured.sections.size()==plain.sections.size());
   // The new prefix path can prove all tested AABBs empty without
   // reading individual grid cells. Do not assume a positive scan count.
-  REQUIRE(measured.diagnostics.collisionWork.candidateCells>0 ||
-          measured.diagnostics.collisionWork.emptyRegionBypasses>0);
+  // Catch2's expression decomposer does not support && / || inside
+  // decomposed assertions. Evaluate the logical expression as one bool.
+  const bool sawCollisionWork=
+      measured.diagnostics.collisionWork.candidateCells>0 ||
+      measured.diagnostics.collisionWork.emptyRegionBypasses>0;
+  REQUIRE(sawCollisionWork);
   REQUIRE(measured.diagnostics.collisionWork.occupiedCells<=
           measured.diagnostics.collisionWork.candidateCells);
   REQUIRE(measured.diagnostics.collisionWork.satTests==
