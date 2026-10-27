@@ -169,12 +169,11 @@ function syncModelOptions() {
   const model=$('model').value;
   const ackermann=model==='ackermann';
   const mecanum=model==='mecanum';
-  // OMPL is Ackermann-only, but strict native refinement/CSC also support
-  // differential drive. Keep mecanum off until it has its own validator.
+  // OMPL stays Ackermann-only. Strict native refinement supports all three
+  // models; CSC is not a mecanum candidate (holonomic twists replace it).
   if(!ackermann)$('ompl').checked=false;
   $('ompl').disabled=!ackermann||!modelCapabilities.ompl;
-  if(mecanum)$('refine').checked=false;
-  $('refine').disabled=mecanum;
+  $('refine').disabled=false;
   if(mecanum)$('curved').checked=false;
   $('curved').disabled=mecanum||!$('refine').checked;
 }

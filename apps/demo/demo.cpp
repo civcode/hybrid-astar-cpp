@@ -180,8 +180,8 @@ Outcome run(const Options& opt) {
     out.request.footprint={-.35,.35,.25}; // compact robot body, reference center
     out.request.options.rotationCostMetersPerRadian=.4;
   } else if(opt.model=="mecanum" || opt.model=="holonomic") {
-    if(opt.ompl || opt.refine || opt.curvedRefinement)
-      throw std::invalid_argument("Ackermann analytic/refinement options are unavailable for mecanum");
+    if(opt.ompl || opt.curvedRefinement)
+      throw std::invalid_argument("Reeds-Shepp and curved CSC are unavailable for mecanum");
     out.request.options.model=PlanOptions::Model::Mecanum;
     out.request.footprint={-.35,.35,.25};
     out.request.options.rotationCostMetersPerRadian=.4;
@@ -228,6 +228,10 @@ Outcome run(const Options& opt) {
         settings.maxAccepted=8;
         settings.maxTotalPoseChecks=200000;
         settings.differentialCurveRadiusMeters=.75;
+      } else if(out.request.options.model==PlanOptions::Model::Mecanum) {
+        settings.maxAttempts=220;
+        settings.maxAccepted=8;
+        settings.maxTotalPoseChecks=240000;
       } else {
         settings.maxAttempts=35;
         settings.maxAccepted=3;
