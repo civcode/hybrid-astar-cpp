@@ -171,6 +171,26 @@ layout and the default full Ackermann footprint:
   reported a 1M-expansion budget failure but did **not** show its margin.
   These are experiments, not claims of matching the unknown margin.
 
+The Planning Lab "planning time" includes strict post-path refinement if
+enabled. In the successful screenshot refinement hit its own
+`WorkBudgetExceeded` limit **after a validated search path had been found**.
+Therefore the pictured milliseconds divided by search expansions are
+only an *all-in* estimate, not the mean cost of a search expansion. The
+manual refiner benchmark can separate those phases:
+
+```bash
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_refinement_bench \
+  --warehouse-ackermann 5 1000000 > ackermann_search_vs_refine.csv
+```
+
+The CSV reports independently measured one-time search wall time and
+p50/p95 strict-refinement wall time, cost, accepted/rejected windows,
+strict collision pose checks and budget status. It uses the exact
+`ack_across_improve_margin_050` screenshot request and the Planning Lab
+35-attempt/3-accepted-refinement settings. Like the other profile modes,
+it is manual only.
+
 These **are not run by CTest or GitHub Actions**. Execute the same
 single case with profiling disabled (reliable wall-clock comparisons)
 and enabled (diagnosis of collision/queue/hash/search stages):
