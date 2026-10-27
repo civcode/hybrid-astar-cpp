@@ -373,8 +373,66 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
         if(std::find(windows.begin(),windows.end(),window)==windows.end())
           windows.push_back(window);
       };
-      if(req.options.model==PlanOptions::Model::DifferentialDrive||
-         req.options.model==PlanOptions::Model::Mecanum) {
+      if(req.options.model==PlanOptions::Model::Ackermann && n>=16) {
+        // A largest-first exhaustive prefix burns the small Ackermann budget
+        // near section 0, leaving most of the route unexamined. Reserve a
+        // bounded local phase spread over all four quarters, then sample
+        // medium/long windows. Keep the short-route exhaustive policy below.
+        constexpr std::size_t quarters=4;
+        constexpr std::array<std::size_t,5> localWidths{3,6,12,24,48};
+        std::array<std::vector<std::size_t>,quarters> anchors;
+        for(std::size_t quarter=0;quarter<quarters;++quarter)
+          anchors[quarter].push_back(quarter*n/quarters);
+        const auto& sections=result.path.sections;
+        const auto pushAnchor=[&](std::size_t i) {
+          const auto quarter=std::min(quarters-1,quarters*i/n);
+          auto& bucket=anchors[quarter];
+          if(std::find(bucket.begin(),bucket.end(),i)==bucket.end())
+            bucket.push_back(i);
+        };
+        // Gear changes are costly, and sharp curvature transitions can mark
+        // unnecessary wiggles. Include the seam and neighboring endpoints.
+        for(std::size_t i=1;i<n;++i) {
+          const auto& a=sections[i-1];
+          const auto& b=sections[i];
+          if(a.gear!=b.gear || std::abs(a.curvature-b.curvature)>1e-6) {
+            pushAnchor(i>2?i-2:0);
+            pushAnchor(i-1);
+          }
+        }
+        const auto localQuota=std::min(remaining,
+            std::max<std::size_t>(16,remaining*2/3));
+        for(std::size_t rank=0;windows.size()<localQuota;++rank) {
+          bool any=false;
+          for(const auto width:localWidths)
+            for(std::size_t quarter=0;quarter<quarters &&
+                windows.size()<localQuota;++quarter) {
+              if(rank>=anchors[quarter].size())continue;
+              any=true;
+              const auto i=anchors[quarter][rank];
+              if(i+1<n)add(i,std::min(n,i+width));
+            }
+          if(!any)break;
+        }
+        // Explore distant, medium and shorter scales across the full route
+        // with the remaining budget. The original validation below is shared.
+        const std::array<std::size_t,7> widths{
+          n,std::min(n,std::size_t{48}),std::min(n,std::size_t{24}),
+          std::min(n,std::size_t{12}),std::min(n,std::size_t{6}),
+          std::min(n,std::size_t{3}),std::min(n,std::size_t{2})};
+        const auto perScale=std::max<std::size_t>(1,remaining/widths.size());
+        for(const auto width:widths) {
+          if(width<2||windows.size()>=remaining)continue;
+          const auto maxStart=n-width;
+          const auto stride=std::max<std::size_t>(1,
+              (maxStart+perScale-1)/perScale);
+          for(std::size_t i=0;i<=maxStart&&windows.size()<remaining;i+=stride)
+            add(i,i+width);
+          add(maxStart,n);
+        }
+        if(n>=3 && windows.size()>=remaining)windowsTruncated=true;
+      } else if(req.options.model==PlanOptions::Model::DifferentialDrive||
+                req.options.model==PlanOptions::Model::Mecanum) {
         if(req.options.model==PlanOptions::Model::DifferentialDrive && n>=24) {
           // Reserve a bounded fraction of the attempt budget for local cleanup.
           // The coarse multiscale windows below can miss intermediate endpoints
@@ -467,17 +525,33 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
           }
           const Pose2D from=before[i].start,to=before[j-1].end;
           std::vector<std::vector<MotionSection>> proposals;
-          try {
-            if (connector) proposals.push_back(connector(from,to));
-            else if(req.options.model==PlanOptions::Model::DifferentialDrive)
-              proposals=differentialShortcuts(from,to,options);
-            else if(req.options.model==PlanOptions::Model::Mecanum)
-              proposals.push_back(holonomicShortcut(req,from,to));
-            else if (options.useCurvatureBoundedShortcuts)
-              proposals=generateCurvatureBoundedShortcuts(
-                  from,to,req.options.minimumTurningRadiusMeters);
-            else proposals.push_back(straightShortcut(from,to));
-          } catch(const std::exception&) {++result.rejected;continue;}
+          if(req.options.model==PlanOptions::Model::Ackermann) {
+            // The external RS connector and native CSC are independent
+            // candidate providers. One failing must not suppress the other;
+            // every proposal still passes the same objective/collision gates.
+            if(connector) {
+              try { proposals.push_back(connector(from,to)); }
+              catch(const std::exception&) {++result.rejected;}
+            }
+            if(options.useCurvatureBoundedShortcuts) {
+              try {
+                auto native=generateCurvatureBoundedShortcuts(
+                    from,to,req.options.minimumTurningRadiusMeters);
+                proposals.insert(proposals.end(),
+                    std::make_move_iterator(native.begin()),
+                    std::make_move_iterator(native.end()));
+              } catch(const std::exception&) {++result.rejected;}
+            } else if(!connector) {
+              proposals.push_back(straightShortcut(from,to));
+            }
+          } else {
+            try {
+              if(connector) proposals.push_back(connector(from,to));
+              else if(req.options.model==PlanOptions::Model::DifferentialDrive)
+                proposals=differentialShortcuts(from,to,options);
+              else proposals.push_back(holonomicShortcut(req,from,to));
+            } catch(const std::exception&) {++result.rejected;continue;}
+          }
           // Every geometric proposal gets the SAME independently exact,
           // complete-path validation. Work is bounded by total pose checks;
           // the native CSC provider returns at most eight alternatives.
