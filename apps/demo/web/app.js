@@ -176,6 +176,9 @@ function syncModelOptions() {
   // models; CSC is not a mecanum candidate (holonomic twists replace it).
   if(!ackermann)$('ompl').checked=false;
   $('ompl').disabled=!ackermann||!modelCapabilities.ompl;
+  const canUseRsDistance=ackermann&&modelCapabilities.ompl&&$('ompl').checked&&$('performance').checked;
+  if(!canUseRsDistance)$('rsDistance').checked=false;
+  $('rsDistance').disabled=!canUseRsDistance;
   $('refine').disabled=false;
   if(mecanum)$('curved').checked=false;
   $('curved').disabled=mecanum||!$('refine').checked;
@@ -229,7 +232,7 @@ async function replan() {
   const keys=['scenario','startx','starty','startyaw','goalx','goaly','goalyaw'];
   const params=new URLSearchParams();for(const key of keys)params.set(key,$(key).value);
   params.set('model',$('model').value);
-  for(const key of ['ompl','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
+  for(const key of ['ompl','rsDistance','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
   params.set('inflate',$('inflate').checked?'1':'0');
   params.set('inflationMeters',$('inflationMeters').value.trim());
   const budget=$('budget').value.trim();
@@ -287,6 +290,8 @@ $('exportButton').addEventListener('click',()=>{
   setTimeout(()=>URL.revokeObjectURL(href),2000);
 });
 $('refine').addEventListener('change',syncModelOptions);
+$('ompl').addEventListener('change',syncModelOptions);
+$('performance').addEventListener('change',syncModelOptions);
 $('inflate').addEventListener('change',()=>{
   $('inflationMeters').disabled=!$('inflate').checked;
   invalidateRoute();
