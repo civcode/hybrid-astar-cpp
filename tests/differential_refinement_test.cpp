@@ -169,6 +169,7 @@ TEST_CASE("Differential CSC refinement is invariant under world rotation",
   options.useCurvatureBoundedShortcuts=true;
   options.maxAttempts=80;
   options.maxAccepted=3;
+  options.differentialRadiusVariants=4;
   const auto a=refinePath(base,raw(base,originalSections),{},options);
   REQUIRE(a.path.status==PlanStatus::Success);
   const double turn=pi/4;
@@ -179,6 +180,11 @@ TEST_CASE("Differential CSC refinement is invariant under world rotation",
     return {origin.x+cs*x-sn*y,origin.y+sn*x+cs*y,pose.yaw+turn};
   };
   auto rotated=base;
+  // Rotate the WORLD coordinate frame and the occupancy grid together:
+  // leaving the map axis-aligned would not be an equivalent problem.
+  auto rotatedMap=std::make_shared<MapSnapshot>(*base.map);
+  rotatedMap->origin=rotate(base.map->origin);
+  rotated.map=rotatedMap;
   rotated.start=rotate(base.start);
   rotated.goal=rotate(base.goal);
   std::vector<MotionSection> sections;

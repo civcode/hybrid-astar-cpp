@@ -232,6 +232,7 @@ Outcome run(const Options& opt) {
         settings.maxAccepted=8;
         settings.maxTotalPoseChecks=200000;
         settings.differentialCurveRadiusMeters=.75;
+        settings.differentialRadiusVariants=4; // opt-in Planning Lab multi-radius
       } else if(out.request.options.model==PlanOptions::Model::Mecanum) {
         settings.maxAttempts=220;
         settings.maxAccepted=8;
