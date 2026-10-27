@@ -63,6 +63,43 @@ TEST_CASE("Metric inflation has rounded corners rather than inflated AABB corner
   REQUIRE(ExactCollisionChecker(*map,{},squareBody,.20).check(corner)==PoseCollision::Clear);
   REQUIRE(ExactCollisionChecker(*map,{},squareBody,.23).check(corner)==PoseCollision::Colliding);
 }
+TEST_CASE("Exact collision broad-phase counts visits and geometric distance checks",
+          "[inflation][geometry][profile]") {
+  const auto map=emptyMap();
+  block(*map,50,50);
+  const Footprint body{-.2,.2,.1};
+  CollisionWorkCounters uninflated;
+  const Pose2D close{4.74,5.05,0.}; // 0.06m gap to the occupied square
+  REQUIRE(ExactCollisionChecker(*map,{},body).check(close,&uninflated)==
+          PoseCollision::Clear);
+  REQUIRE(uninflated.candidateCells>0);
+  REQUIRE(uninflated.occupiedCells==0);
+  REQUIRE(uninflated.satTests==0);
+  REQUIRE(uninflated.distanceTests==0);
+
+  CollisionWorkCounters inflated;
+  REQUIRE(ExactCollisionChecker(*map,{},body,.10).check(close,&inflated)==
+          PoseCollision::Colliding);
+  REQUIRE(inflated.candidateCells>uninflated.candidateCells);
+  REQUIRE(inflated.occupiedCells==1);
+  REQUIRE(inflated.satTests==1);
+  REQUIRE(inflated.distanceTests==1);
+  REQUIRE(inflated.boundaryRejections==0);
+
+  CollisionWorkCounters overlap;
+  REQUIRE(ExactCollisionChecker(*map,{},body).check({5.,5.05,0},&overlap)==
+          PoseCollision::Colliding);
+  REQUIRE(overlap.occupiedCells==1);
+  REQUIRE(overlap.satTests==1);
+  REQUIRE(overlap.distanceTests==0);
+
+  CollisionWorkCounters edge;
+  REQUIRE(ExactCollisionChecker(*map,{},body,.1).check({.2,5.,0},&edge)==
+          PoseCollision::Colliding);
+  REQUIRE(edge.boundaryRejections==1);
+  REQUIRE(edge.candidateCells==0);
+}
+
 TEST_CASE("Geometric inflation respects rotated occupancy-grid coordinates",
           "[inflation][rotation]") {
   auto map=emptyMap();block(*map,50,50);

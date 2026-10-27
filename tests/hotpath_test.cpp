@@ -226,3 +226,58 @@ TEST_CASE("Four-disc prefilter preserves mecanum and narrow-gap planner results"
   request.goal={8.,4.,0.};
   compare(request);  // Full-width wall with a physically impassable slit
 }
+
+TEST_CASE("Collision cell-work counters are opt-in and do not change plans",
+          "[w6][collision][profile]") {
+  auto request=bench::hardCases().front().request;
+  request.options.maxExpansions=1000;
+  request.options.maxGeneratedNodes=4000;
+  request.options.collectCollisionWork=false;
+  const auto plain=plan(request);
+  REQUIRE_FALSE(plain.diagnostics.collectCollisionWork);
+  REQUIRE(plain.diagnostics.collisionWork.candidateCells==0);
+  REQUIRE(plain.diagnostics.collisionWork.satTests==0);
+  request.options.collectCollisionWork=true;
+  const auto measured=plan(request);
+  REQUIRE(measured.diagnostics.collectCollisionWork);
+  REQUIRE(measured.status==plain.status);
+  REQUIRE(measured.diagnostics.expanded==plain.diagnostics.expanded);
+  REQUIRE(measured.diagnostics.generated==plain.diagnostics.generated);
+  REQUIRE(measured.sections.size()==plain.sections.size());
+  REQUIRE(measured.diagnostics.collisionWork.candidateCells>0);
+  REQUIRE(measured.diagnostics.collisionWork.occupiedCells<=
+          measured.diagnostics.collisionWork.candidateCells);
+  REQUIRE(measured.diagnostics.collisionWork.satTests==
+          measured.diagnostics.collisionWork.occupiedCells);
+  REQUIRE(measured.diagnostics.collisionWork.distanceTests==0); // no margin
+  REQUIRE(measured.diagnostics.exactCollisionPoseCalls>0);
+}
+
+TEST_CASE("Four covering discs stay conservative for inflated Ackermann rectangles",
+          "[w6][collision][prefilter][inflation]") {
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=map->height=100;
+  map->resolutionMeters=.25;
+  map->cells.assign(10000,0);
+  for(std::size_t y=30;y<70;++y)
+    for(std::size_t x=48;x<52;++x)
+      map->cells[y*map->width+x]=100;
+  const Footprint body{-1,3.6,.9};
+  for(double inflation:{0.,.5}) {
+    const ExactCollisionChecker exact(*map,{},body,inflation);
+    const ConservativeDiscPrefilter cover(*map,{},body,4,inflation);
+    std::size_t bypass=0,fallback=0;
+    for(int yi=15;yi<88;yi+=6)
+      for(int xi=15;xi<88;xi+=6)
+        for(double yaw:{0.,.45,1.2}) {
+          const Pose2D pose{xi*.25+.013,yi*.25+.017,yaw};
+          if(cover.definitelyClear(pose)) {
+            ++bypass;
+            REQUIRE(exact.check(pose)==PoseCollision::Clear);
+          } else ++fallback;
+        }
+    INFO("inflation="<<inflation);
+    REQUIRE(bypass>0);
+    REQUIRE(fallback>0);
+  }
+}
