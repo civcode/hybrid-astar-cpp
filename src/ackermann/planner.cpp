@@ -569,7 +569,6 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     result.diagnostics.openQueuePeakStorageBytes=open.storageBytes();
     result.diagnostics.generated=1;
     bool strictFailure=false;
-    std::size_t terminalConnectionAttempts=0;
     PlanResult incumbent;
     bool hasIncumbent=false;
     std::size_t firstValidatedExpansion=0;
@@ -643,7 +642,7 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
       // instead of hoping a fixed-size primitive lands inside tolerances.
       // Terminal links are never trusted: independently validate the entire
       // chain, not just the final connection. Bound attempts and pose checks.
-      if(!hasIncumbent && terminalConnectionAttempts<32 &&
+      if(!hasIncumbent && result.diagnostics.terminalConnectionAttempts<32 &&
          goalErrorXY(current.pose,r.goal)<=std::max(1.0,opt.goalXYToleranceMeters)) {
         if constexpr(requires {
             model.terminalConnections(current.pose,r.goal);
@@ -651,9 +650,10 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
           }) {
           const auto tails=model.terminalConnections(current.pose,r.goal);
           if(!tails.empty()) {
-            ++terminalConnectionAttempts;
+            ++result.diagnostics.terminalConnectionAttempts;
             for(const auto& tail:tails) {
               if(tail.empty())continue;
+              ++result.diagnostics.terminalCandidates;
               bool valid=true;
               double cost=current.g;
               Pose2D endpoint=current.pose;
@@ -678,8 +678,9 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
                 endpoint=section.end;cost+=delta;
               }
               if(!valid||goalErrorXY(endpoint,r.goal)>opt.goalXYToleranceMeters+1e-9||
-                 goalErrorYaw(endpoint,r.goal)>opt.goalYawToleranceRadians+1e-9)
-                continue;
+                 goalErrorYaw(endpoint,r.goal)>opt.goalYawToleranceRadians+1e-9) {
+                ++result.diagnostics.terminalRejected;continue;
+              }
               std::vector<MotionSection> candidate;
               std::size_t id=item.node;
               while(id!=0) {candidate.push_back(nodes[id].via);id=nodes[id].parent;}
@@ -720,10 +721,14 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
               }
               if(valid&&goalErrorXY(continuousEnd,r.goal)<=opt.goalXYToleranceMeters+1e-9&&
                  goalErrorYaw(continuousEnd,r.goal)<=opt.goalYawToleranceRadians+1e-9) {
+                ++result.diagnostics.terminalValidated;
                 saveCandidate(candidate,continuousEnd,current.gear,cost,current.clearanceCost);
                 if(opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
                   return finishIncumbent(TerminationReason::FirstValidated);
-              } else strictFailure=true;
+              } else {
+                ++result.diagnostics.terminalRejected;
+                strictFailure=true;
+              }
             }
           }
         }

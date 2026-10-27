@@ -168,6 +168,9 @@ struct PlanDiagnostics {
   std::size_t gridSeedCellsExamined = 0, gridSeedCellsAccepted = 0;
   std::size_t gridBlockedQueryFallbacks = 0, gridWorkBudgetFallbacks = 0;
   std::size_t validatedCandidates = 0, incumbentImprovements = 0;
+  // Optional exact-goal connector attempts and strict path outcomes.
+  std::size_t terminalConnectionAttempts = 0, terminalCandidates = 0;
+  std::size_t terminalValidated = 0, terminalRejected = 0;
   std::size_t discDefinitelyClear = 0, discExactFallback = 0;
   std::size_t clearanceSamples = 0;
 };
