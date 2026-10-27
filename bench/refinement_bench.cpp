@@ -101,7 +101,69 @@ static int differentialWarehouse(int argc,char** argv) {
   }
   return 0;
 }
+// Separates Ackermann search from post-path refinement: Planning Lab's
+// elapsed timer includes BOTH. This fixture matches the reported successful
+// warehouse case (bounded improvement + CSC enabled + 0.50m inflation).
+static int ackermannWarehouse(int argc,char** argv) {
+  if(argc>4)throw std::invalid_argument(
+      "Usage: --warehouse-ackermann [repeats] [search_expansion_budget]");
+  const int repetitions=argc>2?std::stoi(argv[2]):3;
+  const int budget=argc>3?std::stoi(argv[3]):1000000;
+  if(repetitions<1||repetitions>100||budget<100||budget>1000000)
+    throw std::invalid_argument("Invalid repeats or search work budget");
+  const auto cases=bench::ackermannWarehouseCases(std::size_t(budget));
+  const auto& request=cases.at(1).second; // reported "improve" screenshot
+  const auto t0=std::chrono::steady_clock::now();
+  const auto original=plan(request);
+  const auto t1=std::chrono::steady_clock::now();
+  if(original.status!=PlanStatus::Success) {
+    std::cerr<<"Ackermann warehouse did not find a strictly validated route; "
+             <<"status="<<int(original.status)
+             <<" expansions="<<original.diagnostics.expanded<<'\n';
+    return 2;
+  }
+  RefinementOptions options;
+  options.useCurvatureBoundedShortcuts=true;
+  options.maxAttempts=35;options.maxAccepted=3;
+  std::vector<double> elapsed;
+  RefinementResult last;
+  for(int run=0;run<repetitions;++run) {
+    const auto r0=std::chrono::steady_clock::now();
+    auto refined=refinePath(request,original,{},options);
+    const auto r1=std::chrono::steady_clock::now();
+    if(refined.path.status!=PlanStatus::Success ||
+       refined.path.collisionEvidence!=
+           CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled ||
+       refined.path.weightedCostMeters>original.weightedCostMeters+1e-8)
+      throw std::runtime_error("Ackermann post-refinement lost verified incumbent");
+    elapsed.push_back(std::chrono::duration<double,std::milli>(r1-r0).count());
+    last=std::move(refined);
+  }
+  std::cout<<"scenario,search_ms,search_expanded,search_generated,"
+      "search_cost,original_sections,refine_repeats,refine_p50_ms,"
+      "refine_p95_ms,refine_status,refined_cost,refined_sections,"
+      "refine_attempted,refine_accepted,refine_rejected,"
+      "refine_cost_pruned,refine_pose_checks\n";
+  std::cout<<"ack_across_improve_margin_050,"
+      <<std::fixed<<std::setprecision(4)
+      <<std::chrono::duration<double,std::milli>(t1-t0).count()<<','
+      <<original.diagnostics.expanded<<','<<original.diagnostics.generated<<','
+      <<original.weightedCostMeters<<','<<original.sections.size()<<','
+      <<repetitions<<','<<percentile(elapsed,.5)<<','
+      <<percentile(elapsed,.95)<<','<<int(last.status)<<','
+      <<last.path.weightedCostMeters<<','<<last.path.sections.size()<<','
+      <<last.attempted<<','<<last.accepted<<','<<last.rejected<<','
+      <<last.prunedByCostLowerBound<<','<<last.exactPoseChecks<<'\n';
+  return 0;
+}
 int main(int argc,char** argv) {
+  if(argc>1&&std::string(argv[1])=="--warehouse-ackermann") {
+    try{return ackermannWarehouse(argc,argv);}
+    catch(const std::exception& e) {
+      std::cerr<<"Ackermann warehouse refinement benchmark: "
+               <<e.what()<<'\n';return 2;
+    }
+  }
   if(argc>1&&std::string(argv[1])=="--warehouse-differential") {
     try{return differentialWarehouse(argc,argv);}
     catch(const std::exception& e) {
