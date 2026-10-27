@@ -244,7 +244,10 @@ TEST_CASE("Collision cell-work counters are opt-in and do not change plans",
   REQUIRE(measured.diagnostics.expanded==plain.diagnostics.expanded);
   REQUIRE(measured.diagnostics.generated==plain.diagnostics.generated);
   REQUIRE(measured.sections.size()==plain.sections.size());
-  REQUIRE(measured.diagnostics.collisionWork.candidateCells>0);
+  // The new prefix path can prove all tested AABBs empty without
+  // reading individual grid cells. Do not assume a positive scan count.
+  REQUIRE(measured.diagnostics.collisionWork.candidateCells>0 ||
+          measured.diagnostics.collisionWork.emptyRegionBypasses>0);
   REQUIRE(measured.diagnostics.collisionWork.occupiedCells<=
           measured.diagnostics.collisionWork.candidateCells);
   REQUIRE(measured.diagnostics.collisionWork.satTests==
