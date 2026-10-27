@@ -5,6 +5,7 @@ services:
       target: demo
       args:
         BUILD_JOBS: "${BUILD_JOBS:-2}"
+        PROFILE_HOTPATHS: "${PROFILE_HOTPATHS:-OFF}"
     ports:
       - "127.0.0.1:8765:8765"
     init: true
@@ -18,6 +19,7 @@ services:
       target: test
       args:
         BUILD_JOBS: "${BUILD_JOBS:-2}"
+        PROFILE_HOTPATHS: "${PROFILE_HOTPATHS:-OFF}"
     environment:
       CTEST_PARALLEL_LEVEL: "${TEST_JOBS:-1}"
     init: true

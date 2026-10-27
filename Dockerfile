@@ -32,6 +32,8 @@ RUN curl --fail --location --retry 3 \
 FROM dependencies AS build
 # Redeclare the inherited build argument in this build stage.
 ARG BUILD_JOBS
+# Profiling is opt-in because per-operation clocks change runtimes.
+ARG PROFILE_HOTPATHS=OFF
 WORKDIR /workspace
 COPY . /workspace
 RUN cmake -S . -B build-docker -G Ninja \
@@ -40,6 +42,7 @@ RUN cmake -S . -B build-docker -G Ninja \
       -DHYBRID_ASTAR_BUILD_TESTS=ON \
       -DHYBRID_ASTAR_BUILD_APP=ON \
       -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON \
+      -DHYBRID_ASTAR_PROFILE_HOTPATHS="${PROFILE_HOTPATHS}" \
   && cmake --build build-docker --parallel "${BUILD_JOBS}"
 
 # Build with --target test to execute CTest / Catch2 (including OMPL tests).
