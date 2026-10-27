@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 ARG OMPL_VERSION=2.0.2
+# Maximum parallel compiler processes for both OMPL and Hybrid A* builds.
+ARG BUILD_JOBS=2
 RUN curl --fail --location --retry 3 \
       "https://github.com/ompl/ompl/archive/refs/tags/${OMPL_VERSION}.tar.gz" \
       -o /tmp/ompl.tar.gz \
@@ -22,12 +24,14 @@ RUN curl --fail --location --retry 3 \
       -DCMAKE_INSTALL_PREFIX=/usr/local \
       -DOMPL_BUILD_VAMP=OFF \
       -DOMPL_BUILD_PYTHON_BINDINGS=OFF \
-  && cmake --build /tmp/ompl-build --parallel 2 \
+  && cmake --build /tmp/ompl-build --parallel "${BUILD_JOBS}" \
   && cmake --install /tmp/ompl-build \
   && ldconfig \
   && rm -rf /tmp/ompl.tar.gz /tmp/ompl-src /tmp/ompl-build
 
 FROM dependencies AS build
+# Redeclare the inherited build argument in this build stage.
+ARG BUILD_JOBS
 WORKDIR /workspace
 COPY . /workspace
 RUN cmake -S . -B build-docker -G Ninja \
@@ -36,7 +40,7 @@ RUN cmake -S . -B build-docker -G Ninja \
       -DHYBRID_ASTAR_BUILD_TESTS=ON \
       -DHYBRID_ASTAR_BUILD_APP=ON \
       -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON \
-  && cmake --build build-docker --parallel 2
+  && cmake --build build-docker --parallel "${BUILD_JOBS}"
 
 # Build with --target test to execute CTest / Catch2 (including OMPL tests).
 FROM build AS test

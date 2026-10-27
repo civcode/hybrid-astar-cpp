@@ -3,6 +3,8 @@ services:
     build:
       context: .
       target: demo
+      args:
+        BUILD_JOBS: "${BUILD_JOBS:-2}"
     ports:
       - "127.0.0.1:8765:8765"
     init: true
@@ -14,5 +16,9 @@ services:
     build:
       context: .
       target: test
+      args:
+        BUILD_JOBS: "${BUILD_JOBS:-2}"
+    environment:
+      CTEST_PARALLEL_LEVEL: "${TEST_JOBS:-1}"
     init: true
     restart: "no"
