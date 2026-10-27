@@ -165,6 +165,12 @@ For differential drive, native candidates consist of:
   exists under the differential wheel-rate limits; it may be lower than the
   configured primitive translation speed.
 
+Differential rolling shortcut joins now avoid retained in-place rotations
+immediately outside the candidate window. New splices also cannot add a
+previously absent gear reversal or a sharper curvature discontinuity than
+the original seam. These are kinematic/visual smoothness checks in addition
+to collision safety, not acceleration-continuity guarantees.
+
 The strict verifier evaluates every exact motion section, including body-swept
 in-place rotations, at the configured final sampling density, with finite
 candidate attempts, accepted replacements and total pose-check limits.
@@ -189,3 +195,29 @@ a blocked shortcut, a colliding swept spin, strict work-budget behavior and
 unsupported mecanum. `demo_test` and `demo_http_test` cover the Planning
 Lab integration. Run these plus `refinement_test`, `curved_shortcuts_test`
 and `w10_differential_search_test` before treating the feature as verified.
+
+## Reported differential warehouse strict-final failure (2026-10-27)
+
+The default differential policy already requests final-density collision
+sampling during search. A `StrictValidationFailed` search result means a
+goal-region state was encountered and its reconstructed route did not pass
+the independent final path checks. It is **not** a proof of infeasibility,
+and is not necessarily a swept-collision failure. The planner now records
+`strictGoalCandidates`, `strictRejectedCollision`,
+`strictRejectedContinuity`, and `strictRejectedGoalMismatch`.
+These distinguish the principal rejection classes in the demo JSON/UI;
+terminal connector-specific rejects are counted separately.
+
+Reproduce the reported user case on the unedited warehouse layout manually
+(not as a default, potentially expensive CTest):
+
+```bash
+./build-docker/hybrid_astar_demo --once --model differential \
+  --scenario warehouse --start 5.23 21.21 0 \
+  --goal 42.87 35.28 0 --inflate 0.5 --budget 1000000
+```
+
+A 0.5 m hard margin can change the reachable free configuration space
+substantially. This diagnostic change does not by itself guarantee a valid
+route or resolve single-key search-label pruning. The final validator must
+never be bypassed to make the test succeed.

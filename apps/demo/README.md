@@ -47,13 +47,15 @@ It is not a substitute for the complete OMPL-ON CMake package build.
   the **start**, Shift-click for the **goal**. Angles are editable fields.
 - Default obstacle-grid heuristic (noncertified performance ordering);
   uncheck the box to use the certified Euclidean heuristic,
-- Strict optional post-path refinement for **Ackermann and differential drive**.
+- Strict optional post-path refinement for **Ackermann, differential drive,
+  and mecanum**.
   Differential mode tries straight shortcuts and optional wheel-rate-feasible
   CSC arcs when the curved checkbox is enabled. Refinement never inserts
   new in-place rotations, avoiding unnecessary full stops.
   The entire candidate is independently checked against the rectangular body
   and swept stationary turns; if it does not strictly lower weighted cost, the
-  validated original is retained. Mecanum refinement remains unsupported.
+  validated original is retained. Mecanum uses a different refiner: short
+  exact body-twist connectors (including sideways translation), not CSC.
   bounded validated incumbent improvement, post-search refinement, and native
   curvature-bounded CSC shortcuts.
 - Optional Reeds–Shepp analytic connections and combined refinement when
@@ -74,6 +76,9 @@ continuous swept guarantee or steering-rate/actuator feasibility** claim.
 A budget-limited response is not proof of a geometric NoPath.
 
 ## Continuous metric footprint inflation
+
+The inflation input spinner increments/decrements by **0.05 m**, and
+manual values remain supported.
 
 The Planning Lab now has **Geometric footprint safety margin** (checkbox,
 off by default) and an **Inflation distance (m)** input. Enter any finite
@@ -346,7 +351,9 @@ independently checks the full route, including swept in-place turns, with a
 bounded check budget (200,000 poses by default in Planning Lab), and always
 preserves the original strictly validated route when it cannot improve it.
 The browser checkbox settings apply equally to Ackermann and differential
-drive; Reeds–Shepp and refinement remain unsupported for mecanum.
+drive; Reeds–Shepp and CSC remain unsupported for mecanum. Strict
+holonomic twist refinement is available with `refine=1`, and independently
+checks the complete candidate path and configured footprint inflation.
 
 Other quality/effort levers are orthogonal: `improve=1` keeps searching
 for a better incumbent after the first validated path, and `refine`/`curved`

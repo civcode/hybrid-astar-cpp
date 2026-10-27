@@ -22,6 +22,19 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Planning Lab smoothing / strict-failure diagnostics — 2026-10-27
+
+- [x] Set metric inflation number spinner to 0.05 m increments.
+- [x] Reject differential rolling-refinement splices adjacent to retained
+  stops, new gear reversals and worsened curvature discontinuities.
+- [x] Enable opt-in strict mecanum post-refinement with independently
+  validated wheel-rate-feasible SE(2) holonomic twist candidates.
+- [x] Report strict final-revalidation failure categories in API/UI instead
+  of assuming every rejection is an obstacle/swept collision.
+- [ ] Run user-reported 0.5 m margin warehouse coordinates locally,
+  review 22%-path visual junction, and rerun CTest; no claim yet that
+  the previously failed differential goal is reachable.
+
 ## Motion continuity: avoid unnecessary stopping rotations — 2026-10-27
 
 - [x] Stop generating rotate–straight–rotate post-refinement candidates for
@@ -58,7 +71,8 @@ and steering actuator modeling remain future work.
   and spread bounded attempts across long paths at multiple scales.
   Refinement does not introduce stop-and-spin candidates.
 - [x] Enable both Planning Lab refinement toggles for differential drive
-  while retaining Ackermann-only OMPL and unsupported mecanum refinement.
+  while retaining Ackermann-only OMPL; strict mecanum refinement was added
+  later with holonomic rather than CSC shortcuts.
 - [x] Add strict geometric regression cases, demo contract and HTTP checks.
 - [ ] Run the C++/Docker test suite and inspect Planning Lab smoothing on a
   real zigzag warehouse map; measure cost, sections and elapsed time.

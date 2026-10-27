@@ -240,13 +240,25 @@ CSC candidates can replace existing zigzags without inserting new
 stationary rotations. Existing spins may remain when no safe improvement
 is found.
 
+### Strict mecanum post-path refinement (manual opt-in)
+
+With **Mecanum** selected, Planning Lab now permits **Strict post-path
+refinement**, using bounded multi-scale windows and direct body-twist
+connectors that translate sideways/forward while rotating if needed. These
+shortcuts do not generate a stationary spin; every full replacement route
+is rechecked against occupied map cells and the configured geometric
+inflation. It retains the original valid path unless weighted cost decreases.
+Native CSC is deliberately disabled for mecanum.
+
 ### Differential-drive path smoothing (manual opt-in)
 
 The strict post-path refiner now also accepts `Model::DifferentialDrive`
 and preserves the original path unless independent full-body verification
 confirms an actual weighted-cost reduction. Native candidate connections
 include straight-line chords and optional CSC curved shortcuts with a
-configurable 0.75 m radius. The smoother never generates new in-place
+configurable 0.75 m radius. Adjacent moving segments cannot acquire
+a sharper curvature discontinuity or a new gear reversal at a splice.
+The smoother never generates new in-place
 rotations (which require a full stop); it may retain spins already in the
 original path if they cannot be safely removed.
 Candidate constant-curvature commands are checked against differential
@@ -261,7 +273,8 @@ JSON includes both `original` and `refinement.path` when validation succeeds.
 The C++ interface remains `ackermann::refinePath(request, original)`, with
 `RefinementOptions.useCurvatureBoundedShortcuts` and
 `differentialCurveRadiusMeters` providing opt-in CSC. Mecanum remains
-unsupported by this refiner. Tests were added but must be executed locally.
+now also supported via exact holonomic SE(2) twist shortcuts and independent
+full-footprint verification. Tests were added but must be executed locally.
 See [the expanded experiment guide](docs/architecture/w6-hotpath-profiling.md).
 
 A second profiling-**OFF** build is required to compare end-to-end

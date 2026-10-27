@@ -184,3 +184,25 @@ docker compose run --build --rm test
   beyond the planar rigid Pose2D + quantized XY/yaw key.
 - Model-aware analytic shortcuts, obstacle-aware refinement and other
   performance optimizations; preserve the correct baseline first.
+ 
+## Strict native holonomic path refinement (2026-10-27)
+
+In addition to the search-time bounded stop removal, the C++ strict
+`refinePath` API and Planning Lab `refine` checkbox now support mecanum
+plans. The candidate is the exact inverse SE(2) constant body-twist
+connecting two validated section-boundary poses; it combines longitudinal,
+lateral and angular motion rather than introducing any new full stop.
+Candidate wheel rates are checked under finite time scaling; acceleration,
+jerk, and actuator tracking are not implied.
+
+The refiner revalidates the original whole path against the pinned map and
+configured metric footprint inflation, then tries bounded multi-scale
+shortcuts. A candidate is accepted only after independent full-path
+collision sampling and strictly lower weighted cost including the configured
+stationary spin penalty. Any failed, exhausted or colliding shortcut retains
+the validated original path. CSC/Reeds–Shepp candidates remain non-mecanum.
+
+`differential_refinement_test` includes a small holonomic zigzag with
+strict improvement and a blocked direct shortcut with 0.15 m inflation.
+The default post-path refinement checkbox is still unchecked for all models;
+it must be explicitly enabled by the user.
