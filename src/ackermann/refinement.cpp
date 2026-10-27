@@ -240,11 +240,31 @@ std::vector<MotionSection> straightShortcut(const Pose2D& start,const Pose2D& en
 std::vector<std::vector<MotionSection>> differentialShortcuts(
     const Pose2D& from,const Pose2D& to,const RefinementOptions& opt) {
   std::vector<std::vector<MotionSection>> candidates;
-  if(opt.useCurvatureBoundedShortcuts)
-    candidates=generateCurvatureBoundedShortcuts(
-        from,to,opt.differentialCurveRadiusMeters);
+  if(opt.useCurvatureBoundedShortcuts) {
+    // A single radius can miss diagonal route sections: endpoint headings
+    // determine CSC tangency, while the available free space constrains the
+    // curved approach. Try multiple radii in metric units, independent of
+    // the map grid axes. Differential drive has no Ackermann R_min.
+    constexpr std::array<double,4> scales{{.5,1.,2.,4.}};
+    for(const auto factor:scales) {
+      const auto radius=opt.differentialCurveRadiusMeters*factor;
+      if(!std::isfinite(radius)||radius<=0)continue;
+      auto alternatives=generateCurvatureBoundedShortcuts(from,to,radius);
+      for(auto& candidate:alternatives)
+        candidates.push_back(std::move(candidate));
+    }
+  }
   auto straight=straightShortcut(from,to);
   if(!straight.empty())candidates.push_back(std::move(straight));
+  // Test cheaper geometric candidates first. Each is still subjected to the
+  // same full-path strict verifier and finite global work budgets.
+  const auto length=[](const std::vector<MotionSection>& sections) {
+    double sum=0;
+    for(const auto& s:sections)sum+=s.lengthMeters;
+    return sum;
+  };
+  std::stable_sort(candidates.begin(),candidates.end(),
+      [&](const auto& a,const auto& b){return length(a)<length(b);});
   return candidates;
 }
 PlanResult makeVerified(const PlanRequest& req, const PlanResult& source,

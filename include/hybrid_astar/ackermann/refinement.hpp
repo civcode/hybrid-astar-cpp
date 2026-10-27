@@ -16,7 +16,7 @@ struct RefinementOptions {
   std::size_t maxAccepted = 4;            // full-path replacements
   std::size_t maxReplacementSections = 32;
   bool useCurvatureBoundedShortcuts = false; // opt-in fixed-gear LSL/LSR/RSL/RSR
-  double differentialCurveRadiusMeters = 0.75; // CSC radius, not a car turning limit
+  double differentialCurveRadiusMeters = 0.75; // base CSC radius, scaled by .5,1,2,4; not car R_min
   std::size_t maxTotalPoseChecks = 100000; // includes original revalidation
   double minimumCostReductionMeters = 1e-6;
 };
