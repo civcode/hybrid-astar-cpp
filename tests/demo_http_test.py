@@ -64,6 +64,9 @@ def main(exe):
             "footprint margin spinner must step by 0.05 m"
         )
         assert 'id="refine"' in page and "Strict post-path refinement" in page
+        assert 'id="rsDistance"' in page and "RS distance heuristic" in page
+        assert "['ompl','rsDistance','refine'" in script
+        assert "$('ompl').checked=!!caps.ompl" in script
         assert "mecanum||!$('refine').checked" in script, (
             "mecanum only disables curved CSC, not strict holonomic refinement"
         )
@@ -85,6 +88,13 @@ def main(exe):
         assert code == 200 and result["original"]["status"] == "Success"
         assert result["original"]["validated"] is True
         assert result["original"]["heuristicCertifiedAdmissible"] is False
+        assert result["rsDistanceHeuristic"] is False
+        for invalid_rs in (
+            "scenario=open&rsDistance=1&ompl=0",
+            "scenario=open&rsDistance=1&ompl=1&performance=0",
+        ):
+            status, _, invalid_body = get(base + "/api/plan?" + invalid_rs)
+            assert status == 400 and "error" in json.loads(invalid_body), invalid_rs
         assert result["footprintInflationMeters"] == 0.0
         for enabled, configured, expected in (
             ("1", "0.05", 0.05), ("1", "0.1", 0.1), ("0", "0.1", 0.0)

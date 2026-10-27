@@ -23,6 +23,7 @@ struct Options {
   bool footprintInflationEnabled = false;
   double footprintInflationMeters = 0.05; // UI value retained while disabled
   bool performanceHeuristic = true; // grid by default; false = certified Euclidean
+  bool rsDistanceHeuristic = false; // extra RS distance guidance, requires the RS connector
   bool improve = false;
   bool ompl = false;
 };
@@ -30,6 +31,7 @@ struct Outcome {
   ackermann::PlanRequest request;
   ackermann::PlanResult original;
   std::optional<ackermann::RefinementResult> refinement;
+  bool rsDistanceHeuristicEnabled = false; // included in JSON for reproducible experiments
   double elapsedMilliseconds = 0;
 };
 // Throws invalid_argument for unsupported scenarios and invalid pose requests.

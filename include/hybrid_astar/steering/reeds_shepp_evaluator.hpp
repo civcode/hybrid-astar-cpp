@@ -36,10 +36,10 @@ private:
 // By default, keeps the request's chosen heuristic (now obstacle-grid).
 // A true flag forces grid mode and additionally injects RS distance guidance.
 // To retain certified Euclidean guidance, set request.options.heuristicMode
-// explicitly and leave usePerformanceHeuristic false.
+// explicitly and leave useReedsSheppDistanceHeuristic false.
 // Throws invalid_argument for an invalid OMPL turning radius.
 ackermann::PlanResult planWithReedsShepp(ackermann::PlanRequest request,
-                                        bool usePerformanceHeuristic=false);
+                                        bool useReedsSheppDistanceHeuristic=false);
 
 // Opt-in complete planning and post-search refinement with one reusable
 // OMPL evaluator and strictly scoped callbacks. Refinement is attempted only
@@ -51,6 +51,6 @@ struct ReedsSheppRefinementResult {
 ReedsSheppRefinementResult planAndRefineWithReedsShepp(
     ackermann::PlanRequest request,
     ackermann::RefinementOptions refinementOptions = {},
-    bool usePerformanceHeuristic = false);
+    bool useReedsSheppDistanceHeuristic = false);
 
 } // namespace hybrid_astar::steering

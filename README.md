@@ -71,7 +71,7 @@ See [map loading and export semantics](apps/demo/README.md#import-a-pgm-map-and-
 (Shift-click sets goal), adjust headings, replan, compare strict validated
 original/refined routes, and animate the full Ackermann footprint.
 Forward/reverse sections and cost/expansion/time metrics are displayed.
-When the optional OMPL adapter is built, Reeds–Shepp connector controls
+When the optional OMPL adapter is built, the browser's Ackermann configuration defaults to an enabled adaptive Reeds–Shepp connector with obstacle-grid heuristic, without the additional Reeds–Shepp distance heuristic. A separate RS distance checkbox enables that expensive path-quality trade-off explicitly; OMPL-free builds still work without RS. Strict Ackermann refinement now distributes its bounded windows along the route and can compare external RS and native CSC shortcuts simultaneously. Reeds–Shepp connector controls
 are enabled automatically. The executable also supports
 `--once --scenario reverse` for machine-readable CLI JSON.
 See the [app README](apps/demo/README.md) for full usage, API and limitations.

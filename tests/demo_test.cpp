@@ -11,6 +11,9 @@ static void runLegacyAssertions() {
   auto open=run({});
   require(open.original.status==PlanStatus::Success,"open plan success");
   require(!open.original.heuristicCertifiedAdmissible,"default demo uses obstacle grid");
+  require(!Options{}.rsDistanceHeuristic &&
+          toJson(open).find("\"rsDistanceHeuristic\":false")!=std::string::npos,
+          "RS distance must be off by default, including exported configuration");
   Options certifiedOptions;
   certifiedOptions.performanceHeuristic=false;
   const auto certified=run(certifiedOptions);
@@ -34,6 +37,35 @@ static void runLegacyAssertions() {
   inflated.footprintInflationEnabled=false;
   require(run(inflated).request.options.footprintInflationMeters==0,
           "disabling inflation restores original footprint");
+  // The optional distance guidance must never silently activate without the
+  // analytic connector; incompatible combinations are rejected by the API.
+  bool rejectedRs=false;
+  try {Options bad;bad.rsDistanceHeuristic=true;run(bad);}
+  catch(const std::invalid_argument&) {rejectedRs=true;}
+  require(rejectedRs,"RS distance requires explicitly enabled connector");
+  if(capabilitiesJson().find("\"ompl\":true")!=std::string::npos) {
+    Options rs;rs.ompl=true;rs.scenario="reverse";
+    const auto connectorOnly=run(rs);
+    require(connectorOnly.original.status==PlanStatus::Success &&
+            !connectorOnly.rsDistanceHeuristicEnabled,
+            "RS connector defaults to grid guidance without RS distance");
+    require(toJson(connectorOnly).find("\"rsDistanceHeuristic\":false")!=std::string::npos,
+            "connector-only plan is exported as such");
+    rs.rsDistanceHeuristic=true;
+    const auto withDistance=run(rs);
+    require(withDistance.original.status==PlanStatus::Success &&
+            withDistance.rsDistanceHeuristicEnabled,
+            "RS distance can be explicitly enabled");
+    require(toJson(withDistance).find("\"rsDistanceHeuristic\":true")!=std::string::npos,
+            "RS distance opt-in is exported");
+    rs.rsDistanceHeuristic=false;
+    rs.refine=true;rs.curvedRefinement=true;
+    const auto combined=run(rs);
+    require(combined.original.status==PlanStatus::Success &&
+            combined.refinement.has_value() &&
+            combined.refinement->path.status==PlanStatus::Success,
+            "RS and native CSC can be enabled together in Planning Lab");
+  }
   Options reverse;reverse.scenario="reverse";
   auto r=run(reverse);
   require(r.original.status==PlanStatus::Success,"reverse route");

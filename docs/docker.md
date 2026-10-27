@@ -274,3 +274,27 @@ To test overhead and collision-work reductions, run
 `--ackermann-collision-micro` as documented in
 [W6](architecture/w6-hotpath-profiling.md#ackermann-default-cover-and-exact-empty-aabb-bypass-october-2026).
 All are manual opt-in benchmarks, never scheduled in CTest.
+
+## Ackermann RS performance default and independent CSC refinement
+
+The OMPL-enabled Planning Lab preselects adaptive RS connection with grid
+heuristic. Extra per-state RS distance is **off** until the dedicated checkbox
+or `--rs-distance` CLI flag is enabled; `--rs-distance` requires `--ompl`
+and grid guidance (the default). Native CSC and external RS refinement can be
+selected together, using identical strict full-footprint validation and
+weighted cost gates. Ackermann refiner windows now cover intermediate route
+sections within the original attempt and pose-check budgets.
+
+```bash
+BUILD_JOBS=28 TEST_JOBS=4 docker compose build test
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
+  ctest --test-dir build-docker -R 'curved_shortcuts_test|demo_test|ompl_smoke' --output-on-failure
+
+# Ackermann grid + adaptive RS connector (without RS distance)
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
+  ./build-docker/hybrid_astar_demo --once --scenario parking --ompl --refine --curved
+
+# Explicit extra Reeds-Shepp distance heuristic
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
+  ./build-docker/hybrid_astar_demo --once --scenario parking --ompl --rs-distance
+```
