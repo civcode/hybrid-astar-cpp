@@ -37,11 +37,12 @@ about tire slip, roller force, dynamic feasibility or timed actuation.
 ## Compatibility and safety
 
 The default Ackermann and existing differential-drive models retain their
-existing primitives, costs and serialized segment types. Mecanum rejects
-Reeds–Shepp, the Ackermann-only shortcut refiner, distance-only analytic
-heuristic connectors and clearance-weight integration until a model-aware
-variant is validated. The wheel constraints validate *per-primitive constant
-controls*, not acceleration, jerk, traction or execution dynamics.
+existing primitives and serialized segment types. Mecanum rejects
+Reeds–Shepp, CSC arc shortcuts, distance-only analytic heuristic
+connectors and clearance-weight integration. Its **separate, model-aware
+holonomic refinement** is supported as described below. Wheel constraints
+validate constant controls under finite time scaling, not acceleration,
+jerk, traction or execution dynamics.
 
 The collision checker still verifies a **single** planar rigid rectangle,
 using discrete body-motion-adaptive sampling. This does not establish
