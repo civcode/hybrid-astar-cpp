@@ -1,6 +1,6 @@
 # hybrid-astar-cpp
 
-A standalone, high-performance **C++20 Hybrid A*** path-planning library. **Status: initial complete-primitives Ackermann planning vertical slice, with exact filled-footprint pose checks and strict adaptive-sampled final validation. The optional signed OMPL connector and lazy performance heuristic are available but require explicit provider configuration; A focused real OMPL 2.0.2 state-space source integration and its randomized tests now pass; a complete official OMPL package build and continuous swept certification remain unverified/unimplemented.**
+A standalone, high-performance **C++20 Hybrid A*** path-planning library. **Status: initial complete-primitives Ackermann planning vertical slice, with exact filled-footprint pose checks and strict adaptive-sampled final validation. The lazy obstacle-grid performance heuristic is enabled by default (unit weight), with certified Euclidean guidance still selectable; the OMPL signed analytic connector remains optional; A focused real OMPL 2.0.2 state-space source integration and its randomized tests now pass; a complete official OMPL package build and continuous swept certification remain unverified/unimplemented.**
 
 The core is intended to be independent of ROS 2, any single vehicle model, and any single geometric curve family. Initial implementation priorities are differential drive and Ackermann; an ideal mecanum/omnidirectional chassis is the third reference model for testing generic interfaces. A separate trajectory planner/MPC will handle time-parameterization and moving-obstacle prediction.
 
@@ -244,8 +244,8 @@ Seven deterministic planner fixtures now cover reverse approach, three-point
 turns, parallel parking, narrow corridors, U-shaped dead ends, long obstacle
 detours and an impassable sub-vehicle-width gap. They exercise **strict
 independent sampled validation**, result provenance, reproducible search
-diagnostics and explicit budget-limited outcomes. They also compare baseline
-certified Euclidean search against the opt-in noncertified obstacle-grid
+diagnostics and explicit budget-limited outcomes. They explicitly compare
+certified Euclidean search against the now-default noncertified obstacle-grid
 heuristic; an OMPL-enabled build additionally checks Reeds–Shepp.
 
 W6 now seeds the goal tolerance disk using a **bounded grid-cell window**
@@ -270,8 +270,11 @@ identified an invalid dead-end fixture goal and a long-wall heuristic work
 budget that was too small. The corrected reverse escape succeeds; an opt-in
 `performanceHeuristicWeight=1.2` with 20k grid settlements also recovers
 the detour within 8k expansions, with a measurable first-path cost penalty.
-Default certified search and default heuristic weight are unchanged. Benchmarks are opt-in
-and never run through GitHub Actions.
+Since 2026-10-27 the default uses bounded lazy obstacle-grid ordering
+with weight 1.0. Certified Euclidean remains an explicit opt-in, and all
+successful paths still pass the independent strict collision validator.
+Benchmarks are manual and never automatically dispatched to GitHub Actions.
+The full regression matrix for the changed default awaits Docker/CTest verification.
 
 ## Build and test the Ackermann vertical slice
 
@@ -305,7 +308,7 @@ This compares deterministic open-field forward/reverse, distant-doorway,
 opt-in 4/5-disc EDT and experimental clearance scenarios. Record hardware, compiler, build flags and repository commit
 alongside measurements; a single sample is not a performance guarantee.
 
-When OMPL's CMake package is installed, enable the separate steering adapter and its smoke test with `-DHYBRID_ASTAR_ENABLE_OMPL=ON`. OMPL types are not exposed by the public headers. The default OFF builds the entire current six-primitive Ackermann vertical slice. The optional signed RS adapter requires OMPL. Link `hybrid_astar::ompl` and call `hybrid_astar::steering::planWithReedsShepp(request)` for explicit automatic connector wiring; pass `true` to opt into noncertified RS-plus-obstacle-grid ordering. The provider-neutral signed section decoder is in core and is regression-tested without OMPL. The adapter, real OMPL 2.0.2 Reeds–Shepp source implementation and
+When OMPL's CMake package is installed, enable the separate steering adapter and its smoke test with `-DHYBRID_ASTAR_ENABLE_OMPL=ON`. OMPL types are not exposed by the public headers. The default OFF builds the entire current six-primitive Ackermann vertical slice. The optional signed RS adapter requires OMPL. Link `hybrid_astar::ompl` and call `hybrid_astar::steering::planWithReedsShepp(request)` for automatic connector wiring. This respects the request's heuristic setting, which now defaults to obstacle-grid; pass `true` to additionally include RS distance guidance. Set `request.options.heuristicMode=HeuristicMode::CertifiedRegionEuclidean` explicitly for the certified alternative. The provider-neutral signed section decoder is in core and is regression-tested without OMPL. The adapter, real OMPL 2.0.2 Reeds–Shepp source implementation and
 planner/refiner have been tested **together** using a focused manual offline
 CMake bridge; the complete upstream OMPL package/export build remains
 unverified. Use
@@ -331,7 +334,7 @@ OMPL installation/build. See
 [W5 OMPL source verification](docs/architecture/w5-ompl-source-verification.md)
 for the 12,000-case integration matrix and numerical sampling fix.
 
-The initial Ackermann **search key** uses independent 0.25 m XY cells, 5-degree heading bins (72), and incoming gear. The goal accepts independent 0.25 m XY and 10-degree yaw tolerances on the actual reached state. Default costs are 1.00× forward, 1.10× reverse, and +0.50 m for a gear switch. The active planner uses a finite goal-region Euclidean ordering heuristic; a selectable noncertified performance mode uses lazy reverse-Dijkstra obstacle guidance plus an optional injected RS exact-goal distance. The analytic-attempt scheduler uses **search-bin** units and is integrated whenever a native signed analytic connector is supplied. The shipped planner uses exact full-body checks by default; an optional request-local EDT multi-disc prefilter (default **off**) can skip proven-clear search poses, never final validation. Legacy `CheckOptions` defaults to full-footprint, not boundary-only. The optional oriented-rectangle clearance cost is zero by default; bounded validated-incumbent improvement is also opt-in.
+The initial Ackermann **search key** uses independent 0.25 m XY cells, 5-degree heading bins (72), and incoming gear. The goal accepts independent 0.25 m XY and 10-degree yaw tolerances on the actual reached state. Default costs are 1.00× forward, 1.10× reverse, and +0.50 m for a gear switch. The active planner defaults to bounded, lazy reverse-Dijkstra obstacle-grid guidance at weight 1.0. It remains noncertified as a continuous-space cost lower bound. The finite goal-region Euclidean heuristic is available by explicitly selecting `CertifiedRegionEuclidean`; an optional OMPL RS exact-goal distance can augment grid guidance. The analytic-attempt scheduler uses **search-bin** units and is integrated whenever a native signed analytic connector is supplied. The shipped planner uses exact full-body checks by default; an optional request-local EDT multi-disc prefilter (default **off**) can skip proven-clear search poses, never final validation. Legacy `CheckOptions` defaults to full-footprint, not boundary-only. The optional oriented-rectangle clearance cost is zero by default; bounded validated-incumbent improvement is also opt-in.
 
 ## Optional W8 post-search shortcut refinement
 

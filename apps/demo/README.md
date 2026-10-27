@@ -45,7 +45,8 @@ It is not a substitute for the complete OMPL-ON CMake package build.
   separated **blocked** map.
 - Set start/goal world x, y (metres) and yaw (degrees); click on the map for
   the **start**, Shift-click for the **goal**. Angles are editable fields.
-- Optional obstacle-grid heuristic (noncertified performance ordering),
+- Default obstacle-grid heuristic (noncertified performance ordering);
+  uncheck the box to use the certified Euclidean heuristic,
   bounded validated incumbent improvement, post-search refinement, and native
   curvature-bounded CSC shortcuts.
 - Optional Reeds–Shepp analytic connections and combined refinement when
@@ -223,7 +224,8 @@ To calculate a path and print a JSON document without starting the server:
 ./build-demo/hybrid_astar_demo --once --scenario reverse
 ./build-demo/hybrid_astar_demo --once --scenario open \
   --start 10 15 0 --goal 19 16 20 --refine --curved
-./build-demo/hybrid_astar_demo --once --scenario warehouse --performance
+./build-demo/hybrid_astar_demo --once --scenario warehouse
+./build-demo/hybrid_astar_demo --once --scenario warehouse --certified
 ./build-demo/hybrid_astar_demo --once --scenario warehouse --budget 60000
 ```
 
@@ -274,15 +276,20 @@ lower the budget for interactive iteration:
   a `POST /api/plan` form body.
 
 `maxGeneratedNodes` scales to at least `4x` the expanded-node budget.
+The default heuristic is now obstacle-grid with weight 1.0 for all three
+chassis models. The Planning Lab checkbox starts checked. Uncheck it, pass
+`performance=0` through the HTTP API or pass `--certified` via CLI to
+select certified Euclidean guidance. The historical `--performance` /
+`performance=1` inputs remain supported.
 High expansion ceilings can consume significant CPU and RAM, especially
 on impossible maps. Prior performance measurements on older versions do
 not characterize the new holonomic terminal connector or sampling policy.
 Out-of-range or non-integer budgets are rejected with `400` / exit code 2.
 
-Other quality/effort levers are orthogonal: `performance=1` enables the
-noncertified obstacle-grid heuristic, `improve=1` keeps searching for a better
-incumbent after the first validated path, and `refine`/`curved` post-process an
-already validated path.
+Other quality/effort levers are orthogonal: `improve=1` keeps searching
+for a better incumbent after the first validated path, and `refine`/`curved`
+post-process an already validated path. The obstacle-grid heuristic changes
+search ordering, not full-footprint validation or any safety certification.
 
 ## Manual verification
 

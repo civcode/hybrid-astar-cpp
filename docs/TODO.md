@@ -162,10 +162,14 @@ See [priority-queue verification](architecture/w6-priority-queue-verification.md
   box rather than scanning all map cells; preserve free tolerance fringe seeds.
 - [x] Apply request-global reverse Dijkstra settlement budget, finite fallback
   for uncomputed/blocked cells, and default diagonal corner prevention.
-  Expose diagnostic counts and keep certified Euclidean mode unchanged.
-- [ ] Run exact-checkout Catch2 and full installed OMPL/Docker matrix, then
-  gather representative multi-run p50/p95/p99 performance data before
-  enabling the noncertified heuristic by default.
+  Expose diagnostic counts and retain certified Euclidean as an explicit mode.
+- [x] Select bounded lazy obstacle-grid as the default (weight 1.0),
+  using the supplied cross-scenario and warehouse performance evidence.
+  Certified Euclidean remains explicitly selectable for testing and
+  applications requiring an admissible lower-bound heuristic.
+- [ ] Verify the changed default with exact-checkout Catch2 and full
+  OMPL/Docker regression tests; rerun representative multi-repeat profiling-OFF
+  performance/quality trials. No claim of passing tests until executed.
 - [x] Investigate both failures: dead-end's original goal collided with
   its back wall; corrected reverse-escape fixture succeeds. The long detour's
   7k grid-work cap exhausted before producing useful search guidance; 20k
@@ -295,7 +299,7 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Benchmark single-key pruning against feasible-path recovery and post-refinement quality in narrow passages; revisit extra arrival labels only if evidence warrants a separate future decision.
 - [x] Accept OQ-002 geometric length for translation and angular/configuration extent for stationary motion (ADR-0012).
 - [ ] Define only the initial Ackermann fixed-control primitive extent and exact closed-form arc execution contract needed for the first vertical slice (OQ-002). Defer generalized typed extent APIs and OQ-024 downstream speed-profile feasibility/retiming unless a concrete test reveals a blocker.
-- [x] Retain the historical optional **combined RS+obstacle-field noncertified performance mode** alongside the current **certified Euclidean goal-region default**, with truthful reporting (ADRs 0015,0027; current contract supersedes their older default choice).
+- [x] Make the bounded lazy **obstacle-grid heuristic the default** at weight 1.0, with optional OMPL RS distance guidance and explicit certified Euclidean fallback. Historical ADRs 0015/0027 used certified Euclidean as the default; this newer evidence-driven decision supersedes that choice.
 - [x] Accept OQ-007 three-state fixed-curvature Ackermann primitives (ADR-0014).
 - [x] Accept OQ-008 pose-tolerance default of 0.25 m / 10 degrees with optional extra-state goal constraints (ADR-0016).
 - [x] Accept OQ-006 unknown-cell semantics/policy and known-free frontier default (ADR-0017); selectable per request, map data unchanged.

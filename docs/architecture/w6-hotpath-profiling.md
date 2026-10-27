@@ -120,6 +120,28 @@ Repeat with `PROFILE_HOTPATHS=OFF` for overhead-free median/p95
 wall-clock comparisons. Do not mix profiled and unprofiled runs when
 comparing internal stage counters.
 
+## Default heuristic selection (2026-10-27)
+
+Following the user's warehouse and controlled heuristic A/B measurements,
+`PlanOptions` now defaults to `PerformanceReedsSheppAndObstacleGrid` with
+`performanceHeuristicWeight=1.0`. The small-path grid overhead measured in
+seven fixtures is outweighed by the large obstacle-aware expansion reduction
+in the warehouse reproduction. This is a *performance* default, not an
+admissibility or optimality claim. The same exact-collision final validator
+is used in both modes.
+
+Certified Euclidean ordering remains explicitly available:
+
+```cpp
+request.options.heuristicMode =
+    hybrid_astar::ackermann::HeuristicMode::CertifiedRegionEuclidean;
+```
+
+Planning Lab starts with its grid checkbox checked, but allows it to be
+disabled. The CLI accepts `--certified`, and the HTTP API accepts
+`performance=0`. The default-setting change has **not yet been verified**
+by a full Docker/CTest regression run; do not claim all tests pass.
+
 ## Verification status
 
 The expanded benchmark, warehouse connector diagnostics and targeted
