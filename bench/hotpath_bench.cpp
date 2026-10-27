@@ -155,57 +155,68 @@ void collisionMicro(int repeats) {
                       1.5707963267948966})
         poses.push_back({(ix+.31)*map.resolutionMeters,
                          (iy+.19)*map.resolutionMeters,yaw});
-  std::cout<<"benchmark,margin_m,discs,poses,repeats,p50_ms,p95_ms,"
+  std::cout<<"benchmark,margin_m,discs,prefix_enabled,poses,repeats,p50_ms,p95_ms,"
       "exact_calls,disc_clear,collisions,timed_collisions_total,"
-      "candidate_cells,occupied_cells,"
-      "sat_tests,distance_tests,boundary_rejections\n";
+      "candidate_cells,occupied_cells,sat_tests,distance_tests,"
+      "boundary_rejections,empty_region_queries,empty_region_bypasses\n";
   for(double margin:{0.,.5}) {
-    ExactCollisionChecker checker(map,request.occupancy,request.footprint,margin);
-    // The same fixed pose list serves as the oracle for both disc variants.
+    // Always compare with the scanner, independent of prefix/prefilter.
+    const ExactCollisionChecker oracle(
+        map,request.occupancy,request.footprint,margin,false);
     std::vector<PoseCollision> reference;
     reference.reserve(poses.size());
-    for(const auto& pose:poses)reference.push_back(checker.check(pose));
+    for(const auto& pose:poses)reference.push_back(oracle.check(pose));
     for(std::size_t discs:{std::size_t{0},std::size_t{4}}) {
       std::unique_ptr<ConservativeDiscPrefilter> prefilter;
       if(discs)prefilter=std::make_unique<ConservativeDiscPrefilter>(
           map,request.occupancy,request.footprint,discs,margin);
-      std::vector<double> ms;
-      std::size_t timedCollisions=0;
-      for(int run=0;run<repeats;++run) {
-        std::size_t collisionCount=0;
-        const auto t0=std::chrono::steady_clock::now();
-        for(const auto& pose:poses) {
-          if(prefilter&&prefilter->definitelyClear(pose))continue;
-          collisionCount+=checker.check(pose)==PoseCollision::Colliding;
+      for(bool prefix:{false,true}) {
+        // Checker/prefix construction and EDT build are excluded from the
+        // micro-timer; whole-plan benchmarks DO include those costs.
+        const ExactCollisionChecker checker(
+            map,request.occupancy,request.footprint,margin,prefix);
+        std::vector<double> ms;
+        std::size_t timedCollisions=0;
+        for(int run=0;run<repeats;++run) {
+          std::size_t collisionCount=0;
+          const auto t0=std::chrono::steady_clock::now();
+          for(const auto& pose:poses) {
+            if(prefilter&&prefilter->definitelyClear(pose))continue;
+            collisionCount+=checker.check(pose)==PoseCollision::Colliding;
+          }
+          const auto t1=std::chrono::steady_clock::now();
+          timedCollisions+=collisionCount;
+          ms.push_back(std::chrono::duration<double,std::milli>(t1-t0).count());
         }
-        const auto t1=std::chrono::steady_clock::now();
-        timedCollisions+=collisionCount;
-        ms.push_back(std::chrono::duration<double,std::milli>(t1-t0).count());
-      }
-      CollisionWorkCounters work;
-      std::size_t bypassed=0,exactCalls=0,collisions=0;
-      for(std::size_t k=0;k<poses.size();++k) {
-        if(prefilter&&prefilter->definitelyClear(poses[k])) {
-          if(reference[k]!=PoseCollision::Clear)
-            throw std::runtime_error("Disc prefilter bypassed a collision");
-          ++bypassed;
-          continue;
+        CollisionWorkCounters work;
+        std::size_t bypassed=0,exactCalls=0,collisions=0;
+        for(std::size_t k=0;k<poses.size();++k) {
+          if(prefilter&&prefilter->definitelyClear(poses[k])) {
+            if(reference[k]!=PoseCollision::Clear)
+              throw std::runtime_error("Disc prefilter bypassed a collision");
+            ++bypassed;
+            continue;
+          }
+          ++exactCalls;
+          const auto verdict=checker.check(poses[k],&work);
+          if(verdict!=reference[k])
+            throw std::runtime_error("Empty region fast path changed collision");
+          collisions+=verdict==PoseCollision::Colliding;
         }
-        ++exactCalls;
-        const auto verdict=checker.check(poses[k],&work);
-        if(verdict!=reference[k])
-          throw std::runtime_error("Collision counters changed geometry verdict");
-        collisions+=verdict==PoseCollision::Colliding;
+        if(timedCollisions!=collisions*std::size_t(repeats))
+          throw std::runtime_error("Timed and counted collision verdicts differed");
+        std::cout<<"ackermann_warehouse_fixed_poses,"
+                 <<std::fixed<<std::setprecision(3)
+                 <<margin<<','<<discs<<','<<int(prefix)<<','
+                 <<poses.size()<<','<<repeats<<','
+                 <<quantile(ms,.5)<<','<<quantile(ms,.95)<<','
+                 <<exactCalls<<','<<bypassed<<','<<collisions<<','
+                 <<timedCollisions<<','<<work.candidateCells<<','
+                 <<work.occupiedCells<<','<<work.satTests<<','
+                 <<work.distanceTests<<','<<work.boundaryRejections<<','
+                 <<work.emptyRegionQueries<<','
+                 <<work.emptyRegionBypasses<<'\n';
       }
-      if(timedCollisions!=collisions*std::size_t(repeats))
-        throw std::runtime_error("Timing and counted collision verdicts differed");
-      std::cout<<"ackermann_warehouse_fixed_poses,"<<std::fixed<<std::setprecision(3)
-               <<margin<<','<<discs<<','<<poses.size()<<','<<repeats<<','
-               <<quantile(ms,.5)<<','<<quantile(ms,.95)<<','
-               <<exactCalls<<','<<bypassed<<','<<collisions<<','
-               <<timedCollisions<<','<<work.candidateCells<<','<<work.occupiedCells<<','
-               <<work.satTests<<','<<work.distanceTests<<','
-               <<work.boundaryRejections<<'\n';
     }
   }
 }
