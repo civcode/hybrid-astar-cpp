@@ -96,6 +96,12 @@ The new Catch2 and demo HTTP regression tests are **registered, not
 verified as executed** in the full GitHub checkout. Complete CMake,
 Docker, OMPL and sanitizer gates remain pending; see
 [W12 implementation and verification](docs/architecture/w12-mecanum-holonomic.md).
+On `dev`, the default work budget is now **1,000,000 expansions** (up to
+4,000,000 generated nodes). Mecanum has an optional nearby exact-goal
+connection that must pass the full independent strict validator and tighter
+search sampling; the new warehouse failure regression remains unverified
+until the manual CTest suite has run. Higher budgets may increase memory
+and CPU use for unsolvable cases.
 
 ## W11 — model-policy Hybrid A* search kernel
 

@@ -261,22 +261,23 @@ every `/api/plan` and `--once` response reports the effective
 `limits.maxFinalPoseChecks`, and the web UI shows them as **Expansion limit**
 next to **Expansions**.
 
-Per-scenario defaults are small on purpose (`15000` expansions, `25000` for
-`warehouse` and imported maps, `5000` for the unreachable-wall fixture). Raise
-them per request:
+The **default is now 1,000,000 expanded nodes** for all scenarios and for
+the library API, with an independent ceiling of 4,000,000 generated nodes.
+This permits long detours without requiring manual per-scenario overrides.
+It is a work ceiling, not a promise of a path or a runtime limit. You can
+lower the budget for interactive iteration:
 
-- **Browser:** *Search budget* field under Planning Options. Leave it empty to
-  keep the scenario default; any value from `100` to `1000000` overrides it.
+- **Browser:** *Search budget* initially reads `1000000`; edit to any integer
+  from `100` to `1000000`. Clearing the field keeps the library default.
 - **CLI:** `--budget EXPANSED_NODES` (same `100..1000000` range).
 - **HTTP:** `GET /api/plan?scenario=warehouse&budget=60000` or the same field in
   a `POST /api/plan` form body.
 
-`maxGeneratedNodes` scales with the requested budget (at least `4x`, never
-below the scenario default), so the frontier ceiling cannot silently become the
-real limit. Costs are bounded but real: an exhaustible-but-unsolvable fixture
-at `budget=1000000` measures about 2.6 s and 290 MB RSS in the Release demo
-binary, while a solved `warehouse` request stays near 20 ms regardless of the
-limit. Out-of-range or non-integer budgets are rejected with `400` / exit code 2.
+`maxGeneratedNodes` scales to at least `4x` the expanded-node budget.
+High expansion ceilings can consume significant CPU and RAM, especially
+on impossible maps. Prior performance measurements on older versions do
+not characterize the new holonomic terminal connector or sampling policy.
+Out-of-range or non-integer budgets are rejected with `400` / exit code 2.
 
 Other quality/effort levers are orthogonal: `performance=1` enables the
 noncertified obstacle-grid heuristic, `improve=1` keeps searching for a better

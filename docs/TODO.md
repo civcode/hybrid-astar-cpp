@@ -33,9 +33,16 @@ and steering actuator modeling remain future work.
   kernel and strict collision checker, no Ackermann steering branches.
 - [x] Expose mecanum selection and holonomic path JSON in Planning Lab,
   browser and CLI, with Catch2 and HTTP regression tests registered.
+- [x] Raise the library, demo scenarios and browser default expansion ceiling
+  to 1,000,000, with up to 4,000,000 generated nodes; keep explicit
+  per-request budget overrides.
+- [x] Introduce bounded, independently validated mecanum exact terminal
+  connectors, strict-resolution search samples and positive yaw-cost lower bound.
+- [x] Register off-lattice exact-terminal and reported warehouse obstacle
+  regressions in W12 Catch2.
 - [ ] Execute the **exact-checkout** Catch2/CTest, Docker-OMPL, sanitizer and
-  browser verification matrix; none of the registered W12 tests should be
-  reported as passed until executed.
+  browser verification matrix; the new W12 regressions are **not yet verified**
+  as passed. Profile high-expansion/no-path search memory and wall-clock costs.
 - [ ] Add model-aware optimization, actuator/slip verification and eventually
   generalized multibody state and geometry, only with separate acceptance
   evidence.

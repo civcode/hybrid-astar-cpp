@@ -48,6 +48,46 @@ using discrete body-motion-adaptive sampling. This does not establish
 continuous swept collision freedom, compound multibody collision or
 actuator safety.
 
+## Exact-goal and warehouse follow-up (2026-10-27)
+
+The previous 14 fixed-length mecanum primitives could search many quantized
+states without finding a strictly validated path to an arbitrary continuous
+XY/yaw goal. A stricter final-collision sampler could also reject an edge
+accepted at coarse search resolution, allowing the cheaper but invalid
+single-label predecessor to suppress a viable alternative.
+
+The planner now permits a **model-provided, bounded terminal connection**
+within 1 metre of the goal: translation and stationary rotation in either
+order. Wheel-rate feasibility is checked by slowing diagonal translations
+if needed; both orders must still pass independent full-path endpoint,
+continuity, footprint-collision and sample-budget validation. At most
+32 nearby frontier states get a connection attempt. This is **not** a
+continuous swept-safety certificate or time-parameterized controller plan.
+The C++ runtime policy adapter forwards these optional capabilities so W11
+native/adapter equivalence is retained; unrelated model policies are unchanged.
+
+Mecanum's search-level footprint sampling now uses at least the final
+checker resolution so near-contact edges fail before occupying their search
+keys. Its heuristic adds a certified lower bound for the remaining heading
+change, weighted by the positive geometric turn cost. The optional
+noncertified obstacle-grid total settlement budget is now 100,000.
+
+The library, built-in Planning Lab scenarios and browser control now
+default to **1,000,000 expansions** (and 4,000,000 generated-node maximum).
+This increases possible computation and memory expenditure on impossible
+maps, so manual run budgets should be selected based on the investigation.
+
+The W12 Catch2 suite now includes (a) an arbitrary off-lattice pose/yaw
+with independent segment checks and runtime adapter equivalence, and
+(b) the warehouse obstacle/pose reproduction from the reported failure:
+start (4.77, 5.62, 0°), goal (31.01, 3.41, −90°).
+
+**Verification pending:** These new revisions have been pushed on `dev`,
+but the full exact-checkout build, warehouse regression, performance
+benchmarks and sanitizer tests have not been run here. Do not treat
+the new goal-connection behavior as proven until the manual Quick/CTest
+suite passes. No GitHub Actions was triggered by this work.
+
 ## Tests and release gate
 
 `w12_mecanum_test` has been registered under Catch2/CTest:
