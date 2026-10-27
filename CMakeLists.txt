@@ -183,6 +183,11 @@ if(HYBRID_ASTAR_BUILD_BENCHMARKS)
     add_executable(hybrid_astar_warehouse_rs_ab bench/warehouse_rs_ab.cpp)
     target_include_directories(hybrid_astar_warehouse_rs_ab PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(hybrid_astar_warehouse_rs_ab PRIVATE hybrid_astar::ompl)
+    # 100 deterministic randomized start/goal pairs, both RS configurations.
+    # This expensive benchmark is manual only, not registered with CTest.
+    add_executable(hybrid_astar_warehouse_rs_randomized bench/warehouse_rs_randomized.cpp)
+    target_include_directories(hybrid_astar_warehouse_rs_randomized PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(hybrid_astar_warehouse_rs_randomized PRIVATE hybrid_astar::ompl)
   endif()
 endif()
 
