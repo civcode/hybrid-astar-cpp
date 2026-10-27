@@ -1,3 +1,19 @@
+## Ackermann collision-work measurement matrix — 2026-10-27
+
+- [x] Add optional exact collision work counters for AABB grid cells
+  visited, occupied cells reaching SAT, Euclidean distance checks,
+  and finite-boundary rejects; keep ordinary checks unchanged by default.
+- [x] Add opt-in Ackermann factorial matrix: Euclidean/obstacle-grid
+  × 0/0.50 m inflation × 0/4 covering discs, preserving old CSV columns.
+- [x] Separate uninstrumented wall-clock results from work counting
+  results; enforce deterministic prefilter outcome equivalence.
+- [x] Extend narrow/rotated conservative-cover tests with the inflated
+  Ackermann rectangle and counter invariants.
+- [ ] Run CTest and manual Docker CSV benchmarks locally, quantify
+  exact pose calls, cells scanned per call, grid heuristics and time.
+- [ ] Evaluate enabling discs by default only after cross-model safety
+  and reproducible uninstrumented A/B performance results.
+
 ## Diagonal differential refinement / Ackermann warehouse profiling — 2026-10-27
 
 - [x] Add multi-radius nonstationary CSC candidates, ordered by length,

@@ -250,6 +250,21 @@ is rechecked against occupied map cells and the configured geometric
 inflation. It retains the original valid path unless weighted cost decreases.
 Native CSC is deliberately disabled for mecanum.
 
+### Profiling Ackermann collision work
+
+The planner can collect **opt-in** collision broad-phase counters
+(`PlanOptions::collectCollisionWork=true`) without changing the
+rectangle's exact collision semantics. The counters record candidate
+grid cells visited, occupied cells reaching SAT, continuous geometric
+distance evaluations and map-boundary rejections. The default is OFF
+because incrementing counters adds overhead. The manual
+`hybrid_astar_hotpath_bench --ackermann-collision-ab` and
+`--ackermann-collision-work` modes compare the same warehouse poses
+for Euclidean vs obstacle-grid heuristic, 0 vs 0.50 m inflation, and
+no prefilter vs 4 covering discs. Timing and counting runs are
+intentionally separated. See the
+[controlled experiment](docs/architecture/w6-hotpath-profiling.md#ackermann-collision-broad-phase-and-factorial-ab-manual-october-2026).
+
 ### Differential-drive path smoothing (manual opt-in)
 
 Diagonal-route CSC smoothing can now try 0.375, 0.75, 1.5 and 3.0 m

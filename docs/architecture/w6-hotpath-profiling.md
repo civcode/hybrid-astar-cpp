@@ -236,3 +236,93 @@ supported demo `--ompl` or OMPL hard-case benchmark for analytic
 connector comparisons. No measured results have been collected
 for these new fixtures yet.
 
+
+## Ackermann collision broad-phase and factorial A/B (manual, October 2026)
+
+The **same full rectangular** Ackermann collision footprint is used with
+or without prefiltering. Four conservative covering discs can only prove
+the occupied grid is clear of the entire inflated rectangle; ambiguous
+poses fall back to the existing SAT + continuous shape-to-cell distance
+checker. No collision decision, path objective, or validation rule changes.
+
+The new opt-in `PlanOptions::collectCollisionWork` (default **false**)
+aggregates request-local counts in `PlanResult::diagnostics.collisionWork`:
+
+- `candidateCells`: map cells actually visited in the inflated body AABB;
+  excludes grid-distance preprocessing and cells after an early collision
+- `occupiedCells`: visited cells that passed the occupancy threshold;
+  equals `satTests` because every such cell reaches the rectangle SAT
+- `distanceTests`: continuous square-to-rectangle distance evaluations
+  after an SAT non-overlap, performed only for a positive inflation margin
+- `boundaryRejections`: checker calls rejected at the finite map boundary
+  before the occupancy-grid scan
+
+Counters include collision checker calls from the search, start and strict
+final validation (including exact fallbacks); prefilter-clear samples
+**do not** count as an exact check. These are integer **work counts**, not
+nanosecond timings or counts of complete robot motions. Some full-path
+mecanum postprocessing or separately invoked refiners are outside the
+planner's aggregate. All are zero when `collectCollisionWork=false`.
+Recording each visited cell adds overhead, so do **not** use the work
+counting mode for unbiased timing A/B.
+
+The manual hot-path benchmark now supports two equivalent, controlled
+2×2×2 experiment matrices on the same exact warehouse request:
+
+- heuristic: certified Euclidean vs obstacle-grid (weight 1.0)
+- footprint inflation: 0.0 vs 0.50 m
+- conservative-disc prefilter: 0 vs 4 discs
+
+Each matrix automatically asserts **identical** status, expansions,
+generated nodes, number of path sections and weighted cost for its
+prefilter-off/on pair. Results under different heuristics or margins
+can legitimately differ. The default fixtures are the photographed
+successful side-to-side Ackermann case and difficult corner-to-corner
+case. Filter by a fixture name to reduce the number of runs.
+
+```bash
+# Wall clock, instrumentation OFF. Output redirects on the host.
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-collision-ab 3 1000000 \
+  ack_across_first_margin_050 > ack_collision_timing.csv
+
+# Work counts, separate measurement on identical scenario and variant matrix.
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-collision-work 3 1000000 \
+  ack_across_first_margin_050 > ack_collision_work.csv
+
+# Corner-to-corner case: potentially reaches the expansion limit.
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-collision-work 1 1000000 \
+  ack_corner_margin_000 > ack_collision_corner.csv
+```
+
+With no case-name filter, each mode executes **both distinct route
+configurations** (16 matrix rows; repeat count applies to every row).
+The printed `scenario` is the original pose pair; read
+`footprint_margin_m` and `heuristic` and `variant` to know the
+**actually applied** experimental settings. The original far-corner
+screenshot's inflation was unknown, which is why both zero and 0.50 m
+are tested. The CSV schema appends
+`collision_work_enabled,collision_candidate_cells,collision_occupied_cells,
+collision_sat_tests,collision_distance_tests,collision_boundary_rejections`
+to all pre-existing columns.
+
+Interpretation: `candidate_cells / exact_collision_pose_calls` estimates
+the **observed** grid broad-phase scan per exact checker invocation. The
+mean includes rejected poses that exit early and checker calls that exit
+at the map boundary. `distance_tests / exact_collision_pose_calls`
+quantifies additional exact distance work introduced by inflation. Compare
+`disc_clear` with `disc_exact_fallback` and count reductions between
+disc 0 and 4. Compare `expanded`, `generated`, and grid heuristic
+settlements between Euclidean and grid-guided modes to identify search
+effort separately from per-collision cost.
+
+`profile_timers_on` remains a separate flag for the existing nested
+hotpath clock timers, which are enabled by the CMake profile build
+option. This experiment needs neither profiled clocks nor a CTest
+registration. No timing or speedup conclusions are asserted until
+real CSVs are collected.
