@@ -350,3 +350,80 @@ hotpath clock timers, which are enabled by the CMake profile build
 option. This experiment needs neither profiled clocks nor a CTest
 registration. No timing or speedup conclusions are asserted until
 real CSVs are collected.
+ 
+## Ackermann default cover and exact empty-AABB bypass (October 2026)
+
+Four-disc filtering is now the automatic Ackermann default while remaining
+disabled by default for differential-drive/mecanum; the planner's explicit
+`discPrefilterCount=0` disables it for controlled experiments.
+`discPrefilterCount=PlanOptions::AutomaticDiscPrefilter` resolves the
+model-specific default. The obstacle-grid heuristic remains the default.
+
+The optional but Ackermann-default **occupancy prefix sum** is an
+`(width+1) × (height+1)` summed-area table built once per request's
+checker from the immutable map and effective occupancy policy. Unknown
+cells are blocked iff the policy says so; threshold equality is free.
+A rotated rectangular robot's *inflated* axis-aligned map-grid bounding
+box is queried in O(1) after checking its finite-map boundary. A box
+with **zero** blocked cells guarantees that exact rectangle-vs-cell
+collision is impossible. Otherwise the original exact SAT and
+positive-margin Euclidean cell-distance checks are used, unchanged.
+No false negative is allowed; collision checking stays sampled at the
+same spatial/body-point density as before.
+
+The option `useEmptyRegionPrefixSum` defaults on for Ackermann only;
+disable it explicitly to benchmark the old full scanner. Direct standalone
+`ExactCollisionChecker` instances default to no table, retaining the
+original lightweight construction unless explicitly requested.
+The table takes O(width×height) memory and build time. Unlike the
+precomputed conservative distance transform, its construction is simple
+but can be wasteful on very short queries. For that reason a dedicated
+**easy-map** A/B was added rather than assuming a universal speedup.
+
+Experiment 1 — easy, open map, includes *whole planner* and precomputation
+cost for both the prefilter and the prefix sum:
+
+```bash
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-easy-ab 7 > ack_easy_ab.csv
+```
+
+Experiment 2 — same Ackermann warehouse pose and margin, prefix on/off,
+both with and without four discs. Work counters are enabled in both arms,
+so use this mainly for exact candidate-cell work counts and within-mode
+timing comparisons, not timing versus noninstrumented earlier CSV files:
+
+```bash
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-empty-region-ab 3 1000000 \
+  ack_across_first_margin_050 > ack_prefix_ab.csv
+```
+
+Experiment 3 — identical fixed poses independent of heuristic/search.
+Now includes **prefix enabled** as a fourth matrix dimension;
+its timing loops exclude checker construction, while whole-plan
+benchmarks include it:
+
+```bash
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-collision-micro 7 > ack_prefix_micro.csv
+```
+
+The legacy `--ackermann-collision-ab` /
+`--ackermann-collision-work` modes still explicitly turn the prefix
+optimization OFF to keep historical CSVs comparable, while varying
+heuristics, inflation, and disc covers as before.
+All benchmark CSV columns are preserved, with added
+`effective_disc_count`, `empty_region_prefix_enabled`,
+`empty_region_queries` and `empty_region_bypasses`.
+The prefix mode asserts the same status, expansions, generated nodes,
+sections and weighted path cost as the original scan, and refuses
+any prefix run that increases the number of actual grid-cell visits.
+
+Results for the *new* prefix-sum optimization have not yet been
+measured in Docker; retaining the toggle makes it easy to disable
+if the overhead outweighs the saved scans.
+

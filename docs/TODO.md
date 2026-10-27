@@ -1,3 +1,21 @@
+## Ackermann default collision fast paths — 2026-10-27
+
+- [x] Make four covering discs the Ackermann default; keep explicit
+  `discPrefilterCount=0` off and default other drive models unchanged.
+- [x] Retain obstacle-grid heuristic as the planning default.
+- [x] Implement immutable-policy-aware blocked-cell prefix sums for exact
+  zero-occupied-cell inflated-AABB bypass after map boundary checks.
+- [x] Preserve full rectangle SAT and Euclidean geometric inflation
+  whenever the occupied cell AABB is nonempty.
+- [x] Extend strict collision work counters with empty-region query/bypass
+  measurements, and expose effective defaults in demo JSON.
+- [x] Add equivalence regressions for occupancy policies, rotations,
+  inflated geometry and cross-model default resolution.
+- [x] Add easy-map, warehouse and fixed-pose prefix enabled/disabled
+  A/B benchmarks without adding costly workloads to CTest.
+- [ ] Run full Docker/CTest suite and gather the three new CSVs to
+  validate net speedup versus memory/setup overhead on easy and hard maps.
+
 ## Ackermann collision-work measurement matrix — 2026-10-27
 
 - [x] Add optional exact collision work counters for AABB grid cells

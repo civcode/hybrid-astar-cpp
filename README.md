@@ -218,7 +218,9 @@ Warehouse runs share the off-lattice mecanum CTest fixture and are manual
 because a 1M-expansion run may be expensive. The CSV now exposes exact-goal
 connector attempts/strict rejections and grid settlements/fallbacks.
 Four-disc direct-checker implication tests cover rotated maps, contacts,
-narrow gaps and mecanum. The default prefilter stays OFF pending validation.
+narrow gaps and mecanum. The default prefilter is now **four discs for Ackermann**
+and **off for differential drive and mecanum**; pass
+`request.options.discPrefilterCount=0` to explicitly disable it.
 
 ### Avoiding unnecessary in-place rotations
 
@@ -249,6 +251,45 @@ shortcuts do not generate a stationary spin; every full replacement route
 is rechecked against occupied map cells and the configured geometric
 inflation. It retains the original valid path unless weighted cost decreases.
 Native CSC is deliberately disabled for mecanum.
+
+### Ackermann default collision acceleration
+
+Ackermann now uses **four conservative cover discs** by default, based on
+warehouse A/B measurements showing about 2.4× faster planning at 0.50 m
+inflation with the obstacle-grid heuristic and identical validated paths.
+The final collision checker still evaluates the actual oriented rectangle;
+the discs can only skip provably clear *search* poses.
+
+`PlanOptions::discPrefilterCount` now defaults to
+`PlanOptions::AutomaticDiscPrefilter`: **four** for Ackermann, **zero**
+for differential drive and mecanum. Explicitly set `0` to turn discs off,
+or `1..64` to use a particular cover count regardless of the model.
+`PlanDiagnostics::discPrefilterCountUsed` records the resolved value.
+
+An additional Ackermann broad-phase optimization is enabled by default:
+`PlanOptions::useEmptyRegionPrefixSum=true`. The exact checker constructs
+a summed-area table of *blocked occupancy cells* using the request's
+unknown-cell policy and occupancy threshold. After checking finite map
+boundaries, if the entire **inflated, rotated robot AABB** contains no
+blocked cells, collision checking returns clear immediately. When any
+blocked cells are present, the original SAT and exact Euclidean margin
+checks still run. This optimization does **not** raster-dilate the
+footprint, approximate rounded corners, or weaken strict path validation.
+
+Set `useEmptyRegionPrefixSum=false` to compare the historical full-cell
+scanner; it is applied only to the Ackermann model during planning.
+Standalone `ExactCollisionChecker` calls preserve their historical
+behavior by default and can opt in with their fifth constructor argument.
+The opt-in collision work profiler now additionally reports
+`emptyRegionQueries` and `emptyRegionBypasses`. The Planning Lab JSON
+reports the effective disc count and whether the prefix-sum acceleration
+was used.
+
+We added three manual A/B benchmark modes (not CTest workloads):
+`--ackermann-empty-region-ab` for real search, 
+`--ackermann-collision-micro` for identical poses, and
+`--ackermann-easy-ab` to catch overhead regressions on easy open maps.
+See [W6 details](docs/architecture/w6-hotpath-profiling.md#ackermann-default-cover-and-exact-empty-aabb-bypass-october-2026).
 
 ### Profiling Ackermann collision work
 
@@ -438,7 +479,7 @@ OMPL installation/build. See
 [W5 OMPL source verification](docs/architecture/w5-ompl-source-verification.md)
 for the 12,000-case integration matrix and numerical sampling fix.
 
-The initial Ackermann **search key** uses independent 0.25 m XY cells, 5-degree heading bins (72), and incoming gear. The goal accepts independent 0.25 m XY and 10-degree yaw tolerances on the actual reached state. Default costs are 1.00× forward, 1.10× reverse, and +0.50 m for a gear switch. The active planner defaults to bounded, lazy reverse-Dijkstra obstacle-grid guidance at weight 1.0. It remains noncertified as a continuous-space cost lower bound. The finite goal-region Euclidean heuristic is available by explicitly selecting `CertifiedRegionEuclidean`; an optional OMPL RS exact-goal distance can augment grid guidance. The analytic-attempt scheduler uses **search-bin** units and is integrated whenever a native signed analytic connector is supplied. The shipped planner uses exact full-body checks by default; an optional request-local EDT multi-disc prefilter (default **off**) can skip proven-clear search poses, never final validation. Legacy `CheckOptions` defaults to full-footprint, not boundary-only. The optional oriented-rectangle clearance cost is zero by default; bounded validated-incumbent improvement is also opt-in.
+The initial Ackermann **search key** uses independent 0.25 m XY cells, 5-degree heading bins (72), and incoming gear. The goal accepts independent 0.25 m XY and 10-degree yaw tolerances on the actual reached state. Default costs are 1.00× forward, 1.10× reverse, and +0.50 m for a gear switch. The active planner defaults to bounded, lazy reverse-Dijkstra obstacle-grid guidance at weight 1.0. It remains noncertified as a continuous-space cost lower bound. The finite goal-region Euclidean heuristic is available by explicitly selecting `CertifiedRegionEuclidean`; an optional OMPL RS exact-goal distance can augment grid guidance. The analytic-attempt scheduler uses **search-bin** units and is integrated whenever a native signed analytic connector is supplied. The shipped planner uses exact full-body checks by default; a request-local EDT multi-disc prefilter (default **four discs for Ackermann**, off for the other two models) can skip proven-clear search poses, never final validation. Legacy `CheckOptions` defaults to full-footprint, not boundary-only. The optional oriented-rectangle clearance cost is zero by default; bounded validated-incumbent improvement is also opt-in.
 
 ## Optional W8 post-search shortcut refinement
 

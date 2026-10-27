@@ -264,3 +264,13 @@ For isolated collision-check cost without search-expansion confounding,
 run `--ackermann-collision-micro 5` instead. This uses identical poses
 for 0/0.50 m inflation with zero/four discs, measures lookup/check time
 without counter overhead, and collects SAT/distance work separately.
+
+### Ackermann new defaults and prefix-sum comparison
+
+Ackermann now uses four discs and the exact empty-region prefix-sum
+broad phase by default; other models preserve their old prefilter defaults.
+To test overhead and collision-work reductions, run
+`--ackermann-easy-ab`, `--ackermann-empty-region-ab` or
+`--ackermann-collision-micro` as documented in
+[W6](architecture/w6-hotpath-profiling.md#ackermann-default-cover-and-exact-empty-aabb-bypass-october-2026).
+All are manual opt-in benchmarks, never scheduled in CTest.
