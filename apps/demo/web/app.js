@@ -336,7 +336,11 @@ new ResizeObserver(draw).observe(canvas);
 (async()=>{
   resetScenario();$('curved').disabled=true;
   try {const caps=await (await fetch('/api/capabilities')).json();
-    modelCapabilities=caps;syncModelOptions();
+    modelCapabilities=caps;
+    // OMPL-equipped Ackermann Planning Lab defaults to grid + adaptive RS;
+    // RS distance remains a separate, unchecked quality/compute trade-off.
+    $('ompl').checked=!!caps.ompl&&$('model').value==='ackermann';
+    syncModelOptions();
     $('omplInfo').textContent=caps.ompl?'(available for Ackermann)':'(build without OMPL)';
     if(caps.customMap) {
       $('customOption').hidden=false;
