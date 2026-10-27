@@ -16,6 +16,16 @@ static void runLegacyAssertions() {
   {
     auto m=map();PlanRequest q;
     q.map=m;q.start={20,20,0};q.goal={18,20,0};
+    // First verify the public default on this basic reverse maneuver.
+    const auto grid=plan(q);
+    require(grid.status==PlanStatus::Success &&
+            !grid.heuristicCertifiedAdmissible,
+            "default obstacle-grid reverse plan succeeds");
+    require(grid.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,
+            "default obstacle-grid reverse plan is independently validated");
+    // Exact primitive/gear assertions are historical certified-mode fixtures.
+    // Changing ordering may select a different strictly validated path.
+    q.options.heuristicMode=HeuristicMode::CertifiedRegionEuclidean;
     auto result=plan(q);
     require(result.status==PlanStatus::Success,"primitive-only backward parking");
     require(result.finalGear==Gear::Reverse&&result.reverseLengthMeters>1.5,
@@ -26,6 +36,15 @@ static void runLegacyAssertions() {
     auto m=map();PlanRequest q;
     q.map=m;q.start={20,20,0};q.goal={18,21,0};
     q.options.maxExpansions=10000;
+    const auto grid=plan(q);
+    require(grid.status==PlanStatus::Success &&
+            !grid.heuristicCertifiedAdmissible,
+            "default obstacle-grid parking reaches goal");
+    require(grid.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,
+            "default obstacle-grid parking is independently validated");
+    // The number of cusps is specific to the old Euclidean search ordering;
+    // it is NOT a required property of every feasible parking solution.
+    q.options.heuristicMode=HeuristicMode::CertifiedRegionEuclidean;
     auto result=plan(q);
     require(result.status==PlanStatus::Success,"primitive-only multi-cusp parking");
     require(result.gearChangeSectionIndices.size()>=2,"two or more parking direction changes");
