@@ -4,6 +4,7 @@
 #include <memory>
 #include <numbers>
 #include <vector>
+#include <string_view>
 #include <initializer_list>
 
 using namespace hybrid_astar;
