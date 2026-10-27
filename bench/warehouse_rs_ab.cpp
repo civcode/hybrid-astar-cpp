@@ -110,6 +110,11 @@ int main(int argc,char** argv) {
         const auto& d=result.diagnostics;
         if(pathCalls!=d.analyticAttempts)
           throw std::runtime_error("Analytic callback count differs from planner diagnostics");
+        if((config.mode==Mode::GridOnly && (pathCalls!=0||distanceCalls!=0)) ||
+           (config.mode!=Mode::GridOnly && pathCalls==0) ||
+           (config.mode!=Mode::ConnectorAndDistance && distanceCalls!=0) ||
+           (config.mode==Mode::ConnectorAndDistance && distanceCalls==0))
+          throw std::runtime_error("RS callbacks do not match selected A/B/C mode");
         std::cout<<config.name<<','<<repeat+1<<','<<budget<<','
           <<statusName(result.status)<<','<<terminationName(result.terminationReason)<<','
           <<std::fixed<<std::setprecision(3)<<elapsed<<','
