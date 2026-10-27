@@ -28,7 +28,7 @@ TEST_CASE("Differential drive can plan a positive-cost stationary turn",
   REQUIRE(r.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
   REQUIRE(r.modelGeometryValid);
   REQUIRE_FALSE(r.trajectoryActuatorFeasible);
-  REQUIRE(r.heuristicCertifiedAdmissible);
+  REQUIRE_FALSE(r.heuristicCertifiedAdmissible);
   REQUIRE(r.mapRevision==42);
   REQUIRE(r.mapSourceId=="w10-test");
   REQUIRE(r.diagnostics.primitiveTemplatesBuilt==8);

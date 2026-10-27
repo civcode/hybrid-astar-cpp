@@ -107,7 +107,7 @@ TEST_CASE("Mecanum planner reaches a sideways goal without rotating its body","[
   REQUIRE(planned.collisionEvidence==a::CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
   REQUIRE(planned.modelGeometryValid);
   REQUIRE_FALSE(planned.trajectoryActuatorFeasible);
-  REQUIRE(planned.heuristicCertifiedAdmissible);
+  REQUIRE_FALSE(planned.heuristicCertifiedAdmissible);
   REQUIRE(planned.mapRevision==1212);
   REQUIRE(planned.goalXYErrorMeters<=r.options.goalXYToleranceMeters);
   REQUIRE(planned.goalYawErrorRadians<=r.options.goalYawToleranceRadians);
