@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -49,13 +50,16 @@ struct CollisionWorkCounters {
   std::uint64_t satTests = 0;       // rectangle-vs-square intersection checks
   std::uint64_t distanceTests = 0;  // exact continuous margin checks after SAT misses
   std::uint64_t boundaryRejections = 0; // poses rejected at map boundary
+  std::uint64_t emptyRegionQueries = 0; // occupancy-prefix-sum AABB tests
+  std::uint64_t emptyRegionBypasses = 0; // AABBs proven fully traversable
 };
 // Construction validates the ENTIRE immutable snapshot and policy once.
 // Contact (including map boundary contact) counts as collision.
 class ExactCollisionChecker {
 public:
   ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy,
-                        Footprint footprint, double inflationMeters = 0.0);
+                        Footprint footprint, double inflationMeters = 0.0,
+                        bool useEmptyRegionPrefixSum = false);
   PoseCollision check(const Pose2D& pose,CollisionWorkCounters* work=nullptr) const;
   double maxBodyRadius() const noexcept;
 private:
@@ -63,6 +67,9 @@ private:
   OccupancyPolicy policy_;
   Footprint footprint_;
   double inflationMeters_ = 0.0;
+  // (w+1)*(h+1) summed occupancy. Empty for the legacy SAT-only scanner.
+  std::vector<std::size_t> blockedPrefix_;
+  std::size_t prefixPitch_ = 0;
   double originCos_, originSin_; // map-frame rotation reused for every pose check
 };
 
@@ -130,7 +137,12 @@ struct PlanOptions {
   double footprintInflationMeters = 0.0;
   double clearanceWeight = 0.0; // zero by default: equivalent-meter integral
   double clearanceInfluenceRadiusMeters = 0.40;
-  std::size_t discPrefilterCount = 0; // 0=off, optionally benchmark 4 or 5
+  // Automatic default = four cover discs for Ackermann, none for the other
+  // models. Set 0 explicitly to disable or 1..64 to override for any model.
+  static constexpr std::size_t AutomaticDiscPrefilter =
+      std::numeric_limits<std::size_t>::max();
+  std::size_t discPrefilterCount = AutomaticDiscPrefilter;
+  bool useEmptyRegionPrefixSum = true; // Ackermann only; 0-occupancy AABB bypass
   bool collectCollisionWork = false; // opt-in broad-phase counters; adds overhead
   double minimumTurningRadiusMeters = 4.0;
   double goalXYToleranceMeters = 0.25;
@@ -200,6 +212,7 @@ struct PlanDiagnostics {
   std::size_t terminalConnectionAttempts = 0, terminalCandidates = 0;
   std::size_t terminalValidated = 0, terminalRejected = 0;
   std::size_t mecanumSpinShortcutsAttempted = 0, mecanumSpinShortcutsAccepted = 0;
+  std::size_t discPrefilterCountUsed = 0; // resolved after model-specific default
   std::size_t discDefinitelyClear = 0, discExactFallback = 0;
   std::size_t clearanceSamples = 0;
 };

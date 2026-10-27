@@ -77,7 +77,8 @@ void validateOptions(const PlanOptions& o) {
       o.maxSamplesPerSection<2 || o.maxFinalSamplesPerSection<2 ||
       o.maxTotalFinalPoseChecks==0 || o.maxExpansions==0 || o.maxGeneratedNodes==0 ||
       o.searchLabelReserve>o.maxGeneratedNodes ||
-      o.discPrefilterCount>64 ||
+      (o.discPrefilterCount!=PlanOptions::AutomaticDiscPrefilter &&
+       o.discPrefilterCount>64) ||
       (o.gridQueueMode!=OpenQueueMode::BinaryLazy &&
        o.gridQueueMode!=OpenQueueMode::FourAryLazy &&
        o.gridQueueMode!=OpenQueueMode::IndexedBinary &&
@@ -451,7 +452,8 @@ void removeAvoidableMecanumSpins(const PlanRequest& request,
 } // namespace
 
 ExactCollisionChecker::ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy,
-                                             Footprint footprint,double inflationMeters)
+                                             Footprint footprint,double inflationMeters,
+                                             bool useEmptyRegionPrefixSum)
   : map_(map), policy_(policy), footprint_(footprint), inflationMeters_(inflationMeters),
     originCos_(std::cos(map.origin.yaw)),originSin_(std::sin(map.origin.yaw)) {
   validateMap(map_,policy_); validateFootprint(footprint_);
@@ -460,6 +462,25 @@ ExactCollisionChecker::ExactCollisionChecker(const MapSnapshot& map, OccupancyPo
   if (policy_.unknown==UnknownPolicy::Reject &&
       std::find(map_.cells.begin(),map_.cells.end(),static_cast<std::int8_t>(-1))!=map_.cells.end())
     throw std::domain_error("Unknown map rejected");
+  if(useEmptyRegionPrefixSum) {
+    // Build once per immutable map snapshot and occupancy policy.
+    // Unknown policy and maxTraversableOccupancy follow blocked() EXACTLY;
+    // no conservative cell-center approximations or raster dilation.
+    const std::size_t max=std::numeric_limits<std::size_t>::max();
+    if(map_.width==max||map_.height==max||
+       map_.width+1>max/(map_.height+1))
+      throw std::invalid_argument("Occupancy prefix-sum dimensions overflow");
+    prefixPitch_=map_.width+1;
+    blockedPrefix_.assign(prefixPitch_*(map_.height+1),0);
+    for(std::size_t y=0;y<map_.height;++y) {
+      std::size_t row=0;
+      for(std::size_t x=0;x<map_.width;++x) {
+        row+=blocked(map_.cells[y*map_.width+x],policy_)?1U:0U;
+        blockedPrefix_[(y+1)*prefixPitch_+x+1]=
+            blockedPrefix_[y*prefixPitch_+x+1]+row;
+      }
+    }
+  }
 }
 
 double ExactCollisionChecker::maxBodyRadius() const noexcept {
@@ -499,6 +520,21 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCount
   const auto firstY=static_cast<std::size_t>(std::max(0.0,std::floor((miny-inflationMeters_-epsilon)/map_.resolutionMeters)));
   const auto lastX=static_cast<std::size_t>(std::min(static_cast<double>(map_.width-1),std::floor((maxx+inflationMeters_+epsilon)/map_.resolutionMeters)));
   const auto lastY=static_cast<std::size_t>(std::min(static_cast<double>(map_.height-1),std::floor((maxy+inflationMeters_+epsilon)/map_.resolutionMeters)));
+  if(!blockedPrefix_.empty()) {
+    if(work)++work->emptyRegionQueries;
+    // Inclusive grid bounds, exclusive prefix endpoints. The summed AABB
+    // encloses the entire inflated footprint even for rotated bodies.
+    // AABB with ZERO blocked cells implies no possible polygon-square
+    // overlap or positive-margin contact. Never skip a nonempty AABB.
+    const std::size_t left=blockedPrefix_[(lastY+1)*prefixPitch_+firstX]-
+                           blockedPrefix_[firstY*prefixPitch_+firstX];
+    const std::size_t right=blockedPrefix_[(lastY+1)*prefixPitch_+lastX+1]-
+                            blockedPrefix_[firstY*prefixPitch_+lastX+1];
+    if(right==left) {
+      if(work)++work->emptyRegionBypasses;
+      return PoseCollision::Clear;
+    }
+  }
   for (std::size_t y=firstY;y<=lastY;++y) {
     for (std::size_t x=firstX;x<=lastX;++x) {
       if(work)++work->candidateCells;
@@ -628,12 +664,18 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     result.status=PlanStatus::Cancelled;return result;
   }
   try {
+    const bool ackermann=r.options.model==PlanOptions::Model::Ackermann;
     const ExactCollisionChecker checker(*r.map,r.occupancy,model.footprint(),
-                                        r.options.footprintInflationMeters);
+        r.options.footprintInflationMeters,
+        ackermann&&r.options.useEmptyRegionPrefixSum);
+    const std::size_t discCount=
+        r.options.discPrefilterCount==PlanOptions::AutomaticDiscPrefilter?
+        (ackermann?4U:0U):r.options.discPrefilterCount;
+    result.diagnostics.discPrefilterCountUsed=discCount;
     std::unique_ptr<ConservativeDiscPrefilter> prefilter;
-    if (r.options.discPrefilterCount)
+    if(discCount)
       prefilter=std::make_unique<ConservativeDiscPrefilter>(
-           *r.map,r.occupancy,model.footprint(),r.options.discPrefilterCount,
+           *r.map,r.occupancy,model.footprint(),discCount,
            r.options.footprintInflationMeters);
     std::unique_ptr<ClearanceScorer> clearance;
     if(r.options.clearanceWeight>0)
