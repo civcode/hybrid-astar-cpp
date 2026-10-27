@@ -7,6 +7,27 @@
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
 
+TEST_CASE("Obstacle grid is the default and certified Euclidean is explicit",
+          "[heuristic][default][w6]") {
+  const PlanOptions defaults;
+  REQUIRE(defaults.heuristicMode==HeuristicMode::PerformanceReedsSheppAndObstacleGrid);
+  REQUIRE(defaults.performanceHeuristicWeight==1.0);
+  auto request=bench::hardCases().front().request;
+  const auto grid=plan(request);
+  REQUIRE(grid.status==PlanStatus::Success);
+  REQUIRE_FALSE(grid.heuristicCertifiedAdmissible);
+  REQUIRE(grid.diagnostics.gridSettlements>0);
+  request.options.heuristicMode=HeuristicMode::CertifiedRegionEuclidean;
+  const auto certified=plan(request);
+  REQUIRE(certified.status==PlanStatus::Success);
+  REQUIRE(certified.heuristicCertifiedAdmissible);
+  REQUIRE(certified.diagnostics.gridSettlements==0);
+  REQUIRE(grid.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  REQUIRE(certified.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+}
+
 TEST_CASE("Label reservation preserves exact search outcomes on difficult maps",
           "[w6][hotpath]") {
   for(const auto& fixture:bench::hardCases()) {

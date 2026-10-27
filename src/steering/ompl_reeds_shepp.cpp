@@ -94,8 +94,9 @@ double reedsSheppDistance(const Pose2D& from,const Pose2D& goal,
   return ReedsSheppEvaluator(minimumTurningRadiusMeters).distance(from,goal);
 }
 // One reusable OMPL evaluator, with both callbacks scoped to this synchronous
-// call. The core planner's default heuristic remains certified unless the
-// caller explicitly requests RS + obstacle-grid performance ordering.
+// call. Core defaults to obstacle-grid ordering; an explicit certified
+// heuristic mode on the request remains honored when the flag is false.
+// The true flag additionally installs the OMPL RS distance estimate.
 ackermann::PlanResult planWithReedsShepp(ackermann::PlanRequest request,
                                         bool usePerformanceHeuristic) {
   ReedsSheppEvaluator evaluator(request.options.minimumTurningRadiusMeters);

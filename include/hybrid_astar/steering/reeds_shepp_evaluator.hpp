@@ -31,9 +31,12 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-// Explicit opt-in OMPL-equipped planner entry point; defaults stay unchanged.
+// Explicit opt-in OMPL-equipped planner entry point.
 // Builds ONE evaluator for the synchronous request, with safe callback lifetime.
-// Optionally selects noncertified RS + obstacle-grid performance ordering.
+// By default, keeps the request's chosen heuristic (now obstacle-grid).
+// A true flag forces grid mode and additionally injects RS distance guidance.
+// To retain certified Euclidean guidance, set request.options.heuristicMode
+// explicitly and leave usePerformanceHeuristic false.
 // Throws invalid_argument for an invalid OMPL turning radius.
 ackermann::PlanResult planWithReedsShepp(ackermann::PlanRequest request,
                                         bool usePerformanceHeuristic=false);

@@ -211,6 +211,8 @@ if(HYBRID_ASTAR_BUILD_APP)
         ${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/web/map_geometry.test.js)
     endif()
     add_test(NAME demo_cli_open COMMAND hybrid_astar_demo --once --scenario open)
+    add_test(NAME demo_cli_certified COMMAND hybrid_astar_demo
+      --once --scenario open --certified)
     add_test(NAME demo_cli_budget COMMAND hybrid_astar_demo
       --once --scenario warehouse --budget 60000)
     add_test(NAME demo_cli_budget_rejected COMMAND hybrid_astar_demo
