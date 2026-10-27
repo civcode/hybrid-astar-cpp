@@ -283,6 +283,10 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
       bool changed=false;
       const auto n=result.path.sections.size();
       const auto remaining=options.maxAttempts-result.attempted;
+      // A finite window list is only a selection buffer, not evidence that
+      // every eligible shortcut was examined. Preserve the historical
+      // WorkBudgetExceeded result if unexamined windows remain.
+      bool windowsTruncated=false;
       std::vector<std::pair<std::size_t,std::size_t>> windows;
       windows.reserve(remaining);
       const auto add=[&](std::size_t i,std::size_t j) {
@@ -308,11 +312,17 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
             add(i,i+width);
           add(maxStart,n);
         }
+        // The differential schedule intentionally samples different scales.
+        // With >=3 sections, reaching its cap leaves eligible windows.
+        if(n>=3 && windows.size()>=remaining)windowsTruncated=true;
       } else {
-        // Preserve Ackermann's historical widest-window-first traversal.
-        for(std::size_t i=0;i+1<n&&windows.size()<remaining;++i)
-          for(std::size_t j=n;j>=i+2&&windows.size()<remaining;--j)
+        // Preserve Ackermann's historical widest-window-first traversal,
+        // including its work-limit result when later windows are skipped.
+        for(std::size_t i=0;i+1<n&&!windowsTruncated;++i)
+          for(std::size_t j=n;j>=i+2;--j) {
+            if(windows.size()>=remaining) {windowsTruncated=true;break;}
             add(i,j);
+          }
       }
       for(const auto [i,j]:windows) {
           if(result.attempted>=options.maxAttempts ||
@@ -379,6 +389,9 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
           }
         if(limit||changed) break;
       }
+      if(!changed && windowsTruncated &&
+         result.attempted>=options.maxAttempts)
+        limit=true;
       if(limit||!changed) break;
     }
     result.status=limit?RefinementStatus::WorkBudgetExceeded:
