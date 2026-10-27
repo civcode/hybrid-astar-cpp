@@ -174,6 +174,20 @@ TEST_CASE("Ackermann RS provider does not suppress optional native CSC",
   REQUIRE(withCsc.path.collisionEvidence==
           CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
   REQUIRE(withCsc.exactPoseChecks<=settings.maxTotalPoseChecks);
+  // A valid RS-like proposal may improve the original yet still be more
+  // expensive than native CSC. We must choose the best validated proposal
+  // rather than stopping at the first successful provider.
+  const auto longerRs=[&](const Pose2D& from,const Pose2D&) {
+    const auto forward=makeSection(from,Gear::Forward,.20,2.5);
+    const auto reverse=makeSection(forward.end,Gear::Reverse,.20,.5);
+    return std::vector<MotionSection>{forward,reverse};
+  };
+  const auto bestOfBoth=refinePath(req,original,longerRs,settings);
+  REQUIRE(bestOfBoth.accepted>0);
+  REQUIRE(bestOfBoth.path.status==PlanStatus::Success);
+  REQUIRE(bestOfBoth.path.geometricLengthMeters<2.01); // CSC beats 3m RS-like candidate
+  REQUIRE(bestOfBoth.path.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
   // Even a malformed external candidate cannot bypass path validation or
   // prevent valid native CSC from being evaluated.
   const auto invalidProvider=[&](const Pose2D& from,const Pose2D&) {
