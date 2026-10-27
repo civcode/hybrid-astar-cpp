@@ -93,6 +93,38 @@ This restricted map YAML reader supports P2/P5 and `mode: trinary` only.
 docker compose run --build --rm test
 ```
 
+### Control build and test parallelism
+
+The Dockerfile's two `cmake --build` invocations (OMPL 2.0.2 and Hybrid A*)
+use the same **`BUILD_JOBS`** build argument. The Compose `test` service
+also passes **`TEST_JOBS`** as `CTEST_PARALLEL_LEVEL`, independently
+controlling the number of simultaneously running CTest executables.
+
+Both variables are optional. Defaults remain **2 compiler jobs** and
+**1 test job** (sequential tests). For example:
+
+```bash
+# Build OMPL and Hybrid A* with up to 8 compiler processes;
+# after the build, execute up to 2 CTest tests concurrently.
+BUILD_JOBS=8 TEST_JOBS=2 docker compose run --build --rm test
+
+# Only adjust the compiler count when starting the demo.
+BUILD_JOBS=8 docker compose up --build demo
+```
+
+With `docker build` and `docker run` directly:
+
+```bash
+docker build --build-arg BUILD_JOBS=8 --target test -t hybrid-astar:test .
+docker run --rm -e CTEST_PARALLEL_LEVEL=2 hybrid-astar:test
+```
+
+Increasing `BUILD_JOBS` increases peak compiler memory use. When in doubt,
+use 2–4 jobs, and reduce the count if the OS or container runs out of RAM.
+Keep `TEST_JOBS=1` for the most reproducible timing/diagnostics; higher
+test parallelism may compete for CPU and memory. These settings do **not**
+change GitHub Actions runner limits or start a workflow automatically.
+
 Or:
 
 ```bash
