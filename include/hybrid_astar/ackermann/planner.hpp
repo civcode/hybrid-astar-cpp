@@ -123,8 +123,8 @@ struct PlanOptions {
   OpenQueueMode gridQueueMode = OpenQueueMode::BinaryLazy; // grid frontier A/B
   OpenQueueMode openQueueMode = OpenQueueMode::BinaryLazy; // baseline
   std::size_t searchLabelReserve = 0; // opt-in initial hash-table reserve (0 = baseline)
-  std::size_t maxExpansions = 100000;
-  std::size_t maxGeneratedNodes = 400000;
+  std::size_t maxExpansions = 1'000'000;
+  std::size_t maxGeneratedNodes = 4'000'000; // allows up to four generated nodes per expanded node
 };
 
 struct PlanRequest {

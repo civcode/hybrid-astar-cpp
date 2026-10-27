@@ -126,7 +126,6 @@ ackermann::PlanRequest makeRequest(std::string_view name) {
   map->origin={0,0,0};map->frameId="demo/map";map->sourceId="built-in";
   map->revision=1;map->cells.assign(map->width*map->height,0);
   PlanRequest r;r.map=map;r.start={10,15,0};r.goal={17,15,0};
-  r.options.maxExpansions=15000;r.options.maxGeneratedNodes=70000;
   if(name=="reverse")r.goal={6,15,0};
   if(name=="parking")r.goal={8,16,0};
   if(name=="warehouse") {
@@ -135,12 +134,10 @@ ackermann::PlanRequest makeRequest(std::string_view name) {
     rectangle(*map,141,12,146,55);rectangle(*map,141,104,146,145);
     r.start={8,20,0};r.goal={43,20,0};
     // Waypoint-free planning must find its own way around warehouse obstacles.
-    r.options.maxExpansions=25000;
   }
   if(name=="blocked") {
     rectangle(*map,94,0,99,160);
     r.start={10,20,0};r.goal={35,20,0};
-    r.options.maxExpansions=5000;
   }
   return r;
 }
@@ -157,7 +154,6 @@ Outcome run(const Options& opt) {
     };
     out.request.start=toWorld(m.width*m.resolutionMeters*.2,m.height*m.resolutionMeters*.5);
     out.request.goal=toWorld(m.width*m.resolutionMeters*.8,m.height*m.resolutionMeters*.5);
-    out.request.options.maxExpansions=25000;
   } else out.request=makeRequest(opt.scenario);
   // The map is never modified in-place. All search, strict validation and
   // optional refinement use the same request-local edited revision.

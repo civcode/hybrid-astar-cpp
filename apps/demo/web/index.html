@@ -41,7 +41,7 @@
 <label class="check"><input type="checkbox" id="refine"/><span>Strict post-path refinement</span></label>
 <label class="check nested"><input type="checkbox" id="curved"/><span>Native curved CSC candidates</span></label>
 <label class="label" for="budget">Search budget <small>expanded nodes</small></label>
-<input id="budget" type="number" min="100" max="1000000" step="5000" placeholder="scenario default"/>
+<input id="budget" type="number" min="100" max="1000000" step="5000" value="1000000"/>
 <button id="planButton" class="primary">Plan path <span>↗</span></button><button id="exportButton" class="secondary" disabled>Export path JSON ↓</button>
 <div class="hint">Runs the C++ planner locally. Only strictly validated paths are shown as successful. Motion remains sampled, not swept-certified.</div>
 </aside>

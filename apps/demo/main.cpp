@@ -72,7 +72,7 @@ bool flag(const std::string& value) {
   throw std::invalid_argument("Boolean option must be 0 or 1");
 }
 // Search work budget in expanded nodes. The demo is a single-threaded
-// browser service, so the ceiling stays far below the library default.
+// browser service; enforce the same 1M hard ceiling as the library default.
 std::size_t budgetValue(const std::string& value) {
   std::size_t budget=0;
   const auto [end,error]=std::from_chars(value.data(),value.data()+value.size(),budget);
