@@ -1,5 +1,6 @@
 // Opt-in local benchmark; no GitHub Actions target, no latency guarantee.
 #include "hybrid_astar/ackermann/refinement.hpp"
+#include "bench/warehouse_scenarios.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -7,6 +8,7 @@
 #include <iostream>
 #include <memory>
 #include <numbers>
+#include <stdexcept>
 #include <string>
 #include <vector>
 using namespace hybrid_astar;
@@ -40,7 +42,73 @@ static double percentile(std::vector<double> times,double fraction) {
   const auto i=static_cast<std::size_t>(std::ceil(double(times.size())*fraction));
   return times[std::min(times.size()-1,i?i-1:0)];
 }
+// High-expansion Planning Lab reproduction. Manual only: CTest never runs
+// this workload. A/B holds the map, footprint inflation, original search
+// result, validation budget and accepted-merge budget constant.
+static int differentialWarehouse(int argc,char** argv) {
+  if(argc>4)throw std::invalid_argument(
+      "Usage: --warehouse-differential [repeats] [search_expansion_budget]");
+  const int repetitions=argc>2?std::stoi(argv[2]):3;
+  const int budget=argc>3?std::stoi(argv[3]):1000000;
+  if(repetitions<1||repetitions>100||budget<100||budget>1000000)
+    throw std::invalid_argument("Invalid repeat count or work budget");
+  auto request=bench::mecanumWarehouseCase(std::size_t(budget));
+  request.options.model=PlanOptions::Model::DifferentialDrive;
+  request.start={4.77,32.84,0};
+  request.goal={29.94,6.23,-.5*std::numbers::pi_v<double>};
+  request.options.footprintInflationMeters=.5;
+  const auto base=plan(request);
+  if(base.status!=PlanStatus::Success) {
+    std::cerr<<"Differential warehouse search did not return a validated route; "
+             <<"status="<<int(base.status)<<" expanded="<<base.diagnostics.expanded<<"\n";
+    return 2;
+  }
+  struct Variant {const char* label;bool curved;std::size_t radii;};
+  constexpr Variant variants[]{
+      {"straight",false,1},
+      {"csc_fixed_radius",true,1},
+      {"csc_multi_radius",true,4}};
+  std::cout<<"scenario,mode,repeats,search_expanded,original_sections,"
+      "original_cost,p50_ms,p95_ms,refinement_status,refined_sections,"
+      "refined_cost,attempted,accepted,rejected,cost_pruned,strict_pose_checks\n";
+  for(const auto variant:variants) {
+    RefinementOptions opts;
+    opts.maxAttempts=160;opts.maxAccepted=8;opts.maxTotalPoseChecks=200000;
+    opts.useCurvatureBoundedShortcuts=variant.curved;
+    opts.differentialRadiusVariants=variant.radii;
+    std::vector<double> elapsed;
+    RefinementResult last;
+    for(int run=0;run<repetitions;++run) {
+      const auto t0=std::chrono::steady_clock::now();
+      auto result=refinePath(request,base,{},opts);
+      const auto t1=std::chrono::steady_clock::now();
+      if(result.path.status!=PlanStatus::Success ||
+         result.path.collisionEvidence!=
+             CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled ||
+         result.path.weightedCostMeters>base.weightedCostMeters+1e-8)
+        throw std::runtime_error("Refinement lost its strictly validated original");
+      elapsed.push_back(std::chrono::duration<double,std::milli>(t1-t0).count());
+      last=std::move(result);
+    }
+    std::cout<<"diff_warehouse_diag_margin_050,"<<variant.label<<','<<repetitions
+             <<','<<base.diagnostics.expanded<<','<<base.sections.size()<<','
+             <<std::fixed<<std::setprecision(4)<<base.weightedCostMeters<<','
+             <<percentile(elapsed,.5)<<','<<percentile(elapsed,.95)<<','
+             <<int(last.status)<<','<<last.path.sections.size()<<','
+             <<last.path.weightedCostMeters<<','<<last.attempted<<','
+             <<last.accepted<<','<<last.rejected<<','
+             <<last.prunedByCostLowerBound<<','<<last.exactPoseChecks<<'\n';
+  }
+  return 0;
+}
 int main(int argc,char** argv) {
+  if(argc>1&&std::string(argv[1])=="--warehouse-differential") {
+    try{return differentialWarehouse(argc,argv);}
+    catch(const std::exception& e) {
+      std::cerr<<"Differential warehouse refinement benchmark: "
+               <<e.what()<<'\n';return 2;
+    }
+  }
   int repetitions=argc>1?std::max(1,std::stoi(argv[1])):15;
   std::cout << "scenario,mode,runs,validated,improved,p50_ms,p95_ms,mean_checks,final_cost\n";
   for(const auto& name:{"straight_cusp","curved_cusp","blocked_direct"}) {
