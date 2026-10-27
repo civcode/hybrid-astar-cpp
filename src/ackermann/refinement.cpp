@@ -245,9 +245,9 @@ std::vector<std::vector<MotionSection>> differentialShortcuts(
     // determine CSC tangency, while the available free space constrains the
     // curved approach. Try multiple radii in metric units, independent of
     // the map grid axes. Differential drive has no Ackermann R_min.
-    constexpr std::array<double,4> scales{{.5,1.,2.,4.}};
-    for(const auto factor:scales) {
-      const auto radius=opt.differentialCurveRadiusMeters*factor;
+    constexpr std::array<double,4> scales{{1.,.5,2.,4.}};
+    for(std::size_t i=0;i<opt.differentialRadiusVariants;++i) {
+      const auto radius=opt.differentialCurveRadiusMeters*scales[i];
       if(!std::isfinite(radius)||radius<=0)continue;
       auto alternatives=generateCurvatureBoundedShortcuts(from,to,radius);
       for(auto& candidate:alternatives)
@@ -317,6 +317,8 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
       options.minimumCostReductionMeters<=0||
       !std::isfinite(options.differentialCurveRadiusMeters)||
       options.differentialCurveRadiusMeters<=0||
+      options.differentialRadiusVariants==0||
+      options.differentialRadiusVariants>4||
       (req.options.model!=PlanOptions::Model::Ackermann &&
        req.options.model!=PlanOptions::Model::DifferentialDrive &&
        req.options.model!=PlanOptions::Model::Mecanum)||
