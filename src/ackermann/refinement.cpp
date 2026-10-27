@@ -302,6 +302,17 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
           if(cancelled(req)) {result.status=RefinementStatus::Cancelled;return result;}
           ++result.attempted;
           const auto& before=result.path.sections;
+          // Do not splice a new rolling shortcut immediately after/before
+          // an existing stationary turn. That creates an apparent sharp
+          // junction (a stop remains at the shortcut boundary) even though
+          // the candidate is geometrically shorter. Include the spin inside
+          // the replaced window instead, so it can be eliminated safely.
+          if(req.options.model==PlanOptions::Model::DifferentialDrive &&
+             ((i>0 && before[i-1].kind==MotionKind::RotateInPlace)||
+              (j<before.size() && before[j].kind==MotionKind::RotateInPlace))) {
+            ++result.rejected;
+            continue;
+          }
           const Pose2D from=before[i].start,to=before[j-1].end;
           std::vector<std::vector<MotionSection>> proposals;
           try {
