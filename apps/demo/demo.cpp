@@ -85,6 +85,13 @@ void pathJson(std::ostream& os,const PlanResult& path) {
     <<",\"length\":"<<path.geometricLengthMeters
     <<",\"reverseLength\":"<<path.reverseLengthMeters
     <<",\"expanded\":"<<path.diagnostics.expanded
+    <<",\"generated\":"<<path.diagnostics.generated
+    <<",\"prunedByKey\":"<<path.diagnostics.prunedByKey
+    <<",\"gridSettlements\":"<<path.diagnostics.gridSettlements
+    <<",\"gridFallbacks\":"<<path.diagnostics.gridFallbacks
+    <<",\"terminalAttempts\":"<<path.diagnostics.terminalConnectionAttempts
+    <<",\"terminalValidated\":"<<path.diagnostics.terminalValidated
+    <<",\"terminalRejected\":"<<path.diagnostics.terminalRejected
     <<",\"finalChecks\":"<<path.diagnostics.finalPoseChecks
     <<",\"heuristicCertifiedAdmissible\":"<<(path.heuristicCertifiedAdmissible?"true":"false")
     <<",\"validated\":"<<(path.status==PlanStatus::Success?"true":"false")

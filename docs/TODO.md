@@ -22,6 +22,19 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Differential-drive near-goal robustness — 2026-10-27
+
+- [x] Use a consistent 1e-9 numerical slack for ordinary goal acceptance,
+  matching the existing independent final validator.
+- [x] Permit a separately costed, strictly validated differential-drive
+  terminal rotation when within goal XY tolerance and outside yaw tolerance;
+  reject any swept-footprint collision.
+- [x] Add finite heading-lattice and blocked-rotation regressions and expose
+  grid/terminal diagnostics in Planning Lab exported path JSON.
+- [ ] Verify the user-reported two nearby warehouse starts on the exact
+  edited map and ensure both either reach strictly validated paths or
+  report useful bounded-failure diagnostics. Run CTest/Docker locally.
+
 ## Performance follow-up — 2026-10-27
 
 - [x] Add manual mecanum warehouse profiling with shared exact regression

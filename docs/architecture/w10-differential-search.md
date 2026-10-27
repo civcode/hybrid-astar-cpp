@@ -114,3 +114,32 @@ this increment does not claim arbitrary articulated or mecanum support.
 Likewise, actuator-rate/acceleration feasibility and continuous
 swept-volume collision certification remain outside this geometric
 planner. No GitHub Actions workflows are required.
+
+## Finite yaw-lattice robustness (2026-10-27)
+
+Differential-drive primitive spins use fixed 22.5-degree increments. The
+default target tolerance is 10 degrees; the exact numerical difference
+between a requested `-80 deg` start and `-90 deg` goal can evaluate
+*slightly greater* than 10 degrees even though the angles are exactly
+10 degrees apart mathematically. The general goal test now uses the same
+`1e-9`-radian/meter boundary slack as independent final goal validation.
+
+A more general issue occurs if the target yaw lies between the discrete
+lattice headings. The differential-drive policy now offers **one optional
+final stationary turn** once the current XY position is within the specified
+goal tolerance, making precise heading correction possible without changing
+the global 22.5-degree primitive catalog. The policy charges its configured
+nonzero rotation cost. The existing common search kernel checks the terminal
+rotation *and the entire preceding path* against the exact full-footprint
+checker and strict final sampling; an occupied swept footprint is rejected.
+
+Added regression coverage for the exact tolerance boundary, an off-lattice
+goal heading reachable by a strictly checked terminal rotation, and a
+collision during that terminal rotation. The motivating edited warehouse
+map contained 782 client-added occupancy edits; the exact edit payload is
+not part of the test fixture. This fix addresses two confirmed numerical/
+reachability hazards but does **not** by itself prove that the reported
+million-expansion case is resolved. The demo JSON now emits generated
+nodes, key pruning, grid settlements/fallbacks, and terminal attempt/
+validation/rejection counters to help reproduce failures.
+
