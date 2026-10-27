@@ -157,6 +157,56 @@ TEST_CASE("Differential native CSC removes a redundant reverse cusp",
   checkDense(req,result.path);
 }
 
+TEST_CASE("Differential CSC refinement is invariant under world rotation",
+          "[differential][refinement][rotated-frame]") {
+  // The same relative SE(2) motion rotated by 45 degrees should generate
+  // the same costs, number of accepted improvements and collision verdicts.
+  // A diagonal in the WORLD map does not change the kinematic problem.
+  auto base=openRequest();
+  base.start={8,8,0};
+  auto originalSections=squiggle(base);
+  RefinementOptions options;
+  options.useCurvatureBoundedShortcuts=true;
+  options.maxAttempts=80;
+  options.maxAccepted=3;
+  const auto a=refinePath(base,raw(base,originalSections),{},options);
+  REQUIRE(a.path.status==PlanStatus::Success);
+  const double turn=pi/4;
+  const double cs=std::cos(turn),sn=std::sin(turn);
+  const Pose2D origin{10,10,0};
+  const auto rotate=[&](Pose2D pose)->Pose2D {
+    const double x=pose.x-origin.x,y=pose.y-origin.y;
+    return {origin.x+cs*x-sn*y,origin.y+sn*x+cs*y,pose.yaw+turn};
+  };
+  auto rotated=base;
+  rotated.start=rotate(base.start);
+  rotated.goal=rotate(base.goal);
+  std::vector<MotionSection> sections;
+  Pose2D pose=rotated.start;
+  for(const auto& section:originalSections) {
+    MotionSection next;
+    if(section.kind==MotionKind::RotateInPlace)
+      next=makeRotationSection(pose,section.turnRadians);
+    else
+      next=makeSection(pose,section.gear,section.curvature,
+                       section.lengthMeters);
+    pose=next.end;
+    sections.push_back(next);
+  }
+  const auto b=refinePath(rotated,raw(rotated,sections),{},options);
+  REQUIRE(b.path.status==PlanStatus::Success);
+  REQUIRE(a.accepted==b.accepted);
+  REQUIRE(a.attempted==b.attempted);
+  REQUIRE(std::abs(a.path.weightedCostMeters-b.path.weightedCostMeters)<1e-6);
+  REQUIRE(std::abs(a.path.geometricLengthMeters-b.path.geometricLengthMeters)<1e-6);
+  REQUIRE(a.path.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  REQUIRE(b.path.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  checkDense(base,a.path);
+  checkDense(rotated,b.path);
+}
+
 TEST_CASE("Differential refiner keeps original if stricter work cap prevents verification",
           "[differential][refinement][budget]") {
   auto req=openRequest();
