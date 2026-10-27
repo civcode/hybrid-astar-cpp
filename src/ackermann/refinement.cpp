@@ -11,6 +11,8 @@
 #include <numbers>
 #include <stdexcept>
 #include <array>
+#include <iterator>
+#include <optional>
 #include <utility>
 
 namespace hybrid_astar::ackermann {
@@ -552,6 +554,7 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
               else proposals.push_back(holonomicShortcut(req,from,to));
             } catch(const std::exception&) {++result.rejected;continue;}
           }
+          std::optional<Evaluated> bestAckermann;
           // Every geometric proposal gets the SAME independently exact,
           // complete-path validation. Work is bounded by total pose checks;
           // the native CSC provider returns at most eight alternatives.
@@ -604,7 +607,8 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
               baseLowerBound+=edge;
               if(section.kind!=MotionKind::RotateInPlace)priorGear=section.gear;
               if(!std::isfinite(baseLowerBound)||
-                 baseLowerBound>=result.path.weightedCostMeters-
+                 baseLowerBound>=(bestAckermann?bestAckermann->weighted:
+                    result.path.weightedCostMeters)-
                     options.minimumCostReductionMeters) {competitive=false;break;}
             }
             if(!competitive) {
@@ -616,14 +620,28 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
             if(check==Check::Cancelled) {result.status=RefinementStatus::Cancelled;return result;}
             if(check==Check::Incomplete) {limit=true;break;}
             if(check!=Check::Valid || evaluated.weighted>=
-               result.path.weightedCostMeters-options.minimumCostReductionMeters) {
+               (bestAckermann?bestAckermann->weighted:
+                result.path.weightedCostMeters)-options.minimumCostReductionMeters) {
               ++result.rejected;continue;
+            }
+            // Compare *all* strictly validated Ackermann alternatives for
+            // this window. The first acceptable RS connector must not mask a
+            // cheaper native CSC (or vice versa).
+            if(req.options.model==PlanOptions::Model::Ackermann) {
+              bestAckermann=std::move(evaluated);
+              continue;
             }
             result.path=makeVerified(req,result.path,evaluated);
             result.path.solutionQuality=SolutionQuality::FeasibleAfterRefinement;
             ++result.accepted;
             changed=true;
             break;
+          }
+          if(bestAckermann) {
+            result.path=makeVerified(req,result.path,*bestAckermann);
+            result.path.solutionQuality=SolutionQuality::FeasibleAfterRefinement;
+            ++result.accepted;
+            changed=true;
           }
         if(limit||changed) break;
       }
