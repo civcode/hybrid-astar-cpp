@@ -31,6 +31,7 @@ struct Outcome {
   ackermann::PlanRequest request;
   ackermann::PlanResult original;
   std::optional<ackermann::RefinementResult> refinement;
+  bool rsDistanceHeuristicEnabled = false; // included in JSON for reproducible experiments
   double elapsedMilliseconds = 0;
 };
 // Throws invalid_argument for unsupported scenarios and invalid pose requests.
