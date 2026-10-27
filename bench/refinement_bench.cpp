@@ -1,6 +1,6 @@
 // Opt-in local benchmark; no GitHub Actions target, no latency guarantee.
 #include "hybrid_astar/ackermann/refinement.hpp"
-#include "bench/warehouse_scenarios.hpp"
+#include "warehouse_scenarios.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
