@@ -48,8 +48,9 @@ It is not a substitute for the complete OMPL-ON CMake package build.
 - Default obstacle-grid heuristic (noncertified performance ordering);
   uncheck the box to use the certified Euclidean heuristic,
 - Strict optional post-path refinement for **Ackermann and differential drive**.
-  Differential mode tries wheel-rate-feasible rotate–straight–rotate shortcuts,
-  with additional smooth CSC candidates when the curved checkbox is enabled.
+  Differential mode tries straight shortcuts and optional wheel-rate-feasible
+  CSC arcs when the curved checkbox is enabled. Refinement never inserts
+  new in-place rotations, avoiding unnecessary full stops.
   The entire candidate is independently checked against the rectangular body
   and swept stationary turns; if it does not strictly lower weighted cost, the
   validated original is retained. Mecanum refinement remains unsupported.
@@ -335,8 +336,9 @@ on impossible maps. Prior performance measurements on older versions do
 not characterize the new holonomic terminal connector or sampling policy.
 Out-of-range or non-integer budgets are rejected with `400` / exit code 2.
 
-For differential drive, `refine=1` enables cost-reducing rotate–straight–rotate
-shortcuts and `curved=1` also tries native CSC arcs using a 0.75 m candidate
+For differential drive, `refine=1` enables cost-reducing straight chords,
+without inserting stationary rotations; `curved=1` also tries native CSC
+arcs using a 0.75 m candidate
 radius (not an Ackermann minimum turning radius). The ideal differential
 drive model may time-scale each feasible curvature to respect wheel speed
 limits; acceleration and dynamic smoothness are not certified. The refiner

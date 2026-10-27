@@ -220,13 +220,35 @@ connector attempts/strict rejections and grid settlements/fallbacks.
 Four-disc direct-checker implication tests cover rotated maps, contacts,
 narrow gaps and mecanum. The default prefilter stays OFF pending validation.
 
+### Avoiding unnecessary in-place rotations
+
+Mecanum search now applies a configurable
+`PlanOptions::mecanumStationarySpinPenaltyMeters` (default **0.35 m**)
+to stationary rotations, in addition to angular motion cost. It favors
+simultaneous translation/turns without forbidding necessary pivots.
+`mecanumMergeIntermediateSpins` (default `true`) performs a bounded,
+independently collision-checked whole-path cleanup before returning a
+validated mecanum plan. It uses a constant-body-twist SE(2) connector
+with checked wheel-rate limits and accepts only weighted-cost reductions.
+It retains the original route if no connector is feasible or safe.
+The feature does not provide actuator acceleration or continuous
+curvature guarantees, and can increase search work.
+
+Differential-drive post-path refinement no longer adds stop-and-spin
+shortcuts. Straight chords are always available, and optional curved
+CSC candidates can replace existing zigzags without inserting new
+stationary rotations. Existing spins may remain when no safe improvement
+is found.
+
 ### Differential-drive path smoothing (manual opt-in)
 
 The strict post-path refiner now also accepts `Model::DifferentialDrive`
 and preserves the original path unless independent full-body verification
 confirms an actual weighted-cost reduction. Native candidate connections
-include short in-place rotations with straight-line travel (in either gear)
-and optional CSC curved shortcuts with a configurable 0.75 m radius.
+include straight-line chords and optional CSC curved shortcuts with a
+configurable 0.75 m radius. The smoother never generates new in-place
+rotations (which require a full stop); it may retain spins already in the
+original path if they cannot be safely removed.
 Candidate constant-curvature commands are checked against differential
 wheel-rate limits and can be traversed at reduced positive speeds.
 The finite candidate scheduler samples different spans of long paths.

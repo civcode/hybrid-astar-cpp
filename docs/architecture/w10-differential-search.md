@@ -156,10 +156,9 @@ inputs cannot turn into an advertised validated success.
 
 For differential drive, native candidates consist of:
 
-- Spin–straight–spin connectors in either forward or reverse gear. The spin
-  amounts and straight distance are continuously computed from the chosen
-  section-boundary poses, rather than restricted to the search's 22.5-degree
-  heading increments.
+- Straight-line chords between compatible pose/heading boundaries, with
+  no newly inserted in-place rotations. Existing spins are not removed if
+  no strictly validated cost-reducing replacement exists.
 - Optional fixed-gear CSC curves (LSL/LSR/RSL/RSR at a configurable 0.75 m
   candidate radius). Each arc is an ideal differential-drive constant
   curvature motion. The checker confirms that a positive finite control speed
@@ -181,8 +180,9 @@ candidate window schedule spreads trials across the route at several scales
 rather than burning every attempt on the first path prefix. The Planning Lab
 sets differential refinement budgets to 160 candidate windows, 8 accepted
 replacements and 200,000 strict pose checks; the C++ library API remains
-separately tunable. Enabling `refine` alone tries rotate–straight–rotate;
-also enabling `curved` allows native CSC arcs. Both are opt-in.
+separately tunable. Enabling `refine` alone tries straight chords;
+also enabling `curved` adds rolling CSC arcs. Neither mode generates
+stationary spin shortcuts. Both remain opt-in.
 
 Unit tests in `differential_refinement_test` cover a reducible zigzag,
 a blocked shortcut, a colliding swept spin, strict work-budget behavior and

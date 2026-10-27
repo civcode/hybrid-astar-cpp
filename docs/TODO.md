@@ -22,6 +22,20 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Motion continuity: avoid unnecessary stopping rotations — 2026-10-27
+
+- [x] Stop generating rotate–straight–rotate post-refinement candidates for
+  differential drive; retain collision-checked straight and rolling CSC.
+- [x] Prefer moving turns to stationary spins in mecanum search with a
+  nonnegative 0.35 m stop penalty, configurable via PlanOptions.
+- [x] Run bounded local mecanum stop cleanup at plan return using exact SE(2)
+  moving-twist connectors, four-wheel rate feasibility and strict whole-path
+  revalidation. Keep the original if no cost-reducing safe merge is found.
+- [x] Add regressions for no new differential spins and the specific 0.5 m
+  inflated mecanum warehouse route shown in Planning Lab.
+- [ ] Verify the full Docker/CTest suite and actual path screenshots; a spin
+  can remain when stopping is geometrically required or cleanup fails.
+
 ## Continuous footprint inflation — 2026-10-27
 
 - [x] Introduce `PlanOptions::footprintInflationMeters` default 0 with
@@ -40,8 +54,9 @@ and steering actuator modeling remain future work.
 - [x] Extend independently collision-checked, bounded post-path refinement
   to differential drive, including spin/translation costs and wheel-rate
   feasibility checks for constant-curvature candidates.
-- [x] Add rotate–straight–rotate plus optional 0.75 m radius CSC connectors,
+- [x] Add strict straight-chord plus optional 0.75 m radius CSC connectors,
   and spread bounded attempts across long paths at multiple scales.
+  Refinement does not introduce stop-and-spin candidates.
 - [x] Enable both Planning Lab refinement toggles for differential drive
   while retaining Ackermann-only OMPL and unsupported mecanum refinement.
 - [x] Add strict geometric regression cases, demo contract and HTTP checks.
