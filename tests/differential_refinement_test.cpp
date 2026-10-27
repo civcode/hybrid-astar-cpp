@@ -53,7 +53,8 @@ std::vector<MotionSection> squiggle(PlanRequest& req) {
   return sections;
 }
 void checkDense(const PlanRequest& req,const PlanResult& path) {
-  ExactCollisionChecker checker(*req.map,req.occupancy,req.footprint);
+  ExactCollisionChecker checker(*req.map,req.occupancy,req.footprint,
+                                req.options.footprintInflationMeters);
   Pose2D end=req.start;
   for(const auto& part:path.sections) {
     REQUIRE(std::hypot(part.start.x-end.x,part.start.y-end.y)<1e-6);
