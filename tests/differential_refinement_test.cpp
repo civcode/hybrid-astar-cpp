@@ -60,7 +60,13 @@ void checkDense(const PlanRequest& req,const PlanResult& path) {
     REQUIRE(std::abs(std::remainder(part.start.yaw-end.yaw,2*pi))<1e-6);
     const auto progress=part.progressExtent();
     for(int k=0;k<=80;++k) {
-      const auto sample=part.evaluate(progress*double(k)/80.);
+      // Multiplying by 80 and then dividing by 80 can round one ULP
+      // beyond progress and spuriously throw "Invalid Ackermann section
+      // evaluation". The final sample must use the exact endpoint.
+      const auto at=k==80?progress:progress*(double(k)/80.);
+      INFO("kind="<<int(part.kind)<<" length="<<progress
+           <<" sample="<<k<<" progress="<<at);
+      const auto sample=part.evaluate(at);
       REQUIRE(checker.check(sample)==PoseCollision::Clear);
     }
     end=part.end;
@@ -357,7 +363,8 @@ TEST_CASE("Mecanum strict refinements cannot cut through inflated occupied cells
   for(const auto& section:result.path.sections)
     for(int k=0;k<=100;++k)
       REQUIRE(checker.check(section.evaluate(
-          section.progressExtent()*double(k)/100))==PoseCollision::Clear);
+          k==100?section.progressExtent():
+                 section.progressExtent()*(double(k)/100)))==PoseCollision::Clear);
 }
 
 TEST_CASE("Differential rolling refinement avoids a splice immediately beside a stop",
