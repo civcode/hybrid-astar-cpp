@@ -88,7 +88,9 @@ def main(exe):
         assert code == 200 and warehouse["original"]["status"] == "Success"
         assert warehouse["mapRuns"]
         # Work budgets are request-tunable. Hitting one is a limit, never a NoPath.
-        code, _, body = get(base + "/api/plan?scenario=warehouse&budget=2000")
+        # Keep this starvation check on certified Euclidean ordering: the
+        # new default obstacle-grid can solve the warehouse with fewer nodes.
+        code, _, body = get(base + "/api/plan?scenario=warehouse&performance=0&budget=2000")
         starved = json.loads(body)
         assert code == 200 and starved["original"]["status"] == "BudgetExceeded", body
         assert starved["limits"]["maxExpansions"] == 2000
