@@ -22,6 +22,20 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Differential strict search/final density parity — 2026-10-27
+
+- [x] Diagnose screenshot with differential start (5.68, 28.97),
+  goal (30.25, 38.17) and 0.10 m inflation: seven independent
+  collision rejections before search termination.
+- [x] Correct DifferentialDrivePolicy strictSearchSampling() to ensure
+  search uses final-density sampling and regenerates matching motion
+  templates. Add a focused inflated-footprint regression.
+- [ ] Rerun exact warehouse screenshot manually to confirm path recovery
+  and measure expansion/checking changes.
+- [ ] Reproduce Ackermann 1M-expansion case with screenshot's exact
+  (currently unknown) inflation value and compare OMPL analytic connector
+  enabled/disabled before retuning heuristics.
+
 ## Planning Lab smoothing / strict-failure diagnostics — 2026-10-27
 
 - [x] Set metric inflation number spinner to 0.05 m increments.

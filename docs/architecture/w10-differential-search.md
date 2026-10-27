@@ -196,6 +196,64 @@ unsupported mecanum. `demo_test` and `demo_http_test` cover the Planning
 Lab integration. Run these plus `refinement_test`, `curved_shortcuts_test`
 and `w10_differential_search_test` before treating the feature as verified.
 
+
+## Warehouse failures reported on October 27, 2026
+
+Two user-reported screenshot configurations exercise very different planner
+statuses, and must not be conflated.
+
+**Differential drive / strict final collision rejection:**
+
+- Warehouse map without edits; start `(5.68, 28.97, 0°)`;
+  goal `(30.25, 38.17, 0°)`; geometric inflation **0.10 m**.
+- The reported run exhausted the route search after visiting several goal
+  candidates, each failing independently checked collision samples
+  (`StrictValidationFailed`, 7 collision rejects and zero continuity or
+  final-goal mismatch rejects; 912,039 expansions).
+- Root cause found in the policy: unlike mecanum, differential drive had not
+  enabled `strictSearchSampling()`; this allowed coarse search sampling
+  (defaults 0.10 m reference / 0.15 m body) and denser final validation
+  (0.05 m / 0.05 m). It now returns `true` so the primitive search uses
+  the same denser sampling limits as final validation. Cache templates are
+  regenerated with the stricter limits. This can increase search work.
+- Regression `w10_differential_search_test` asserts strict-density policy
+  selection and a valid, inflated, nontrivial differential search.
+- Reproduce the *exact* screenshot configuration manually (rather than adding
+  a 1M-expansion case to every CTest execution):
+
+```bash
+./build-docker/hybrid_astar_demo --once --model differential \
+  --scenario warehouse --start 5.68 28.97 0 \
+  --goal 30.25 38.17 0 --inflate 0.1 --budget 1000000 \
+  --refine --curved
+```
+
+**Ackermann / search-budget exhaustion:**
+
+- Warehouse without edits; start `(3.25, 3.64, 0°)`, goal
+  `(30.93, 38.17, -90°)`. The inflation checkbox is on in the screenshot,
+  but its numeric value is not visible: it must be supplied to reproduce
+  exactly.
+- The 1,000,000-expansion cutoff is a **BudgetExceeded** result, not a proof
+  that the goal is geometrically unreachable or that the final validator
+  rejected a found path. The Ackermann test car uses a 4 m minimum turning
+  radius and a substantially larger footprint than the differential robot.
+- Reproduce with the exact screenshot margin substituted below; test both
+  **with** and **without** the optional OMPL Reeds–Shepp connector before
+  considering search-heuristic or key-label changes:
+
+```bash
+./build-docker/hybrid_astar_demo --once --model ackermann \
+  --scenario warehouse --start 3.25 3.64 0 \
+  --goal 30.93 38.17 -90 --inflate 0.1 --budget 1000000
+# Repeat with --ompl only when the demo was built with OMPL support.
+```
+
+The `--inflate 0.1` in this *example* is **not verified as the second
+screenshot's actual margin**. Neither screenshot should be turned into an
+automatic test that requires proving planner success under unbounded search.
+Maintain the independently sampled exact final collision gate.
+
 ## Reported differential warehouse strict-final failure (2026-10-27)
 
 The default differential policy already requests final-density collision
