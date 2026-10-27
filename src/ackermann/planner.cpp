@@ -15,6 +15,7 @@
 #include <optional>
 #include <queue>
 #include <stdexcept>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 
@@ -315,6 +316,137 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
     ++checks;
   }
   return MotionStatus::Clear;
+}
+
+// Connect two holonomic SE(2) poses with ONE nonstationary constant-body-twist
+// section. The inverse SE(2) exponential is exact (unlike interpolating
+// world-frame XY while separately interpolating yaw). It may turn while
+// translating, but does not introduce a full stop to rotate.
+std::optional<MotionSection> movingMecanumTwist(const PlanRequest& request,
+                                               const mecanum::Model& model,
+                                               const Pose2D& from,
+                                               const Pose2D& to) {
+  if(!finite(from)||!finite(to))return {};
+  const double dx=to.x-from.x,dy=to.y-from.y;
+  if(std::hypot(dx,dy)<=1e-7)return {}; // an actual pure pivot may be necessary
+  const double cs=std::cos(from.yaw),sn=std::sin(from.yaw);
+  const double localX=cs*dx+sn*dy,localY=-sn*dx+cs*dy;
+  const double angle=wrap(to.yaw-from.yaw);
+  const double a=std::abs(angle)<1e-7?
+      1-angle*angle/6 : std::sin(angle)/angle;
+  const double b=std::abs(angle)<1e-7?
+      angle*.5-angle*angle*angle/24 : (1-std::cos(angle))/angle;
+  const double denominator=a*a+b*b;
+  if(!std::isfinite(denominator)||denominator<1e-10)return {};
+  const double forward=(a*localX+b*localY)/denominator;
+  const double lateral=(a*localY-b*localX)/denominator;
+  const double meters=std::hypot(forward,lateral);
+  if(!std::isfinite(meters)||meters<=1e-7)return {};
+  // An ideal mecanum drive can time-scale any finite twist so none of the
+  // four wheel rates exceeds its limit. This does not certify acceleration.
+  const auto& p=model.parameters();
+  const double time=std::max({
+      meters/request.options.mecanumPrimitives.translationSpeed,
+      std::abs(angle)/request.options.mecanumPrimitives.rotationSpeed,
+      1.01*(std::abs(forward)+std::abs(lateral)+
+            (p.halfWheelbaseMeters+p.halfTrackMeters)*std::abs(angle))/
+           (p.wheelRadiusMeters*p.maxAbsWheelAngularRate),
+      1e-5});
+  if(!std::isfinite(time)||!model.valid({forward/time,lateral/time,angle/time}))
+    return {};
+  const auto section=makeHolonomicSection(from,forward,lateral,angle);
+  if(goalErrorXY(section.end,to)>1e-6||
+     goalErrorYaw(section.end,to)>1e-6)return {};
+  return section;
+}
+double mecanumPathCost(const PlanOptions& options,
+                       const std::vector<MotionSection>& sections) {
+  double cost=0;
+  for(const auto& section:sections) {
+    if(section.kind!=MotionKind::HolonomicTwist &&
+       section.kind!=MotionKind::RotateInPlace)return
+        std::numeric_limits<double>::infinity();
+    cost+=section.lengthMeters+
+        options.rotationCostMetersPerRadian*std::abs(section.turnRadians)+
+        (section.kind==MotionKind::RotateInPlace?
+         options.mecanumStationarySpinPenaltyMeters:0);
+  }
+  return cost;
+}
+// Bounded search-output cleanup, without modifying the search tree. Original
+// candidate has ALREADY passed strict final validation. Every replacement
+// rechecks the COMPLETE route, including all pre-existing motion, with the
+// independent checker and current inflated footprint. A failed shortcut
+// leaves the validated original untouched.
+void removeAvoidableMecanumSpins(const PlanRequest& request,
+                                const ExactCollisionChecker& checker,
+                                PlanResult& incumbent,PlanDiagnostics& diagnostics) {
+  if(!request.options.mecanumMergeIntermediateSpins)return;
+  const auto& opt=request.options;
+  if(diagnostics.finalPoseChecks>=opt.maxTotalFinalPoseChecks)return;
+  const auto cap=std::min(opt.maxTotalFinalPoseChecks,
+                          diagnostics.finalPoseChecks+std::size_t{20000});
+  const mecanum::Model model(opt.mecanumParameters);
+  for(std::size_t accepted=0;accepted<6;++accepted) {
+    bool replaced=false;
+    const auto n=incumbent.sections.size();
+    for(std::size_t spin=0;spin<n && !replaced;++spin) {
+      if(incumbent.sections[spin].kind!=MotionKind::RotateInPlace)continue;
+      const std::array<std::pair<std::size_t,std::size_t>,4> windows{{
+        {spin>2?spin-2:0,std::min(n,spin+3)},
+        {spin>0?spin-1:0,std::min(n,spin+2)},
+        {spin,std::min(n,spin+2)},
+        {spin>0?spin-1:0,std::min(n,spin+1)}
+      }};
+      for(const auto [begin,end]:windows) {
+        if(diagnostics.finalPoseChecks>=cap)return;
+        if(request.cancelled && request.cancelled->load(std::memory_order_relaxed))
+          return; // never discard a verified incumbent
+        if(end<=begin+1)continue;
+        const auto& old=incumbent.sections;
+        auto replacement=movingMecanumTwist(request,model,old[begin].start,old[end-1].end);
+        if(!replacement)continue;
+        std::vector<MotionSection> candidate;
+        candidate.reserve(old.size()-(end-begin)+1);
+        candidate.insert(candidate.end(),old.begin(),old.begin()+begin);
+        candidate.push_back(*replacement);
+        candidate.insert(candidate.end(),old.begin()+end,old.end());
+        const double cost=mecanumPathCost(opt,candidate);
+        if(!std::isfinite(cost) || cost>=incumbent.weightedCostMeters-1e-6)
+          continue; // no weighted-cost regression
+        ++diagnostics.mecanumSpinShortcutsAttempted;
+        bool valid=true;
+        Pose2D last=request.start;
+        if(diagnostics.finalPoseChecks>=cap)return;
+        ++diagnostics.finalPoseChecks;
+        if(checker.check(request.start)!=PoseCollision::Clear) return;
+        for(const auto& section:candidate) {
+          if(goalErrorXY(section.start,last)>1e-6||
+             goalErrorYaw(section.start,last)>1e-6){valid=false;break;}
+          const auto status=checkMotion(section,checker,
+              opt.finalSampleSpacingMeters,opt.finalMaxBodyPointMotionMeters,
+              opt.maxFinalSamplesPerSection,diagnostics.finalPoseChecks,
+              request.cancelled.get(),nullptr,&diagnostics,cap,true);
+          if(status!=MotionStatus::Clear){valid=false;break;}
+          last=section.end;
+        }
+        if(!valid || goalErrorXY(last,request.goal)>opt.goalXYToleranceMeters+1e-9||
+           goalErrorYaw(last,request.goal)>opt.goalYawToleranceRadians+1e-9)
+          continue;
+        incumbent.sections=std::move(candidate);
+        incumbent.weightedCostMeters=cost;
+        incumbent.geometricLengthMeters=0;
+        incumbent.reverseLengthMeters=0;
+        incumbent.gearChangeSectionIndices.clear();
+        incumbent.solutionQuality=SolutionQuality::FeasibleAfterRefinement;
+        summarizePath(incumbent);
+        ++diagnostics.mecanumSpinShortcutsAccepted;
+        replaced=true;
+        break;
+      }
+    }
+    if(!replaced)break;
+  }
 }
 } // namespace
 
@@ -620,6 +752,12 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
       hasIncumbent=true;
     };
     const auto finishIncumbent=[&](TerminationReason reason) {
+      if constexpr(std::is_same_v<Policy,planning::MecanumPolicy>) {
+        try {removeAvoidableMecanumSpins(r,checker,incumbent,result.diagnostics);}
+        catch(const std::exception&) {
+          // Cleanup is optional: a validated path always survives exceptions.
+        }
+      }
       incumbent.terminationReason=reason;
       incumbent.diagnostics=result.diagnostics;
       return incumbent;
