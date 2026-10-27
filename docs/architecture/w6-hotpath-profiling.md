@@ -300,6 +300,30 @@ BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
   ack_corner_margin_000 > ack_collision_corner.csv
 ```
 
+For an apples-to-apples **per-pose** cost comparison, the same manual
+binary also has a fixed-pose microbenchmark. It creates a deterministic
+set of Ackermann poses with identical world XY and yaw on the unchanged
+warehouse map, then compares zero versus 0.50 m inflation and zero versus
+four conservative discs:
+
+```bash
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-collision-micro 5 > ack_collision_fixed_poses.csv
+```
+
+This microbenchmark measures only exact collision checks and optional
+prefilter queries. It excludes EDT/disc-prefilter construction, map loading,
+the search loop and label/queue operations from timed loops. Grid-cell
+counters are collected in a separate untimed verification pass. Each
+prefilter-clear verdict is checked against a full exact oracle; every
+other checker verdict must match that oracle. The fixed poses remain
+identical across margins, while collision outcomes legitimately change.
+`exact_calls`, `candidate_cells`, `sat_tests` and
+`distance_tests` reveal the per-pose effect without changes in
+expansions or successor distribution. The benchmark also reports the
+timed and verification collision counts as an internal consistency check.
+
 With no case-name filter, each mode executes **both distinct route
 configurations** (16 matrix rows; repeat count applies to every row).
 The printed `scenario` is the original pose pair; read

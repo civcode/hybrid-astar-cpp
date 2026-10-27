@@ -259,3 +259,8 @@ matrix but collects exact per-cell work counts (adds measurement overhead).
 Neither runs automatically. See
 [W6 experiment details](architecture/w6-hotpath-profiling.md#ackermann-collision-broad-phase-and-factorial-ab-manual-october-2026)
 for the exact Docker Compose commands.
+
+For isolated collision-check cost without search-expansion confounding,
+run `--ackermann-collision-micro 5` instead. This uses identical poses
+for 0/0.50 m inflation with zero/four discs, measures lookup/check time
+without counter overhead, and collects SAT/distance work separately.
