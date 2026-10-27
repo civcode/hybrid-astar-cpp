@@ -62,7 +62,7 @@ TEST_CASE("Hard scenarios have reproducible finite validated planner results",
       auto request=item.request;
       // Identical budgets and map, only ordering changes.
       for(bool performance:{false,true}) {
-        INFO(performance?"noncertified performance grid":"certified Euclidean");
+        INFO((performance?"noncertified performance grid":"certified Euclidean"));
         auto first=execute(request,performance,false);
         auto second=execute(request,performance,false);
         comparable(first,second);

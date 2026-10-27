@@ -6,6 +6,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+using namespace hybrid_astar;
 using namespace hybrid_astar::demo;
 using namespace hybrid_astar::ackermann;
 
@@ -83,7 +84,7 @@ TEST_CASE("Rotated occupancy cell intersects real world-frame vehicle footprint"
   ExactCollisionChecker checker(*map,{},Footprint{-.2,.2,.2});
   // First PGM row is high Y, so raster row 6 is local Y cell 5.
   const Pose2D occupied{5-5.5,-2+5.5,1.5707963267948966};
-  const Pose2D free{5-2.5,-2+2.5,1.5707963267948966};
+  const Pose2D clear{5-2.5,-2+2.5,1.5707963267948966};
   REQUIRE(checker.check(occupied)==PoseCollision::Colliding);
-  REQUIRE(checker.check(free)==PoseCollision::Clear);
+  REQUIRE(checker.check(clear)==PoseCollision::Clear);
 }
