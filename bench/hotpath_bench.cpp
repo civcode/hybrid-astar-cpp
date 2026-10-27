@@ -150,7 +150,8 @@ void collisionMicro(int repeats) {
         poses.push_back({(ix+.31)*map.resolutionMeters,
                          (iy+.19)*map.resolutionMeters,yaw});
   std::cout<<"benchmark,margin_m,discs,poses,repeats,p50_ms,p95_ms,"
-      "exact_calls,disc_clear,collisions,candidate_cells,occupied_cells,"
+      "exact_calls,disc_clear,collisions,timed_collisions_total,"
+      "candidate_cells,occupied_cells,"
       "sat_tests,distance_tests,boundary_rejections\n";
   for(double margin:{0.,.5}) {
     ExactCollisionChecker checker(map,request.occupancy,request.footprint,margin);
@@ -163,7 +164,7 @@ void collisionMicro(int repeats) {
       if(discs)prefilter=std::make_unique<ConservativeDiscPrefilter>(
           map,request.occupancy,request.footprint,discs,margin);
       std::vector<double> ms;
-      volatile std::size_t sink=0;
+      std::size_t timedCollisions=0;
       for(int run=0;run<repeats;++run) {
         std::size_t collisionCount=0;
         const auto t0=std::chrono::steady_clock::now();
@@ -172,10 +173,9 @@ void collisionMicro(int repeats) {
           collisionCount+=checker.check(pose)==PoseCollision::Colliding;
         }
         const auto t1=std::chrono::steady_clock::now();
-        sink=sink+collisionCount;
+        timedCollisions+=collisionCount;
         ms.push_back(std::chrono::duration<double,std::milli>(t1-t0).count());
       }
-      (void)sink;
       CollisionWorkCounters work;
       std::size_t bypassed=0,exactCalls=0,collisions=0;
       for(std::size_t k=0;k<poses.size();++k) {
@@ -191,11 +191,13 @@ void collisionMicro(int repeats) {
           throw std::runtime_error("Collision counters changed geometry verdict");
         collisions+=verdict==PoseCollision::Colliding;
       }
+      if(timedCollisions!=collisions*std::size_t(repeats))
+        throw std::runtime_error("Timing and counted collision verdicts differed");
       std::cout<<"ackermann_warehouse_fixed_poses,"<<std::fixed<<std::setprecision(3)
                <<margin<<','<<discs<<','<<poses.size()<<','<<repeats<<','
                <<quantile(ms,.5)<<','<<quantile(ms,.95)<<','
                <<exactCalls<<','<<bypassed<<','<<collisions<<','
-               <<work.candidateCells<<','<<work.occupiedCells<<','
+               <<timedCollisions<<','<<work.candidateCells<<','<<work.occupiedCells<<','
                <<work.satTests<<','<<work.distanceTests<<','
                <<work.boundaryRejections<<'\n';
     }
