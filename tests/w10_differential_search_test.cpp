@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/planner.hpp"
+#include "hybrid_astar/planning/model_policy.hpp"
 #include "hybrid_astar/motion/primitive.hpp"
 #include <cmath>
 #include <memory>
