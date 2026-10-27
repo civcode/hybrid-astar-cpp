@@ -89,6 +89,8 @@ void validateOptions(const PlanOptions& o) {
       !std::isfinite(o.performanceHeuristicWeight) ||
       o.performanceHeuristicWeight<1 || o.performanceHeuristicWeight>3 ||
       !std::isfinite(o.footprintInflationMeters) || o.footprintInflationMeters<0 ||
+      !std::isfinite(o.mecanumStationarySpinPenaltyMeters) ||
+      o.mecanumStationarySpinPenaltyMeters<0 ||
       !std::isfinite(o.clearanceWeight) || o.clearanceWeight<0 ||
       !std::isfinite(o.clearanceInfluenceRadiusMeters) || o.clearanceInfluenceRadiusMeters<=0 ||
       (o.solutionPolicy!=SolutionPolicy::FirstStrictlyValidated &&

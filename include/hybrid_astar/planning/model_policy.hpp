@@ -387,12 +387,16 @@ public:
   }
   double terminalEdgeCost(const Section& s) const noexcept {
     return s.lengthMeters+
-        request_.options.rotationCostMetersPerRadian*std::abs(s.turnRadians);
+        request_.options.rotationCostMetersPerRadian*std::abs(s.turnRadians)+
+        (s.kind==ackermann::MotionKind::RotateInPlace?
+         request_.options.mecanumStationarySpinPenaltyMeters:0.0);
   }
   void validate() const {
     const auto& o=request_.options;
     if(!std::isfinite(o.rotationCostMetersPerRadian)||
        o.rotationCostMetersPerRadian<=0||
+       !std::isfinite(o.mecanumStationarySpinPenaltyMeters)||
+       o.mecanumStationarySpinPenaltyMeters<0||
        request_.analyticConnector||request_.analyticDistance||o.clearanceWeight>0)
       throw std::invalid_argument("Unsupported mecanum planning option");
     const mecanum::Model model(o.mecanumParameters);
@@ -447,7 +451,9 @@ public:
   Mode nextMode(Mode,const Primitive&) const noexcept {return Mode::None;}
   double edgeCost(Mode,const Primitive&,const Section& s) const {
     return s.lengthMeters+
-        request_.options.rotationCostMetersPerRadian*std::abs(s.turnRadians);
+        request_.options.rotationCostMetersPerRadian*std::abs(s.turnRadians)+
+        (s.kind==ackermann::MotionKind::RotateInPlace?
+         request_.options.mecanumStationarySpinPenaltyMeters:0.0);
   }
 private:
   const ackermann::PlanRequest& request_;

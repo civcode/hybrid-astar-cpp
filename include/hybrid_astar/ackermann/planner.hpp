@@ -101,6 +101,10 @@ struct PlanOptions {
   mecanum::Parameters mecanumParameters{};
   mecanum::PrimitiveConfig mecanumPrimitives{};
   double rotationCostMetersPerRadian = 0.40; // must be strictly positive
+  // Penalize a full stop to spin when moving turns are feasible.
+  // This is a search-quality preference, not literal traveled distance.
+  double mecanumStationarySpinPenaltyMeters = 0.35;
+  bool mecanumMergeIntermediateSpins = true;
   steering::AnalyticExpansionOptions analytic; // only used with connector
   // Performance default: bounded lazy obstacle-aware ordering is not a
   // certified continuous-space lower bound. Certified mode is still opt-in.
@@ -178,6 +182,7 @@ struct PlanDiagnostics {
   // Optional exact-goal connector attempts and strict path outcomes.
   std::size_t terminalConnectionAttempts = 0, terminalCandidates = 0;
   std::size_t terminalValidated = 0, terminalRejected = 0;
+  std::size_t mecanumSpinShortcutsAttempted = 0, mecanumSpinShortcutsAccepted = 0;
   std::size_t discDefinitelyClear = 0, discExactFallback = 0;
   std::size_t clearanceSamples = 0;
 };
