@@ -212,7 +212,7 @@ int main(int argc,char** argv) {
       "mode,expansion_limit,status,termination,elapsed_ms,expanded,generated,"
       "search_pose_checks,final_pose_checks,grid_settlements,analytic_attempts,"
       "analytic_accepted,rs_path_calls,rs_distance_calls,"
-      "path_cost_m,path_length_m,reverse_length_m\\n";
+      "path_cost_m,path_length_m,reverse_length_m\n";
 
     while(qualified<scenarioCount && candidates<maxCandidates) {
       // Draw on the full unchanged warehouse map. A large XY separation
@@ -249,7 +249,7 @@ int main(int argc,char** argv) {
         ++qualified;
         // ONLY qualifying paired paths are included in the primary CSV.
         for(std::size_t mode=0;mode<2;++mode) {
-          std::cout<<observed[mode].csvRow<<'\\n';
+          std::cout<<observed[mode].csvRow<<'\n';
           summaries[mode].times.push_back(observed[mode].milliseconds);
           summaries[mode].expansions.push_back(double(observed[mode].expanded));
           ++summaries[mode].successes;
@@ -263,7 +263,7 @@ int main(int argc,char** argv) {
           candidates%20==0))
         std::cerr<<"progress candidates="<<candidates<<" accepted="<<qualified
                  <<" rejected_failures="<<rejectedFailure
-                 <<" rejected_easy="<<rejectedExpansions<<'\\n';
+                 <<" rejected_easy="<<rejectedExpansions<<'\n';
       // Keep complete qualified CSV output useful even when interrupted.
       if(qualified>0 && qualified%10==0)std::cout<<std::flush;
     }
@@ -272,33 +272,33 @@ int main(int argc,char** argv) {
       <<" accepted="<<qualified
       <<" evaluated_candidates="<<candidates<<" sampled_pose_pairs="<<poseDraws
       <<" min_expansions_both="<<minimum<<" budget="<<budget
-      <<" min_direct_distance_m="<<minDirectDistanceMeters<<'\\n'
+      <<" min_direct_distance_m="<<minDirectDistanceMeters<<'\n'
       <<"rejected_failure_any="<<rejectedFailure
       <<" rejected_under_minimum_any="<<rejectedExpansions
       <<" (both_under="<<rejectedBothFast
       <<" connector_only_under="<<rejectedFastAOnly
-      <<" distance_only_under="<<rejectedFastBOnly<<")\\n"
+      <<" distance_only_under="<<rejectedFastBOnly<<")\n"
       <<"all_candidates_connector_success="<<anySuccessA
       <<" all_candidates_distance_success="<<anySuccessB
       <<" all_candidates_connector_at_least_min="<<anyExpandedA
-      <<" all_candidates_distance_at_least_min="<<anyExpandedB<<'\\n';
+      <<" all_candidates_distance_at_least_min="<<anyExpandedB<<'\n';
     for(std::size_t mode=0;mode<2;++mode)
       std::cerr<<modeName(mode)<<" qualified="<<summaries[mode].successes
                <<" median_ms="<<quantile(summaries[mode].times,.5)
                <<" p95_ms="<<quantile(summaries[mode].times,.95)
-               <<" median_expanded="<<quantile(summaries[mode].expansions,.5)<<'\\n';
+               <<" median_expanded="<<quantile(summaries[mode].expansions,.5)<<'\n';
     std::cerr<<"qualified_connector_faster="<<fasterConnector
              <<" qualified_distance_faster="<<fasterDistance
              <<" median_distance_to_connector_time_ratio="
-             <<quantile(matchedRatios,.5)<<'\\n';
+             <<quantile(matchedRatios,.5)<<'\n';
     if(qualified<scenarioCount) {
       std::cerr<<"ERROR: could not find 100 qualifying pairs within max_candidates="
-               <<maxCandidates<<"; partial results preserved in CSV.\\n";
+               <<maxCandidates<<"; partial results preserved in CSV.\n";
       return 2;
     }
     return 0;
   } catch(const std::exception& error) {
-    std::cerr<<"warehouse RS randomized benchmark failed: "<<error.what()<<'\\n';
+    std::cerr<<"warehouse RS randomized benchmark failed: "<<error.what()<<'\n';
     return 1;
   }
 }
