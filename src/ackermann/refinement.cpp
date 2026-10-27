@@ -154,46 +154,17 @@ std::vector<MotionSection> straightShortcut(const Pose2D& start,const Pose2D& en
   const auto gear=longitudinal>0?Gear::Forward:Gear::Reverse;
   return {makeSection(start,gear,0,std::abs(longitudinal))};
 }
-// Differential drives can pivot in place, translate straight in either gear,
-// then pivot again. These candidates are geometric, and still require strict
-// whole-path validation before they can replace any search result.
-std::vector<MotionSection> spinStraightSpin(const Pose2D& from,const Pose2D& to,
-                                           Gear gear) {
-  if(!finite(from)||!finite(to))return {};
-  std::vector<MotionSection> sections;
-  Pose2D pose=from;
-  const double dx=to.x-from.x,dy=to.y-from.y;
-  const double length=std::hypot(dx,dy);
-  auto spin=[&](double yaw) {
-    const double angle=std::remainder(yaw-pose.yaw,2*pi);
-    if(std::abs(angle)>1e-9) {
-      sections.push_back(makeRotationSection(pose,angle));
-      pose=sections.back().end;
-    }
-  };
-  if(length>1e-9) {
-    const double travelHeading=std::atan2(dy,dx)+
-        (gear==Gear::Reverse?pi:0.0);
-    spin(travelHeading);
-    sections.push_back(makeSection(pose,gear,0,length));
-    pose=sections.back().end;
-  }
-  spin(to.yaw);
-  return close(pose,to)?sections:std::vector<MotionSection>{};
-}
+// Differential refinement must never CREATE an in-place rotation.
+// Existing rotations may be removed by straight/CSC replacements; unavoidable
+// rotations in the independently verified original remain untouched.
 std::vector<std::vector<MotionSection>> differentialShortcuts(
     const Pose2D& from,const Pose2D& to,const RefinementOptions& opt) {
   std::vector<std::vector<MotionSection>> candidates;
-  if(opt.useCurvatureBoundedShortcuts) {
+  if(opt.useCurvatureBoundedShortcuts)
     candidates=generateCurvatureBoundedShortcuts(
         from,to,opt.differentialCurveRadiusMeters);
-  }
-  // Turning-in-place is always a physically possible candidate for the ideal
-  // differential-drive model, even when a fixed-curvature CSC does not fit.
-  for(Gear gear:{Gear::Forward,Gear::Reverse}) {
-    auto sections=spinStraightSpin(from,to,gear);
-    if(!sections.empty())candidates.push_back(std::move(sections));
-  }
+  auto straight=straightShortcut(from,to);
+  if(!straight.empty())candidates.push_back(std::move(straight));
   return candidates;
 }
 PlanResult makeVerified(const PlanRequest& req, const PlanResult& source,

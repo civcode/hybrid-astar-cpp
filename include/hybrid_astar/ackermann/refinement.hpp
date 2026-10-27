@@ -38,7 +38,7 @@ struct RefinementResult {
 
 // Rejects stale input and revalidates the original under this request before
 // trying shortcuts. Ackermann uses straight/CSC sections; differential drive
-// additionally supports spin-straight-spin and wheel-rate-feasible CSC sections.
+// only proposes straight or wheel-rate-feasible CSC sections (never a new spin).
 // Mecanum is not yet supported. Failed/over-budget proposals cannot erase
 // the verified original. Results remain sampled, not swept/actuator certified.
 RefinementResult refinePath(const PlanRequest& request, const PlanResult& original,

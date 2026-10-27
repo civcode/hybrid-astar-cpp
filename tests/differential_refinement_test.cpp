@@ -92,11 +92,35 @@ TEST_CASE("Differential zigzags shorten to validated direct motions",
     REQUIRE(refined.path.solutionQuality==SolutionQuality::FeasibleAfterRefinement);
     REQUIRE(refined.path.weightedCostMeters<2.32-1e-3);
     REQUIRE(refined.path.sections.size()<sections.size());
+    for(const auto& part:refined.path.sections)
+      REQUIRE(part.kind!=MotionKind::RotateInPlace);
     REQUIRE(refined.path.geometricLengthMeters<2);
     REQUIRE(refined.path.finalGear==Gear::Forward);
     REQUIRE(refined.exactPoseChecks<=settings.maxTotalPoseChecks);
     REQUIRE_FALSE(refined.path.trajectoryActuatorFeasible);
     checkDense(req,refined.path);
+  }
+}
+
+TEST_CASE("Differential refinement never invents a stop-and-spin connector",
+          "[differential][refinement][no-stop]") {
+  auto req=openRequest();
+  req.start={8,8,0};
+  const auto a=makeSection(req.start,Gear::Forward,.4,1.5);
+  const auto b=makeSection(a.end,Gear::Forward,0,1.0);
+  req.goal=b.end;
+  const auto original=raw(req,{a,b});
+  for(const bool curves:{false,true}) {
+    RefinementOptions options;
+    options.useCurvatureBoundedShortcuts=curves;
+    options.maxAttempts=25;
+    const auto result=refinePath(req,original,{},options);
+    REQUIRE(result.path.status==PlanStatus::Success);
+    REQUIRE(result.path.collisionEvidence==
+            CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+    for(const auto& section:result.path.sections)
+      REQUIRE(section.kind!=MotionKind::RotateInPlace);
+    checkDense(req,result.path);
   }
 }
 
@@ -128,6 +152,8 @@ TEST_CASE("Differential native CSC removes a redundant reverse cusp",
   for(const auto& section:result.path.sections)
     curved|=section.kind==MotionKind::Translate&&std::abs(section.curvature)>.5;
   REQUIRE(curved);
+  for(const auto& part:result.path.sections)
+    REQUIRE(part.kind!=MotionKind::RotateInPlace);
   checkDense(req,result.path);
 }
 
