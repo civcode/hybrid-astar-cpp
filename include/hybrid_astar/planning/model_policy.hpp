@@ -105,6 +105,13 @@ public:
   virtual Section materialize(State,const Primitive&) const=0;
   virtual Mode nextMode(Mode,const Primitive&) const=0;
   virtual double edgeCost(Mode,const Primitive&,const Section&) const=0;
+  // Optional holonomic capabilities. Defaults preserve W11 custom policies.
+  virtual bool strictSearchSampling() const noexcept {return false;}
+  virtual double additionalGoalLowerBound(State,State,double) const noexcept {return 0;}
+  virtual std::vector<std::vector<Section>> terminalConnections(State,State) const {return {};}
+  virtual double terminalEdgeCost(const Section&) const noexcept {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
   Hash keyHash(ackermann::PlanDiagnostics* diagnostics) const noexcept {
     return {diagnostics};
   }
@@ -136,6 +143,26 @@ public:
   }
   double edgeCost(Mode m,const Primitive& p,const Section& s) const override {
     return policy_.edgeCost(m,p,s);
+  }
+  bool strictSearchSampling() const noexcept override {
+    if constexpr(requires {policy_.strictSearchSampling();})
+      return policy_.strictSearchSampling();
+    return false;
+  }
+  double additionalGoalLowerBound(State from,State goal,double yawTolerance) const noexcept override {
+    if constexpr(requires {policy_.additionalGoalLowerBound(from,goal,yawTolerance);})
+      return policy_.additionalGoalLowerBound(from,goal,yawTolerance);
+    return 0;
+  }
+  std::vector<std::vector<Section>> terminalConnections(State from,State goal) const override {
+    if constexpr(requires {policy_.terminalConnections(from,goal);})
+      return policy_.terminalConnections(from,goal);
+    return {};
+  }
+  double terminalEdgeCost(const Section& section) const noexcept override {
+    if constexpr(requires {policy_.terminalEdgeCost(section);})
+      return policy_.terminalEdgeCost(section);
+    return std::numeric_limits<double>::quiet_NaN();
   }
 private:
   Policy policy_;
@@ -281,6 +308,66 @@ public:
   using Primitive=PlanarPrimitive;
   explicit MecanumPolicy(const ackermann::PlanRequest& request):request_(request) {}
   Hash keyHash(ackermann::PlanDiagnostics* diagnostics) const noexcept {return {diagnostics};}
+  bool strictSearchSampling() const noexcept {return true;}
+  double additionalGoalLowerBound(State from,State goal,double yawTolerance) const noexcept {
+    const double error=std::abs(motion::wrapAngle(goal.yaw-from.yaw));
+    return request_.options.rotationCostMetersPerRadian*std::max(0.0,error-yawTolerance);
+  }
+  // A nearby arbitrary SE(2) goal can be reached by bounded-rate pure strafe
+  // and stationary turn, in either order. These are ONLY candidates: the
+  // search kernel must strictly revalidate the entire path independently.
+  std::vector<std::vector<Section>> terminalConnections(State from,State goal) const {
+    const double distance=std::hypot(goal.x-from.x,goal.y-from.y);
+    if(!std::isfinite(distance)||distance>std::max(1.0,request_.options.goalXYToleranceMeters))
+      return {};
+    const double yawDelta=motion::wrapAngle(goal.yaw-from.yaw);
+    const mecanum::Model model(request_.options.mecanumParameters);
+    std::vector<std::vector<Section>> candidates;
+    candidates.reserve(2);
+    const auto candidate=[&](bool rotateFirst) {
+      std::vector<Section> path;
+      State pose=from;
+      const auto spin=[&]() {
+        if(std::abs(yawDelta)<=1e-12)return;
+        const auto section=ackermann::makeRotationSection(pose,yawDelta);
+        pose=section.end;path.push_back(section);
+      };
+      const auto translate=[&]() {
+        if(distance<=1e-12)return;
+        const double dx=goal.x-pose.x,dy=goal.y-pose.y;
+        const double cs=std::cos(pose.yaw),sn=std::sin(pose.yaw);
+        const double f=cs*dx+sn*dy,l=-sn*dx+cs*dy;
+        const double norm=std::hypot(f,l);
+        if(norm<=1e-12)return;
+        // Wheel-rate feasibility of an arbitrary diagonal direction is
+        // achieved by lowering speed; geometric cost remains unchanged.
+        const auto& params=model.parameters();
+        const double cap=.99*params.wheelRadiusMeters*
+            params.maxAbsWheelAngularRate/(std::abs(f/norm)+std::abs(l/norm));
+        const double speed=std::min(request_.options.mecanumPrimitives.translationSpeed,cap);
+        if(!std::isfinite(speed)||speed<=0||
+           !model.valid({speed*f/norm,speed*l/norm,0}))
+          throw std::invalid_argument("Infeasible terminal mecanum translation");
+        const auto section=ackermann::makeHolonomicSection(pose,f,l,0);
+        pose=section.end;path.push_back(section);
+      };
+      if(rotateFirst){spin();translate();}else{translate();spin();}
+      return path;
+    };
+    try {
+      auto first=candidate(false);
+      if(!first.empty())candidates.push_back(std::move(first));
+      if(std::abs(yawDelta)>1e-12&&distance>1e-12) {
+        auto second=candidate(true);
+        if(!second.empty())candidates.push_back(std::move(second));
+      }
+    }catch(const std::exception&) {return {};}
+    return candidates;
+  }
+  double terminalEdgeCost(const Section& s) const noexcept {
+    return s.lengthMeters+
+        request_.options.rotationCostMetersPerRadian*std::abs(s.turnRadians);
+  }
   void validate() const {
     const auto& o=request_.options;
     if(!std::isfinite(o.rotationCostMetersPerRadian)||
