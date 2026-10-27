@@ -81,6 +81,32 @@ TEST_CASE("Differential search still samples cached motion primitives away from 
   REQUIRE(result.diagnostics.searchMotionCalls>0);
 }
 
+TEST_CASE("Differential search uses final-density checks for inflated footprints",
+          "[w10][search][strict][inflation]") {
+  auto q=basic();
+  q.goal={14,10,0};
+  q.options.footprintInflationMeters=.10;
+  q.options.searchSampleSpacingMeters=.30;
+  q.options.searchMaxBodyPointMotionMeters=.30;
+  q.options.finalSampleSpacingMeters=.025;
+  q.options.finalMaxBodyPointMotionMeters=.025;
+  // This regression also protects the typed policy and its runtime adapter.
+  const hybrid_astar::planning::DifferentialDrivePolicy policy{q};
+  REQUIRE(policy.strictSearchSampling());
+  const auto planned=plan(q);
+  REQUIRE(planned.status==PlanStatus::Success);
+  REQUIRE(planned.diagnostics.searchMotionCalls>0);
+  REQUIRE(planned.diagnostics.finalPoseChecks>0);
+  REQUIRE(planned.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  const ExactCollisionChecker checker(*q.map,q.occupancy,q.footprint,
+                                       q.options.footprintInflationMeters);
+  for(const auto& section:planned.sections)
+    for(int i=0;i<=60;++i)
+      REQUIRE(checker.check(section.evaluate(
+          section.progressExtent()*double(i)/60))==PoseCollision::Clear);
+}
+
 TEST_CASE("Independent final validation samples a rotating footprint",
           "[w10][collision][spin]") {
   auto q=basic();

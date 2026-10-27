@@ -219,6 +219,10 @@ public:
   using Section=ackermann::MotionSection;
   using Primitive=PlanarPrimitive;
   explicit DifferentialDrivePolicy(const ackermann::PlanRequest& r):request_(r) {}
+  // Differential search uses exact body-motion sampling too. Coarse checks
+  // can accept an inflated-body arc only for strict revalidation to reject
+  // the very same primitive later. Match final sampling during search.
+  bool strictSearchSampling() const noexcept {return true;}
 
   void validate() const {
     const auto& options=request_.options;
