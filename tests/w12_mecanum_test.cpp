@@ -40,14 +40,15 @@ TEST_CASE("Mecanum stationary stops cost more than equivalent moving turns",
   const po::MecanumPolicy policy{r};
   const auto spin=a::makeRotationSection(r.start,.39269908169872414);
   const auto twist=a::makeHolonomicSection(r.start,1,0,.39269908169872414);
-  REQUIRE(policy.terminalEdgeCost(spin)==
-          Approx(r.options.rotationCostMetersPerRadian*std::abs(spin.turnRadians)+.35));
-  REQUIRE(policy.terminalEdgeCost(twist)==
-          Approx(twist.lengthMeters+
-                 r.options.rotationCostMetersPerRadian*std::abs(twist.turnRadians)));
+  REQUIRE(std::abs(policy.terminalEdgeCost(spin)-
+          (r.options.rotationCostMetersPerRadian*std::abs(spin.turnRadians)+.35))<1e-9);
+  REQUIRE(std::abs(policy.terminalEdgeCost(twist)-
+          (twist.lengthMeters+
+           r.options.rotationCostMetersPerRadian*std::abs(twist.turnRadians)))<1e-9);
   REQUIRE(policy.terminalEdgeCost(spin)>0);
   r.options.mecanumStationarySpinPenaltyMeters=-.1;
-  REQUIRE_THROWS_AS(po::MecanumPolicy{r}.validate(),std::invalid_argument);
+  const po::MecanumPolicy invalid{r};
+  REQUIRE_THROWS_AS(invalid.validate(),std::invalid_argument);
 }
 
 TEST_CASE("Mecanum wheel mapping bounds are enforced on all four wheels","[w12][model]") {
