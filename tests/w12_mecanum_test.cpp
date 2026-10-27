@@ -3,6 +3,7 @@
 #include "hybrid_astar/mecanum/primitives.hpp"
 #include "hybrid_astar/planning/model_policy.hpp"
 #include "hybrid_astar/ackermann/planner.hpp"
+#include "bench/warehouse_scenarios.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -242,23 +243,7 @@ TEST_CASE("Off-grid mecanum goal uses strictly validated exact holonomic termina
 
 TEST_CASE("Mecanum navigates warehouse gaps to a rotated, off-lattice target",
           "[w12][search][warehouse]") {
-  auto map=std::make_shared<a::MapSnapshot>();
-  map->width=200;map->height=160;map->resolutionMeters=.25;
-  map->frameId="warehouse/map";map->sourceId="warehouse-repro";map->revision=1313;
-  map->cells.assign(map->width*map->height,0);
-  const auto occupied=[&](int x0,int y0,int x1,int y1) {
-    for(int y=y0;y<y1;++y)for(int x=x0;x<x1;++x)
-      map->cells[std::size_t(y)*map->width+std::size_t(x)]=100;
-  };
-  occupied(48,12,53,48);occupied(48,92,53,145);
-  occupied(94,0,99,46);occupied(94,100,99,160);
-  occupied(141,12,146,55);occupied(141,104,146,145);
-  auto r=request();
-  r.map=map;
-  r.start={4.77,5.62,0};
-  r.goal={31.01,3.41,-.5*std::numbers::pi_v<double>};
-  r.options.maxExpansions=1'000'000;
-  r.options.maxGeneratedNodes=4'000'000;
+  auto r=bench::mecanumWarehouseCase();
   const auto result=a::plan(r);
   INFO("mecanum warehouse status="<<static_cast<int>(result.status)
        <<" expanded="<<result.diagnostics.expanded
