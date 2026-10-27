@@ -391,3 +391,99 @@ TEST_CASE("Differential rolling refinement avoids a splice immediately beside a 
   }
   checkDense(req,result.path);
 }
+
+namespace {
+// Compact, deterministic reproductions of the two user-exported warehouse
+// routes. The codes reproduce exact 0.5 m differential primitives; the
+// added occupancy runs reproduce all 143 browser-painted cells without a
+// large JSON test artifact. Both exports use a 0.50 m footprint margin.
+PlanRequest exportedWarehouseRequest(bool good) {
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=200;map->height=160;map->resolutionMeters=.25;
+  map->frameId="demo/map";map->sourceId="built-in";map->revision=187;
+  map->cells.assign(map->width*map->height,0);
+  const auto paint=[&](int x0,int y0,int x1,int y1) {
+    for(int y=y0;y<y1;++y)
+      for(int x=x0;x<x1;++x)
+        map->cells[std::size_t(y)*map->width+std::size_t(x)]=100;
+  };
+  paint(48,12,53,48);paint(48,92,53,145);
+  paint(94,0,99,46);paint(94,100,99,160);
+  paint(141,12,146,55);paint(141,104,146,145);
+  constexpr int additions[][3]={
+    {126,99,1},{125,100,3},{125,101,3},{125,102,3},{125,103,3},
+    {125,104,3},{125,105,3},{125,106,3},{125,107,3},{125,108,3},
+    {125,109,3},{125,110,3},{125,111,3},{125,112,3},{125,113,3},
+    {125,114,4},{126,115,3},{126,116,3},{126,117,3},{126,118,3},
+    {100,119,1},{112,119,2},{115,119,4},{120,119,10},
+    {99,120,8},{108,120,2},{111,120,19},
+    {99,121,15},{115,121,4},{120,121,9},
+    {100,122,1},{102,122,5},{108,122,2},{111,122,2}
+  };
+  for(const auto& run:additions)
+    paint(run[0],run[1],run[0]+run[2],run[1]+1);
+  PlanRequest req;
+  req.map=map;
+  req.start={5,32.08,0};
+  req.goal=good?Pose2D{44.54,7.37,pi/2}:Pose2D{31.77,35.96,pi/2};
+  req.footprint={-.35,.35,.25};
+  req.options.model=PlanOptions::Model::DifferentialDrive;
+  req.options.footprintInflationMeters=.5;
+  req.options.rotationCostMetersPerRadian=.4;
+  return req;
+}
+
+std::vector<MotionSection> exportedWarehouseSections(const PlanRequest& req,bool good) {
+  // T/L/S are clockwise/counterclockwise/straight forward 0.5 m sections.
+  // r is a -pi/8 in-place turn; R is the terminal +3pi/4 turn.
+  constexpr std::string_view bad="rrTSSLSSTLSSSTLTSLTSLTSSLLSLSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSLSTLLSSTTLLLSLSSSSSTLTLSSSSSLTLLSTSSr";
+  constexpr std::string_view clean="TTTTLLTSSLTSLTSLSSTLTSLSLSSTSSLTSSSLTSLTSSLTSLSLSSSSSSSSSSSSSSSSSSSSSSSSSSSTSTLSTSSLTSSSLTSSSSSSSSSSSR";
+  std::vector<MotionSection> sections;
+  Pose2D at=req.start;
+  for(const char code:(good?clean:bad)) {
+    MotionSection part;
+    if(code=='r'||code=='R')
+      part=makeRotationSection(at,code=='r'?-pi/8:3*pi/4);
+    else
+      part=makeSection(at,Gear::Forward,
+          code=='T'?-pi/4:code=='L'?pi/4:0.0,.5);
+    at=part.end;
+    sections.push_back(part);
+  }
+  return sections;
+}
+} // namespace
+
+TEST_CASE("Differential local windows refine the initial warehouse approach",
+          "[differential][refinement][warehouse][local-window]") {
+  for(const bool good:{false,true}) {
+    auto req=exportedWarehouseRequest(good);
+    auto originalSections=exportedWarehouseSections(req,good);
+    REQUIRE(originalSections.size()==(good?102:95));
+    RefinementOptions settings;
+    settings.maxAttempts=160;
+    settings.maxAccepted=8;
+    settings.maxTotalPoseChecks=200000;
+    settings.useCurvatureBoundedShortcuts=true;
+    settings.differentialCurveRadiusMeters=.75;
+    settings.differentialRadiusVariants=4;
+    const auto refined=refinePath(req,raw(req,originalSections),{},settings);
+    INFO("good="<<good<<" status="<<int(refined.status)
+         <<" attempts="<<refined.attempted<<" accepted="<<refined.accepted
+         <<" cost="<<refined.path.weightedCostMeters);
+    REQUIRE(refined.path.status==PlanStatus::Success);
+    REQUIRE(refined.path.collisionEvidence==
+            CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+    REQUIRE(refined.attempted<=settings.maxAttempts);
+    REQUIRE(refined.exactPoseChecks<=settings.maxTotalPoseChecks);
+    REQUIRE(refined.accepted>0);
+    REQUIRE(refined.path.weightedCostMeters<
+            (good?51.4424777961:46.471238898));
+    if(!good) {
+      // Before the local-window pass, the first two stationary rotations
+      // remained untouched even though an early rolling CSC is available.
+      REQUIRE(refined.path.sections.front().kind==MotionKind::Translate);
+    }
+    checkDense(req,refined.path);
+  }
+}
