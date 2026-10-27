@@ -323,3 +323,54 @@ generation calls should be zero in mode 1. Compare success rates **before**
 ranking runtimes; failure at the same expansion budget is not a speed win.
 Benchmark timings are environment-specific. The 1M-expansion benchmark is
 **manual only**, never a CTest or GitHub Actions job.
+
+### 100 randomized matched-pair warehouse runs
+
+The manual `hybrid_astar_warehouse_rs_randomized` executable (a **single C++
+benchmark source file**, `bench/warehouse_rs_randomized.cpp`) draws exactly
+100 reproducible, randomized start/goal pose pairs on the same edited
+warehouse map. Each pair is tested twice:
+
+- `grid_plus_rs_connector`: adaptive RS connector, grid heuristic, no RS
+  distance estimate.
+- `grid_plus_rs_connector_and_distance`: same connector/scheduler/grid
+  heuristic with the additional RS distance estimate.
+
+The fixed seeded generator uses **25 pairs in each straight-line separation
+band** (6–12, 12–20, 20–30, and 30–60 metres). Every sampled start and
+goal must pass the exact collision checker for the physical Ackermann
+footprint **with 0.50 m inflation**. This avoids accidental
+start/goal-in-collision cases; it does not preselect routes guaranteed
+reachable. Pair-specific results and failures are both retained.
+
+Each pair uses identical poses, map/occupancy, 4 m minimum turning radius,
+search resolution, adaptive RS scheduling ratio (3.5), and expansion budget.
+The execution order alternates between A/B and B/A to reduce ordering
+effects. CSV includes seed, full poses, status, time, expansions, analytic
+attempts/acceptances, RS path/distance call counts, collision-validation
+work, and path cost/length when successful. A separate stderr summary
+contains success rates, median/p95 runtimes, median expansions, and
+paired runtime ratios **only where both configurations succeed**.
+
+```bash
+git fetch origin
+git switch test/warehouse-reeds-shepp-ab
+git pull --ff-only
+BUILD_JOBS=28 TEST_JOBS=4 docker compose build test
+
+# Quick functional test (NOT the randomized performance comparison).
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
+  ctest --test-dir build-docker -R ompl_smoke --output-on-failure
+
+# All 100 randomized scenarios in both modes: 200 full planning runs.
+# The seed and maximum expansion budget can be changed in the last two args.
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
+  ./build-docker/hybrid_astar_warehouse_rs_randomized 20261027 1000000 \
+  > warehouse-rs-randomized.csv 2> warehouse-rs-randomized-summary.txt
+```
+
+This is a **manual-only** experiment; it is not added to CTest, GitHub
+Actions, or any automatic trigger. On a system with limited RAM, using 28
+parallel compiler jobs may exhaust memory; reduce `BUILD_JOBS` if needed.
+Use the same seed and budget when comparing code changes, and repeat with
+several seeds before drawing broad performance conclusions.
