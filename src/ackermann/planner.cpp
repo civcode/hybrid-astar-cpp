@@ -15,7 +15,6 @@
 #include <optional>
 #include <queue>
 #include <stdexcept>
-#include <type_traits>
 #include <unordered_map>
 #include <utility>
 
@@ -752,7 +751,9 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
       hasIncumbent=true;
     };
     const auto finishIncumbent=[&](TerminationReason reason) {
-      if constexpr(std::is_same_v<Policy,planning::MecanumPolicy>) {
+      // Applies equally to the native mecanum policy and the W11 policy
+      // adapter; both use the same kinematic model and route semantics.
+      if(r.options.model==PlanOptions::Model::Mecanum) {
         try {removeAvoidableMecanumSpins(r,checker,incumbent,result.diagnostics);}
         catch(const std::exception&) {
           // Cleanup is optional: a validated path always survives exceptions.
