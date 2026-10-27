@@ -287,14 +287,14 @@ sections within the original attempt and pose-check budgets.
 
 ```bash
 BUILD_JOBS=28 TEST_JOBS=4 docker compose build test
-BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \\
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
   ctest --test-dir build-docker -R 'curved_shortcuts_test|demo_test|ompl_smoke' --output-on-failure
 
 # Ackermann grid + adaptive RS connector (without RS distance)
-BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \\
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
   ./build-docker/hybrid_astar_demo --once --scenario parking --ompl --refine --curved
 
 # Explicit extra Reeds-Shepp distance heuristic
-BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \\
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
   ./build-docker/hybrid_astar_demo --once --scenario parking --ompl --rs-distance
 ```
