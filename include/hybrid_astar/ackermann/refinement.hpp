@@ -16,6 +16,7 @@ struct RefinementOptions {
   std::size_t maxAccepted = 4;            // full-path replacements
   std::size_t maxReplacementSections = 32;
   bool useCurvatureBoundedShortcuts = false; // opt-in fixed-gear LSL/LSR/RSL/RSR
+  double differentialCurveRadiusMeters = 0.75; // CSC radius, not a car turning limit
   std::size_t maxTotalPoseChecks = 100000; // includes original revalidation
   double minimumCostReductionMeters = 1e-6;
 };
@@ -36,8 +37,10 @@ struct RefinementResult {
 };
 
 // Rejects stale input and revalidates the original under this request before
-// trying shortcuts. Failed/over-budget proposals can never erase that original.
-// The result remains sampled, never swept- or actuator-certified.
+// trying shortcuts. Ackermann uses straight/CSC sections; differential drive
+// additionally supports spin-straight-spin and wheel-rate-feasible CSC sections.
+// Mecanum is not yet supported. Failed/over-budget proposals cannot erase
+// the verified original. Results remain sampled, not swept/actuator certified.
 RefinementResult refinePath(const PlanRequest& request, const PlanResult& original,
                             RefinementConnector connector = {},
                             RefinementOptions options = {});
