@@ -47,6 +47,12 @@ It is not a substitute for the complete OMPL-ON CMake package build.
   the **start**, Shift-click for the **goal**. Angles are editable fields.
 - Default obstacle-grid heuristic (noncertified performance ordering);
   uncheck the box to use the certified Euclidean heuristic,
+- Strict optional post-path refinement for **Ackermann and differential drive**.
+  Differential mode tries wheel-rate-feasible rotate–straight–rotate shortcuts,
+  with additional smooth CSC candidates when the curved checkbox is enabled.
+  The entire candidate is independently checked against the rectangular body
+  and swept stationary turns; if it does not strictly lower weighted cost, the
+  validated original is retained. Mecanum refinement remains unsupported.
   bounded validated incumbent improvement, post-search refinement, and native
   curvature-bounded CSC shortcuts.
 - Optional Reeds–Shepp analytic connections and combined refinement when
@@ -285,6 +291,17 @@ High expansion ceilings can consume significant CPU and RAM, especially
 on impossible maps. Prior performance measurements on older versions do
 not characterize the new holonomic terminal connector or sampling policy.
 Out-of-range or non-integer budgets are rejected with `400` / exit code 2.
+
+For differential drive, `refine=1` enables cost-reducing rotate–straight–rotate
+shortcuts and `curved=1` also tries native CSC arcs using a 0.75 m candidate
+radius (not an Ackermann minimum turning radius). The ideal differential
+drive model may time-scale each feasible curvature to respect wheel speed
+limits; acceleration and dynamic smoothness are not certified. The refiner
+independently checks the full route, including swept in-place turns, with a
+bounded check budget (200,000 poses by default in Planning Lab), and always
+preserves the original strictly validated route when it cannot improve it.
+The browser checkbox settings apply equally to Ackermann and differential
+drive; Reeds–Shepp and refinement remain unsupported for mecanum.
 
 Other quality/effort levers are orthogonal: `improve=1` keeps searching
 for a better incumbent after the first validated path, and `refine`/`curved`

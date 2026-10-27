@@ -172,8 +172,8 @@ Outcome run(const Options& opt) {
     if(!finite(p)||p.x < -1000||p.x > 1000||p.y < -1000||p.y > 1000||
        std::abs(p.yaw)>10000)throw std::invalid_argument("Pose is not finite or within demo bounds");
   if(opt.model=="differential" || opt.model=="diff") {
-    if(opt.ompl || opt.refine || opt.curvedRefinement)
-      throw std::invalid_argument("Reeds-Shepp and Ackermann refinement are unavailable for differential drive");
+    if(opt.ompl)
+      throw std::invalid_argument("Reeds-Shepp analytic steering is unavailable for differential drive");
     out.request.options.model=PlanOptions::Model::DifferentialDrive;
     out.request.footprint={-.35,.35,.25}; // compact robot body, reference center
     out.request.options.rotationCostMetersPerRadian=.4;
@@ -215,7 +215,16 @@ Outcome run(const Options& opt) {
     if(opt.ompl)throw std::invalid_argument("OMPL adapter is not enabled in this demo build");
     out.original=ackermann::plan(out.request);
     if(opt.refine&&out.original.status==PlanStatus::Success) {
-      RefinementOptions settings;settings.maxAttempts=35;settings.maxAccepted=3;
+      RefinementOptions settings;
+      if(out.request.options.model==PlanOptions::Model::DifferentialDrive) {
+        settings.maxAttempts=160;
+        settings.maxAccepted=8;
+        settings.maxTotalPoseChecks=200000;
+        settings.differentialCurveRadiusMeters=.75;
+      } else {
+        settings.maxAttempts=35;
+        settings.maxAccepted=3;
+      }
       settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
       out.refinement=refinePath(out.request,out.original,{},settings);
     }
