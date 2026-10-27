@@ -269,3 +269,28 @@ TEST_CASE("Mecanum navigates warehouse gaps to a rotated, off-lattice target",
   REQUIRE(result.goalXYErrorMeters<=r.options.goalXYToleranceMeters+1e-8);
   REQUIRE(result.goalYawErrorRadians<=r.options.goalYawToleranceRadians+1e-8);
 }
+
+TEST_CASE("Nearby mecanum terminal links cannot bypass occupied footprint cells",
+          "[w12][terminal][collision]") {
+  auto r=request();
+  auto edited=std::make_shared<a::MapSnapshot>(*r.map);
+  // The start and goal footprints are separately clear. Their straight
+  // connector intersects a central occupied cell and must not be accepted.
+  edited->cells[50*edited->width+52]=100; // x=[10.4,10.6], y=[10,10.2]
+  r.map=edited;
+  r.goal={11,10,0};
+  a::ExactCollisionChecker checker(*r.map,r.occupancy,r.footprint);
+  REQUIRE(checker.check(r.start)==a::PoseCollision::Clear);
+  REQUIRE(checker.check(r.goal)==a::PoseCollision::Clear);
+  const auto tail=po::MecanumPolicy{r}.terminalConnections(r.start,r.goal);
+  REQUIRE(tail.size()==1);
+  REQUIRE(tail.front().size()==1);
+  const auto& section=tail.front().front();
+  bool touchesOccupied=false;
+  for(int j=0;j<=100;++j) {
+    if(checker.check(section.evaluate(section.progressExtent()*double(j)/100))==
+       a::PoseCollision::Colliding)
+      touchesOccupied=true;
+  }
+  REQUIRE(touchesOccupied);
+}
