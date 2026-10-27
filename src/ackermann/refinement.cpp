@@ -419,6 +419,33 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
             if(replacement.empty()||replacement.size()>options.maxReplacementSections) {
               ++result.rejected;continue;
             }
+            if(req.options.model==PlanOptions::Model::DifferentialDrive) {
+              // Preserve rolling continuity at both splice endpoints: a
+              // shortcut must not add a new stop/reversal or a sharper
+              // curvature jump than the original seam already contained.
+              // Existing mandatory cusps/spins stay available in the raw
+              // validated path when no rolling alternative can remove them.
+              const auto& first=replacement.front();
+              const auto& last=replacement.back();
+              const auto spliceAcceptable=[&](const MotionSection& adjacent,
+                                              const MotionSection& oldEdge,
+                                              const MotionSection& newEdge) {
+                if(adjacent.kind!=MotionKind::Translate ||
+                   oldEdge.kind!=MotionKind::Translate ||
+                   newEdge.kind!=MotionKind::Translate)
+                  return true;
+                const bool originalSwitch=adjacent.gear!=oldEdge.gear;
+                const bool newSwitch=adjacent.gear!=newEdge.gear;
+                if(newSwitch&&!originalSwitch)return false;
+                return std::abs(adjacent.curvature-newEdge.curvature)<=
+                       std::abs(adjacent.curvature-oldEdge.curvature)+1e-8;
+              };
+              if((i>0&&!spliceAcceptable(before[i-1],before[i],first))||
+                 (j<before.size()&&
+                  !spliceAcceptable(before[j],before[j-1],last))) {
+                ++result.rejected;continue;
+              }
+            }
             std::vector<MotionSection> candidate;
             candidate.reserve(before.size()-(j-i)+replacement.size());
             candidate.insert(candidate.end(),before.begin(),before.begin()+i);
