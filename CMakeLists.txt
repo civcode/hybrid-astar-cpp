@@ -99,6 +99,10 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   target_link_libraries(hybrid_astar_w10_motion_primitives_test PRIVATE
     hybrid_astar::core hybrid_astar::differential_drive Catch2::Catch2WithMain)
   add_test(NAME w10_motion_primitives_test COMMAND hybrid_astar_w10_motion_primitives_test)
+  add_executable(hybrid_astar_footprint_inflation_test tests/footprint_inflation_test.cpp)
+  target_link_libraries(hybrid_astar_footprint_inflation_test PRIVATE
+    hybrid_astar::core Catch2::Catch2WithMain)
+  add_test(NAME footprint_inflation_test COMMAND hybrid_astar_footprint_inflation_test)
   add_executable(hybrid_astar_hotpath_test tests/hotpath_test.cpp)
   target_include_directories(hybrid_astar_hotpath_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(hybrid_astar_hotpath_test PRIVATE hybrid_astar::core Catch2::Catch2WithMain)
