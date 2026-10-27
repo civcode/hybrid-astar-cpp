@@ -221,8 +221,63 @@ void collisionMicro(int repeats) {
   }
 }
 }
+void ackermannEasyAB(int repeats) {
+  // Deliberately simple open-map control case: broad-phase setup may cost
+  // more than the subsequent short search. Include it in timed plan().
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=map->height=100;
+  map->resolutionMeters=.25;
+  map->cells.assign(map->width*map->height,0);
+  map->revision=1;map->frameId="easy-bench";map->sourceId="open";
+  PlanRequest request;
+  request.map=map;
+  request.start={6,6,0};
+  request.goal={9,6,0};
+  request.options.model=PlanOptions::Model::Ackermann;
+  request.options.maxExpansions=20000;
+  request.options.maxGeneratedNodes=80000;
+  request.options.collectCollisionWork=false;
+  csvHeader();
+  for(double margin:{0.,.5}) {
+    PlanResult reference;
+    bool haveReference=false;
+    for(std::size_t discs:{std::size_t{0},std::size_t{4}})
+      for(bool prefix:{false,true}) {
+        auto q=request;
+        q.options.footprintInflationMeters=margin;
+        q.options.discPrefilterCount=discs;
+        q.options.useEmptyRegionPrefixSum=prefix;
+        std::vector<double> times;
+        PlanResult last;
+        for(int run=0;run<repeats;++run) {
+          const auto t0=std::chrono::steady_clock::now();
+          auto result=plan(q);
+          const auto t1=std::chrono::steady_clock::now();
+          if(result.status!=PlanStatus::Success)
+            throw std::runtime_error("Open Ackermann control route not solved");
+          if(haveReference)equivalent(reference,result);
+          times.push_back(std::chrono::duration<double,std::milli>(t1-t0).count());
+          last=std::move(result);
+        }
+        if(!haveReference) {
+          reference=last;
+          haveReference=true;
+        }
+        const std::string variant=std::string(prefix?"prefix1":"prefix0")+
+            (discs?"_disc4":"_disc0")+
+            (margin>0?"_margin050":"_margin000");
+        csvRow({"ackermann_easy_open",request},variant.c_str(),
+               q.options,repeats,times,last);
+      }
+  }
+}
 int main(int argc,char** argv) {
   try {
+    if(argc>1&&std::string(argv[1])=="--ackermann-easy-ab") {
+      if(argc>3)throw std::invalid_argument("Usage: --ackermann-easy-ab [repeats]");
+      ackermannEasyAB(argc==3?number(argv[2],1,100):7);
+      return 0;
+    }
     if(argc>1&&std::string(argv[1])=="--ackermann-collision-micro") {
       if(argc>3)throw std::invalid_argument(
           "Usage: --ackermann-collision-micro [repeats]");
