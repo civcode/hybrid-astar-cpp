@@ -90,3 +90,98 @@ static void runLegacyAssertions() {
 TEST_CASE("curved_shortcuts_test contracts", "[curved_shortcuts_test]") {
   runLegacyAssertions();
 }
+
+TEST_CASE("Ackermann local-window scheduling reaches a mid-route reversible arc",
+          "[ackermann][refinement][local-window]") {
+  // 32 ordinary sections precede a forward/reverse/forward backtrack;
+  // the remaining 29 sections make a 64-section route. With the historical
+  // widest-window-first, maxAttempts=35 never tried the exact [32,35) window.
+  PlanRequest req;
+  req.map=openMap();
+  req.start={20,20,0};
+  Pose2D pose=req.start;
+  std::vector<MotionSection> sections;
+  const auto add=[&](Gear gear,double curvature,double length) {
+    sections.push_back(makeSection(pose,gear,curvature,length));
+    pose=sections.back().end;
+  };
+  for(int i=0;i<32;++i)add(Gear::Forward,0,.35);
+  const Pose2D cuspStart=pose;
+  add(Gear::Forward,.20,2.0);
+  add(Gear::Reverse,.20,1.0);
+  add(Gear::Forward,.20,1.0);
+  const Pose2D cuspEnd=pose;
+  for(int i=0;i<29;++i)add(Gear::Forward,0,.35);
+  req.goal=pose;
+  REQUIRE(sections.size()==64);
+  RefinementOptions settings;
+  settings.maxAttempts=35;
+  settings.maxAccepted=1;
+  std::size_t matchingWindows=0;
+  const auto result=refinePath(req,given(req,sections),
+    [&](const Pose2D& from,const Pose2D& to) -> std::vector<MotionSection> {
+      const auto near=[](const Pose2D& a,const Pose2D& b) {
+        return std::hypot(a.x-b.x,a.y-b.y)<1e-8 &&
+               std::abs(std::remainder(a.yaw-b.yaw,2*std::numbers::pi))<1e-8;
+      };
+      if(!near(from,cuspStart)||!near(to,cuspEnd))return {};
+      ++matchingWindows;
+      return {makeSection(from,Gear::Forward,.20,2.0)};
+    },settings);
+  REQUIRE(matchingWindows>0);
+  REQUIRE(result.accepted==1);
+  REQUIRE(result.attempted<=settings.maxAttempts);
+  REQUIRE(result.status==RefinementStatus::Improved);
+  REQUIRE(result.path.status==PlanStatus::Success);
+  REQUIRE(result.path.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  REQUIRE(result.path.weightedCostMeters<result.path.geometricLengthMeters+1.);
+  REQUIRE(result.path.sections.size()==62); // replace 3-section cusp with one arc
+  REQUIRE(result.path.reverseLengthMeters==0);
+}
+
+TEST_CASE("Ackermann RS provider does not suppress optional native CSC",
+          "[ackermann][refinement][rs-csc]") {
+  PlanRequest req;
+  req.map=openMap();
+  req.start={20,20,0};
+  const auto first=makeSection(req.start,Gear::Forward,.20,2.0);
+  const auto second=makeSection(first.end,Gear::Reverse,.20,1.0);
+  const auto third=makeSection(second.end,Gear::Forward,.20,1.0);
+  req.goal=third.end;
+  const auto original=given(req,{first,second,third});
+  int connectorCalls=0;
+  const auto rsCandidate=[&](const Pose2D&,const Pose2D&) {
+    ++connectorCalls;
+    // The provider returns the original path, which is collision-free but
+    // does not improve cost. Native CSC must still be considered.
+    return std::vector<MotionSection>{first,second,third};
+  };
+  RefinementOptions settings;
+  settings.useCurvatureBoundedShortcuts=false;
+  const auto withoutCsc=refinePath(req,original,rsCandidate,settings);
+  REQUIRE(withoutCsc.accepted==0);
+  REQUIRE(withoutCsc.path.status==PlanStatus::Success);
+  REQUIRE(connectorCalls>0);
+  connectorCalls=0;
+  settings.useCurvatureBoundedShortcuts=true;
+  const auto withCsc=refinePath(req,original,rsCandidate,settings);
+  REQUIRE(connectorCalls>0);
+  REQUIRE(withCsc.accepted>0);
+  REQUIRE(withCsc.path.status==PlanStatus::Success);
+  REQUIRE(withCsc.path.weightedCostMeters<withoutCsc.path.weightedCostMeters-1e-3);
+  REQUIRE(withCsc.path.reverseLengthMeters<1e-6);
+  REQUIRE(withCsc.path.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+  REQUIRE(withCsc.exactPoseChecks<=settings.maxTotalPoseChecks);
+  // Even a malformed external candidate cannot bypass path validation or
+  // prevent valid native CSC from being evaluated.
+  const auto invalidProvider=[&](const Pose2D& from,const Pose2D&) {
+    return std::vector<MotionSection>{makeSection(from,Gear::Forward,0,.5)};
+  };
+  const auto withInvalid=refinePath(req,original,invalidProvider,settings);
+  REQUIRE(withInvalid.accepted>0);
+  REQUIRE(withInvalid.path.weightedCostMeters<withoutCsc.path.weightedCostMeters);
+  REQUIRE(withInvalid.path.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+}
