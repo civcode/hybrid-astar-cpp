@@ -2,6 +2,8 @@
 #include "hybrid_astar/ackermann/clearance.hpp"
 #include "hybrid_astar/ackermann/curved_shortcuts.hpp"
 #include "hybrid_astar/differential_drive/model.hpp"
+#include "hybrid_astar/mecanum/model.hpp"
+#include "hybrid_astar/motion/primitive.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -36,6 +38,18 @@ struct Evaluated {
 // Stationary rotations retain the previous translational gear for cost
 // switches, exactly like differential-drive planner primitive transitions.
 double sectionBaseCost(const PlanRequest& req,const MotionSection& sec,Gear prior) {
+  if(req.options.model==PlanOptions::Model::Mecanum) {
+    if(sec.gear!=Gear::None||
+       (sec.kind!=MotionKind::RotateInPlace &&
+        sec.kind!=MotionKind::HolonomicTwist) ||
+       !std::isfinite(sec.lengthMeters)||sec.lengthMeters<0 ||
+       !std::isfinite(sec.turnRadians))
+      return std::numeric_limits<double>::quiet_NaN();
+    return sec.lengthMeters+
+        req.options.rotationCostMetersPerRadian*std::abs(sec.turnRadians)+
+        (sec.kind==MotionKind::RotateInPlace?
+         req.options.mecanumStationarySpinPenaltyMeters:0.0);
+  }
   if(sec.kind==MotionKind::RotateInPlace) {
     if(req.options.model!=PlanOptions::Model::DifferentialDrive ||
        sec.gear!=Gear::None || sec.lengthMeters!=0 ||
@@ -69,6 +83,53 @@ bool differentialMotionFeasible(const PlanRequest& req,const MotionSection& sec,
   const double v=sec.gear==Gear::Forward?speed:-speed;
   return model.valid({v,v*sec.curvature});
 }
+// Inverse SE(2) exponential: exactly connects two planar states in a single
+// simultaneous translation+rotation without introducing a new stop. The
+// ideal mecanum model can time-scale finite twists to respect wheel limits.
+std::vector<MotionSection> holonomicShortcut(const PlanRequest& req,
+                                              const Pose2D& start,
+                                              const Pose2D& end) {
+  if(!finite(start)||!finite(end))return {};
+  const double dx=end.x-start.x,dy=end.y-start.y;
+  const double c=std::cos(start.yaw),s=std::sin(start.yaw);
+  const double x=c*dx+s*dy,y=-s*dx+c*dy;
+  const double angle=motion::wrapAngle(end.yaw-start.yaw);
+  if(std::hypot(x,y)<1e-8)return {};
+  const double a=std::abs(angle)<1e-7?1-angle*angle/6:std::sin(angle)/angle;
+  const double b=std::abs(angle)<1e-7?.5*angle-angle*angle*angle/24:
+                     (1-std::cos(angle))/angle;
+  const double denom=a*a+b*b;
+  if(!std::isfinite(denom)||denom<1e-10)return {};
+  const double forward=(a*x+b*y)/denom,lateral=(a*y-b*x)/denom;
+  if(!std::isfinite(forward)||!std::isfinite(lateral)||
+     std::hypot(forward,lateral)<=1e-8)return {};
+  const auto section=makeHolonomicSection(start,forward,lateral,angle);
+  if(!close(section.end,end))return {};
+  return {section};
+}
+bool mecanumMotionFeasible(const PlanRequest& req,const MotionSection& sec,
+                          const mecanum::Model& model) {
+  const auto& p=model.parameters();
+  if(sec.kind==MotionKind::RotateInPlace) {
+    if(!std::isfinite(sec.turnRadians)||sec.turnRadians==0)return false;
+    const double omega=std::min(req.options.mecanumPrimitives.rotationSpeed,
+        .99*p.wheelRadiusMeters*p.maxAbsWheelAngularRate/
+              (p.halfWheelbaseMeters+p.halfTrackMeters));
+    return std::isfinite(omega)&&omega>0 &&
+           model.valid({0,0,std::copysign(omega,sec.turnRadians)});
+  }
+  if(sec.kind!=MotionKind::HolonomicTwist || sec.lengthMeters<=0)return false;
+  const double cap=p.wheelRadiusMeters*p.maxAbsWheelAngularRate;
+  const double seconds=std::max({
+      sec.lengthMeters/req.options.mecanumPrimitives.translationSpeed,
+      std::abs(sec.turnRadians)/req.options.mecanumPrimitives.rotationSpeed,
+      1.01*(std::abs(sec.forwardMeters)+std::abs(sec.lateralMeters)+
+            (p.halfWheelbaseMeters+p.halfTrackMeters)*std::abs(sec.turnRadians))/cap,
+      1e-5});
+  return std::isfinite(seconds) && model.valid({
+      sec.forwardMeters/seconds,sec.lateralMeters/seconds,
+      sec.turnRadians/seconds});
+}
 // Verify EVERY section, including the original, with the independent strict
 // checker. No EDT, no search cache. Recompute objective from actual arcs.
 Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed,
@@ -76,8 +137,11 @@ Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed
                std::size_t& checks,std::size_t maxChecks,Evaluated& out) {
   const auto& opt=req.options;
   const bool differential=opt.model==PlanOptions::Model::DifferentialDrive;
+  const bool mecanum=opt.model==PlanOptions::Model::Mecanum;
   std::unique_ptr<differential_drive::Model> diffModel;
   if(differential) diffModel=std::make_unique<differential_drive::Model>(opt.diffParameters);
+  std::unique_ptr<mecanum::Model> mecanumModel;
+  if(mecanum)mecanumModel=std::make_unique<mecanum::Model>(opt.mecanumParameters);
   out=Evaluated{};
   out.sections.reserve(proposed.size());
   out.last=req.start;
@@ -91,9 +155,18 @@ Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed
         !std::isfinite(part.lengthMeters)||!std::isfinite(part.turnRadians)||
         !close(part.start,out.last)) return Check::Invalid;
     const bool spin=part.kind==MotionKind::RotateInPlace;
+    const bool holo=part.kind==MotionKind::HolonomicTwist;
     if(spin) {
-      if(!differential||part.gear!=Gear::None||part.lengthMeters!=0||
-         part.curvature!=0||std::abs(part.turnRadians)<=1e-12)
+      if((!differential&&!mecanum)||part.gear!=Gear::None||
+         part.lengthMeters!=0||part.curvature!=0||
+         std::abs(part.turnRadians)<=1e-12)return Check::Invalid;
+    } else if(holo) {
+      if(!mecanum||part.gear!=Gear::None ||
+         !std::isfinite(part.forwardMeters)||
+         !std::isfinite(part.lateralMeters)||
+         part.lengthMeters<=0||std::abs(part.curvature)>1e-12||
+         std::abs(part.lengthMeters-
+             std::hypot(part.forwardMeters,part.lateralMeters))>1e-6)
         return Check::Invalid;
     } else if(part.kind!=MotionKind::Translate || part.lengthMeters<=0 ||
               (part.gear!=Gear::Forward&&part.gear!=Gear::Reverse)||
@@ -101,13 +174,20 @@ Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed
               (!differential &&
                std::abs(part.curvature)>1.0/opt.minimumTurningRadiusMeters+1e-10))
       return Check::Invalid;
+    if(mecanum&&!spin&&!holo)return Check::Invalid;
     const auto sec=spin?makeRotationSection(out.last,part.turnRadians)
-                       :makeSection(out.last,part.gear,part.curvature,part.lengthMeters);
+                   :holo?makeHolonomicSection(out.last,part.forwardMeters,
+                                               part.lateralMeters,part.turnRadians)
+                   :makeSection(out.last,part.gear,part.curvature,part.lengthMeters);
     if (!close(sec.end,part.end) ||
-        (differential&&!differentialMotionFeasible(req,sec,*diffModel)))
+        (differential&&!differentialMotionFeasible(req,sec,*diffModel)) ||
+        (mecanum&&!mecanumMotionFeasible(req,sec,*mecanumModel)))
       return Check::Invalid;
     const double radius=checker.maxBodyRadius();
     const double countD=spin?radius*std::abs(sec.turnRadians)/opt.finalMaxBodyPointMotionMeters
+      :holo?std::max(sec.lengthMeters/opt.finalSampleSpacingMeters,
+             (sec.lengthMeters+radius*std::abs(sec.turnRadians))/
+              opt.finalMaxBodyPointMotionMeters)
       :std::max(sec.lengthMeters/opt.finalSampleSpacingMeters,
                sec.lengthMeters*(1+radius*std::abs(sec.curvature))/
                    opt.finalMaxBodyPointMotionMeters);
@@ -186,7 +266,7 @@ PlanResult makeVerified(const PlanRequest& req, const PlanResult& source,
     const auto& part=result.sections[i];
     result.geometricLengthMeters+=part.lengthMeters;
     if(part.gear==Gear::Reverse) result.reverseLengthMeters+=part.lengthMeters;
-    if(part.kind!=MotionKind::RotateInPlace) {
+    if(part.kind==MotionKind::Translate) {
       if(prior!=Gear::None&&part.gear!=prior) result.gearChangeSectionIndices.push_back(i);
       prior=part.gear;
     }
@@ -218,9 +298,13 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
       !std::isfinite(options.differentialCurveRadiusMeters)||
       options.differentialCurveRadiusMeters<=0||
       (req.options.model!=PlanOptions::Model::Ackermann &&
-       req.options.model!=PlanOptions::Model::DifferentialDrive)||
-      (req.options.model==PlanOptions::Model::DifferentialDrive &&
+       req.options.model!=PlanOptions::Model::DifferentialDrive &&
+       req.options.model!=PlanOptions::Model::Mecanum)||
+      (req.options.model!=PlanOptions::Model::Ackermann &&
        (req.analyticConnector||req.analyticDistance||req.options.clearanceWeight>0))||
+      (req.options.model==PlanOptions::Model::Mecanum &&
+       (!std::isfinite(req.options.mecanumStationarySpinPenaltyMeters)||
+        req.options.mecanumStationarySpinPenaltyMeters<0))||
       !std::isfinite(req.options.minimumTurningRadiusMeters)||req.options.minimumTurningRadiusMeters<=0||
       !std::isfinite(req.options.goalXYToleranceMeters)||req.options.goalXYToleranceMeters<0||
       !std::isfinite(req.options.goalYawToleranceRadians)||req.options.goalYawToleranceRadians<0||
@@ -267,7 +351,8 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
         if(std::find(windows.begin(),windows.end(),window)==windows.end())
           windows.push_back(window);
       };
-      if(req.options.model==PlanOptions::Model::DifferentialDrive) {
+      if(req.options.model==PlanOptions::Model::DifferentialDrive||
+         req.options.model==PlanOptions::Model::Mecanum) {
         // Spread the bounded attempt budget along long, oscillating routes.
         // Otherwise widest-first only tries windows starting at section zero.
         const std::array<std::size_t,7> widths{
@@ -319,6 +404,8 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
             if (connector) proposals.push_back(connector(from,to));
             else if(req.options.model==PlanOptions::Model::DifferentialDrive)
               proposals=differentialShortcuts(from,to,options);
+            else if(req.options.model==PlanOptions::Model::Mecanum)
+              proposals.push_back(holonomicShortcut(req,from,to));
             else if (options.useCurvatureBoundedShortcuts)
               proposals=generateCurvatureBoundedShortcuts(
                   from,to,req.options.minimumTurningRadiusMeters);
