@@ -281,3 +281,46 @@ TEST_CASE("Four covering discs stay conservative for inflated Ackermann rectangl
     REQUIRE(fallback>0);
   }
 }
+
+// Keep model defaults unambiguous. Auto resolution must never silently
+// enable discs (or the integral grid) for differential or mecanum policies.
+TEST_CASE("Automatic four-disc Ackermann and empty-region defaults can be disabled",
+          "[w6][prefilter][prefix][defaults]") {
+  const PlanOptions opts;
+  REQUIRE(opts.heuristicMode==HeuristicMode::PerformanceReedsSheppAndObstacleGrid);
+  REQUIRE(opts.discPrefilterCount==PlanOptions::AutomaticDiscPrefilter);
+  REQUIRE(opts.useEmptyRegionPrefixSum);
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=map->height=100;
+  map->resolutionMeters=.25;
+  map->cells.assign(10000,0);
+  PlanRequest req;
+  req.map=map;req.start={7.,7.,0};req.goal={8.,7.,0};
+  req.options.maxExpansions=50;
+  req.options.maxGeneratedNodes=200;
+  for(const auto model:{PlanOptions::Model::Ackermann,
+                        PlanOptions::Model::DifferentialDrive,
+                        PlanOptions::Model::Mecanum}) {
+    req.options.model=model;
+    if(model!=PlanOptions::Model::Ackermann)
+      req.footprint={-.35,.35,.25};
+    else req.footprint={-1,3.6,.9};
+    const auto automatic=plan(req);
+    REQUIRE(automatic.status!=PlanStatus::InvalidRequest);
+    REQUIRE(automatic.diagnostics.discPrefilterCountUsed==
+            (model==PlanOptions::Model::Ackermann?4:0));
+    REQUIRE(automatic.diagnostics.emptyRegionPrefixSumUsed==
+            (model==PlanOptions::Model::Ackermann));
+    req.options.discPrefilterCount=0;
+    req.options.useEmptyRegionPrefixSum=false;
+    const auto off=plan(req);
+    REQUIRE(off.status==automatic.status);
+    REQUIRE(off.diagnostics.expanded==automatic.diagnostics.expanded);
+    REQUIRE(off.diagnostics.generated==automatic.diagnostics.generated);
+    REQUIRE(off.sections.size()==automatic.sections.size());
+    REQUIRE(off.diagnostics.discPrefilterCountUsed==0);
+    REQUIRE_FALSE(off.diagnostics.emptyRegionPrefixSumUsed);
+    req.options.discPrefilterCount=PlanOptions::AutomaticDiscPrefilter;
+    req.options.useEmptyRegionPrefixSum=true;
+  }
+}

@@ -100,6 +100,76 @@ TEST_CASE("Exact collision broad-phase counts visits and geometric distance chec
   REQUIRE(edge.candidateCells==0);
 }
 
+TEST_CASE("Empty-region prefix sum agrees with exact occupied-square scan",
+          "[inflation][geometry][prefix]") {
+  auto map=emptyMap();
+  block(*map,50,50);
+  block(*map,57,48);
+  map->cells[53*map->width+52]=-1;
+  map->cells[56*map->width+58]=60;
+  const Footprint rectangle{-.35,.35,.25};
+  const auto turned=std::make_shared<MapSnapshot>(*map);
+  turned->origin={3.,-2.,.65};
+  for(const auto& snapshot:{map,turned}) {
+    for(const auto policy:{OccupancyPolicy{0,UnknownPolicy::Occupied},
+                           OccupancyPolicy{0,UnknownPolicy::Free},
+                           OccupancyPolicy{60,UnknownPolicy::Free}}) {
+      for(double margin:{0.,.05,.5}) {
+        const ExactCollisionChecker baseline(*snapshot,policy,rectangle,margin,false);
+        const ExactCollisionChecker prefix(*snapshot,policy,rectangle,margin,true);
+        std::size_t bypasses=0,nonempty=0;
+        for(int y=4;y<94;y+=5)for(int x=4;x<94;x+=5)
+          for(double angle:{0.,.43,1.5707963267948966}) {
+            const Pose2D local{x*.1+.025,y*.1+.013,angle};
+            const auto pose=toWorld(local,snapshot->origin);
+            CollisionWorkCounters work;
+            const auto before=baseline.check(pose);
+            const auto after=prefix.check(pose,&work);
+            INFO("x="<<x<<" y="<<y<<" angle="<<angle
+                 <<" inflation="<<margin);
+            REQUIRE(before==after);
+            REQUIRE(work.emptyRegionBypasses<=work.emptyRegionQueries);
+            REQUIRE(work.distanceTests<=work.satTests);
+            if(work.emptyRegionBypasses) {
+              ++bypasses;
+              REQUIRE(work.candidateCells==0);
+              REQUIRE(after==PoseCollision::Clear);
+            }
+            if(work.occupiedCells)++nonempty;
+          }
+        REQUIRE(bypasses>0);
+        REQUIRE(nonempty>0);
+      }
+    }
+  }
+}
+
+TEST_CASE("Prefix sum rejects only fully empty inflated AABBs",
+          "[inflation][geometry][prefix][work]") {
+  auto map=emptyMap();
+  block(*map,50,50);
+  const Footprint f{-.2,.2,.1};
+  const ExactCollisionChecker prefix(*map,{},f,.1,true);
+  const ExactCollisionChecker original(*map,{},f,.1,false);
+  CollisionWorkCounters empty;
+  REQUIRE(prefix.check({2,2,0},&empty)==PoseCollision::Clear);
+  REQUIRE(empty.emptyRegionQueries==1);
+  REQUIRE(empty.emptyRegionBypasses==1);
+  REQUIRE(empty.candidateCells==0);
+  CollisionWorkCounters occupied;
+  const Pose2D close{4.74,5.05,0};
+  REQUIRE(prefix.check(close,&occupied)==original.check(close));
+  REQUIRE(prefix.check(close)==PoseCollision::Colliding);
+  REQUIRE(occupied.emptyRegionQueries==1);
+  REQUIRE(occupied.emptyRegionBypasses==0);
+  REQUIRE(occupied.satTests==1);
+  REQUIRE(occupied.distanceTests==1);
+  CollisionWorkCounters edge;
+  REQUIRE(prefix.check({.2,5.,0},&edge)==PoseCollision::Colliding);
+  REQUIRE(edge.boundaryRejections==1);
+  REQUIRE(edge.emptyRegionQueries==0);
+}
+
 TEST_CASE("Geometric inflation respects rotated occupancy-grid coordinates",
           "[inflation][rotation]") {
   auto map=emptyMap();block(*map,50,50);
