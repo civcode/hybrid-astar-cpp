@@ -60,7 +60,7 @@ def main(exe):
         assert len(referenced) > 20 and len(defined) > 20
         missing = referenced - defined
         assert not missing, f"index.html lacks element ids used by app.js: {sorted(missing)}"
-        assert re.search(r'id="inflationMeters"[^>]*step="0\\.05"', page), (
+        assert re.search(r'id="inflationMeters"[^>]*step="0\.05"', page), (
             "footprint margin spinner must step by 0.05 m"
         )
         assert 'id="refine"' in page and "Strict post-path refinement" in page
