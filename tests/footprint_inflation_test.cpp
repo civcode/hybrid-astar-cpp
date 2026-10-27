@@ -115,15 +115,21 @@ TEST_CASE("Planning start validation and strict post-refinement enforce inflatio
   block(*map,50,50);
   PlanRequest request;
   request.map=map;
-  request.options.model=PlanOptions::Model::DifferentialDrive;
   request.footprint={-.2,.2,.1};
   request.start={4.74,5.05,0};request.goal={3.5,5.05,0};
-  request.options.footprintInflationMeters=.05;
-  REQUIRE(plan(request).status!=PlanStatus::StartInCollision);
-  request.options.footprintInflationMeters=.10;
-  REQUIRE(plan(request).status==PlanStatus::StartInCollision);
-  request.options.footprintInflationMeters=-.01;
-  REQUIRE(plan(request).status==PlanStatus::InvalidRequest);
+  for(auto model:{PlanOptions::Model::Ackermann,
+                  PlanOptions::Model::DifferentialDrive,
+                  PlanOptions::Model::Mecanum}) {
+    request.options.model=model;
+    request.options.maxExpansions=100;
+    request.options.footprintInflationMeters=.05;
+    REQUIRE(plan(request).status!=PlanStatus::StartInCollision);
+    request.options.footprintInflationMeters=.10;
+    REQUIRE(plan(request).status==PlanStatus::StartInCollision);
+    request.options.footprintInflationMeters=-.01;
+    REQUIRE(plan(request).status==PlanStatus::InvalidRequest);
+  }
+  request.options.model=PlanOptions::Model::DifferentialDrive;
   // Revalidate the same reported motion against a nearby obstacle.
   // The physical body clears it by 0.05m but a 0.06m offset does not.
   auto wall=emptyMap();block(*wall,55,53);
