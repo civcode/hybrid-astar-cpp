@@ -252,6 +252,16 @@ Native CSC is deliberately disabled for mecanum.
 
 ### Differential-drive path smoothing (manual opt-in)
 
+Diagonal-route CSC smoothing can now try 0.375, 0.75, 1.5 and 3.0 m
+radii (the four multipliers around the configurable 0.75 m base).
+Use `RefinementOptions::differentialRadiusVariants=1` to reproduce
+the historical fixed-radius geometry or `4` for all radii.
+The manual `hybrid_astar_refinement_bench --warehouse-differential`
+compares both options on the reported diagonal warehouse route.
+See [W10 experiment instructions](docs/architecture/w10-differential-search.md#diagonal-smoothing-and-radius-ab-manual-only-2026-10-27).
+
+
+
 The strict post-path refiner now also accepts `Model::DifferentialDrive`
 and preserves the original path unless independent full-body verification
 confirms an actual weighted-cost reduction. Native candidate connections

@@ -153,3 +153,66 @@ Catch2 v3 are unavailable here and the entire checkout is not locally
 mounted. The next acceptance gate is a profiling-ON build plus a
 profiling-OFF latency run on the same host. Do not claim a dominant
 hot path, a measured speedup, or memory improvement before those runs.
+
+## Ackermann warehouse hot-path profiling (manual only, 2026-10-27)
+
+Two Planning Lab configurations are preserved in
+`bench/warehouse_scenarios.hpp`, sharing the app's 200×160 cell warehouse
+layout and the default full Ackermann footprint:
+
+- `ack_across_first_margin_050`: start (4.77, 32.84, 0°), goal
+  (44.62, 33.53, −90°), 0.50 m inflated footprint; reported success
+  after roughly 428,853 expansions.
+- `ack_across_improve_margin_050`: same as above, with bounded incumbent
+  improvement enabled for 700 expansions after first strict success.
+- `ack_corner_margin_000`, `ack_corner_margin_010`,
+  `ack_corner_margin_050`: start (3.25, 3.64, 0°), goal
+  (30.93, 38.17, −90°), varying inflation. The original screenshot
+  reported a 1M-expansion budget failure but did **not** show its margin.
+  These are experiments, not claims of matching the unknown margin.
+
+These **are not run by CTest or GitHub Actions**. Execute the same
+single case with profiling disabled (reliable wall-clock comparisons)
+and enabled (diagnosis of collision/queue/hash/search stages):
+
+```bash
+# Inside the repo root on your machine; shell redirection saves CSV on host.
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-warehouse-heuristics 3 1000000 \
+  ack_across_first_margin_050 > ackermann_off.csv
+
+BUILD_JOBS=28 PROFILE_HOTPATHS=ON docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-warehouse-heuristics 3 1000000 \
+  ack_across_first_margin_050 > ackermann_profiled.csv
+
+# Investigate the troublesome far-corner start with varying margins.
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_hotpath_bench \
+  --ackermann-warehouse-heuristics 3 1000000 > ackermann_matrix.csv
+```
+
+`--ackermann-warehouse` instead of
+`--ackermann-warehouse-heuristics` compares the exact baseline against
+four covering discs, and against discs plus reserved label buckets.
+The `[repeats] [max_expansions] [optional_exact_case_name]` arguments
+allow isolating expensive cases. Every row retains the previous CSV
+fields and appends the actual start/goal, inflation, reopened/pruned
+labels, strict goal candidates, open/obstacle-grid queue peaks and storage.
+`profile_timers_on` indicates timing instrumentation. Timer groups
+are **nested**, not additive. Do not compare profiled total wall time
+directly with nonprofiled total time as a configuration A/B.
+
+For each case, compare **number of expansions and generated labels**,
+`grid_settlements`/`grid_fallbacks`, collision pose calls,
+`search_motion_ns`/`exact_collision_ns`, queue and hash time.
+If the long planning time comes from huge expansions rather than
+slow individual collision tests, prefer investigating obstacle-grid
+guidance and missing nonholonomic goal connections (optional OMPL
+Reeds–Shepp) before micro-optimizing hash lookups.
+Neither benchmark automatically invokes OMPL; use the separately
+supported demo `--ompl` or OMPL hard-case benchmark for analytic
+connector comparisons. No measured results have been collected
+for these new fixtures yet.
+

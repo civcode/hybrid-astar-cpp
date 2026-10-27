@@ -1,3 +1,17 @@
+## Diagonal differential refinement / Ackermann warehouse profiling — 2026-10-27
+
+- [x] Add multi-radius nonstationary CSC candidates, ordered by length,
+  without changing exact validation or continuity/splice constraints.
+- [x] Add fixed-vs-multi-radius A/B control and diagonal frame-rotation
+  regression to distinguish geometry from map orientation.
+- [x] Add manual diagonal warehouse refinement CSV benchmark.
+- [x] Add manual Ackermann warehouse hot-path CSV cases based on user poses,
+  with 0/0.10/0.50 m inflation cases where the screenshot margin was hidden.
+- [ ] Run exact Docker/CTest suite; capture disabled/enabled profiler CSV,
+  fixed/multi-radius refinement benchmarks and comparison screenshots.
+- [ ] If Ackermann expansions dominate, compare to OMPL Reeds–Shepp
+  analytic terminal connector without changing the strict validator.
+
 > **2026-10-26 implementation update:** The external-review [consolidated
 > specification](architecture/Hybrid_AStar_Consolidated_Specification.md)
 > has been imported. The normative current behavior and remaining W0-W9 gates

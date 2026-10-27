@@ -279,3 +279,46 @@ A 0.5 m hard margin can change the reachable free configuration space
 substantially. This diagnostic change does not by itself guarantee a valid
 route or resolve single-key search-label pruning. The final validator must
 never be bypassed to make the test succeed.
+
+## Diagonal smoothing and radius A/B (manual only, 2026-10-27)
+
+The reported differential warehouse route from (4.77,32.84,0°) to
+(29.94,6.23,−90°), with inflation 0.50 m, measures 38.00 m before
+refinement and 37.89 m with the former single-radius CSC option. Its
+unobstructed straight-line XY lower bound is about **36.63 m**.
+Therefore a small 0.11 m improvement does not alone indicate a bug;
+obstacles, inflated footprint and the terminal heading constrain
+the path. CSC and SE(2) motion primitives are **equivariant under rigid
+world rotation**: a diagonal orientation relative to the raster axes
+should not change feasible smoothing candidates on a correspondingly
+rotated map. A rotated-scene CTest regression now checks this.
+
+The original differential refiner tried CSC curves at one radius
+(0.75 m), limiting its ability to fit different tangencies and
+corridor widths. It now offers four base-radius multipliers,
+`1.0, 0.5, 2.0, 4.0`, yielding 0.75, 0.375, 1.5 and 3.0 m by default,
+with nonstationary straight and CSC candidates sorted by length before
+strict whole-route validation. The controlled
+`RefinementOptions::differentialRadiusVariants` setting selects 1
+(fixed historical radius) or 4 (all). Every replacement retains the
+existing collision/footprint inflation, wheel-rate and splice restrictions;
+it never creates a new stationary spin.
+
+Run this manual experiment for the exact photographed route:
+
+```bash
+BUILD_JOBS=28 PROFILE_HOTPATHS=OFF docker compose run --build --rm test \
+  ./build-docker/hybrid_astar_refinement_bench \
+  --warehouse-differential 5 1000000 > diagonal_refinement.csv
+```
+
+It plans once, then compares `straight`, `csc_fixed_radius` and
+`csc_multi_radius` on the identical validated path. CSV reports
+refinement p50/p95 runtime, attempted/rejected windows, accepted
+replacements, cost-pruned candidates, exact pose checks, resulting
+section count and final objective. A useful improvement must be
+measured as path cost **and** execution smoothness rather than by
+the number of colorful line segments. This benchmark is opt-in
+and does not run in CTest. Exact warehouse results remain unverified
+until run on the user's Docker environment.
+
