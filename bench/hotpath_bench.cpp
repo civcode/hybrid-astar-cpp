@@ -68,7 +68,7 @@ void csvHeader() {
       "label_lookup_ns,label_write_ns,hash_ns,exact_collision_ns,"
       "search_motion_ns,final_motion_ns,open_queue_ns,grid_queue_ns,"
       "model,heuristic,max_expansions,grid_settlements,grid_fallbacks,"
-      "terminal_state_attempts,terminal_candidates,terminal_validated,terminal_rejected\\n";
+      "terminal_state_attempts,terminal_candidates,terminal_validated,terminal_rejected\n";
 }
 void csvRow(const Scenario& scene,const char* variant,const PlanOptions& options,
             int repeats,const std::vector<double>& times,const PlanResult& last) {
@@ -94,25 +94,20 @@ void csvRow(const Scenario& scene,const char* variant,const PlanOptions& options
     <<modelName(options.model)<<','<<heuristicName(options.heuristicMode)<<','
     <<options.maxExpansions<<','<<d.gridSettlements<<','<<d.gridFallbacks<<','
     <<d.terminalConnectionAttempts<<','<<d.terminalCandidates<<','
-    <<d.terminalValidated<<','<<d.terminalRejected<<'\\n';
+    <<d.terminalValidated<<','<<d.terminalRejected<<'\n';
 }
 void measure(const Scenario& scene,PlanRequest q,const char* variant,int repeats,
-             bool warmup,PlanResult* reference) {
+             bool warmup) {
   std::vector<double> ms;
   PlanResult last;
   for(int run=0;run<repeats+(warmup?1:0);++run) {
     const auto start=std::chrono::steady_clock::now();
     auto result=plan(q);
     const auto end=std::chrono::steady_clock::now();
-    if(reference)equivalent(*reference,result);
     if(!warmup||run)ms.push_back(std::chrono::duration<double,std::milli>(end-start).count());
     last=std::move(result);
   }
-  if(!reference && q.options.discPrefilterCount==0 && !warmup) {
-    // The caller may still use a separate baseline result for comparison.
-  }
   csvRow(scene,variant,q.options,repeats,ms,last);
-  if(!reference) return;
 }
 }
 int main(int argc,char** argv) {
@@ -151,7 +146,7 @@ int main(int argc,char** argv) {
           q.options.performanceHeuristicWeight=1.0;
           q.options.discPrefilterCount=0;
           q.options.searchLabelReserve=0;
-          measure(scene,q,heuristicName(heuristic),repeats,!warehouse,nullptr);
+          measure(scene,q,heuristicName(heuristic),repeats,!warehouse);
         }
         continue;
       }
@@ -188,6 +183,6 @@ int main(int argc,char** argv) {
       }
     }
   } catch(const std::exception& error) {
-    std::cerr<<"Hotpath benchmark failure: "<<error.what()<<'\\n';return 2;
+    std::cerr<<"Hotpath benchmark failure: "<<error.what()<<'\n';return 2;
   }
 }
