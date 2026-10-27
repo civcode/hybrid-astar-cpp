@@ -151,7 +151,10 @@ function stats(result) {
   const exhausted=result.original.terminationReason==='WorkBudgetExceeded'||
     status==='BudgetExceeded'||result.original.terminationReason==='ValidationBudgetExhausted';
   const failureDetail=status==='StrictValidationFailed'
-    ?' · goal-like paths were rejected by strict swept-collision validation'
+    ?(' · goal-region candidates failed independent validation'
+       +' (collision '+(result.original.strictRejectedCollision||0)
+       +', continuity '+(result.original.strictRejectedContinuity||0)
+       +', goal '+(result.original.strictRejectedGoalMismatch||0)+')')
     :(exhausted?' · search work budget exhausted'
        :' · search exhaustion is not a proof of continuous-space infeasibility');
   $('message').textContent=valid?('Validated geometric path · '+status+(refinement?' · refinement: '+refinement:'')+' · sampled footprint checking'):

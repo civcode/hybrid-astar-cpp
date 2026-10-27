@@ -897,6 +897,7 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
       // the default 10-deg tolerance but may round just outside it.
       if (goalErrorXY(current.pose,r.goal)<=opt.goalXYToleranceMeters+1e-9 &&
           goalErrorYaw(current.pose,r.goal)<=opt.goalYawToleranceRadians+1e-9) {
+        ++result.diagnostics.strictGoalCandidates;
         std::vector<MotionSection> reverse;
         std::size_t id=item.node;
         while (id!=0) {reverse.push_back(nodes[id].via);id=nodes[id].parent;}
@@ -916,14 +917,19 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
           if(!finite(sec.start)||!finite(sec.end)||
              goalErrorXY(sec.start,continuousEnd)>1e-6||
              goalErrorYaw(sec.start,continuousEnd)>1e-6) {
+            ++result.diagnostics.strictRejectedContinuity;
             valid=false;break;
           }
           Pose2D actualEnd;
           try {actualEnd=sec.evaluate(sec.progressExtent());}
-          catch(const std::exception&) {valid=false;break;}
+          catch(const std::exception&) {
+            ++result.diagnostics.strictRejectedContinuity;
+            valid=false;break;
+          }
           if(!finite(actualEnd) ||
              goalErrorXY(actualEnd,sec.end)>1e-6 ||
              goalErrorYaw(actualEnd,sec.end)>1e-6) {
+            ++result.diagnostics.strictRejectedContinuity;
             valid=false;break;
           }
           continuousEnd=actualEnd;
@@ -935,13 +941,17 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
             result.status=PlanStatus::Cancelled;return result;}
           if (status==MotionStatus::Incomplete) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
             result.status=PlanStatus::ValidationIncomplete;return result;}
+          if(status==MotionStatus::Colliding)
+            ++result.diagnostics.strictRejectedCollision;
           valid=status==MotionStatus::Clear;
         }
         if(valid && (goalErrorXY(continuousEnd,current.pose)>1e-6 ||
                      goalErrorYaw(continuousEnd,current.pose)>1e-6 ||
                      goalErrorXY(continuousEnd,r.goal)>opt.goalXYToleranceMeters+1e-9 ||
-                     goalErrorYaw(continuousEnd,r.goal)>opt.goalYawToleranceRadians+1e-9))
+                     goalErrorYaw(continuousEnd,r.goal)>opt.goalYawToleranceRadians+1e-9)) {
+          ++result.diagnostics.strictRejectedGoalMismatch;
           valid=false;
+        }
         if (valid) {
           saveCandidate(reverse,continuousEnd,current.gear,current.g,current.clearanceCost);
           if (opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
