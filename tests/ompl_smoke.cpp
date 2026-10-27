@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/steering/reeds_shepp.hpp"
 #include "hybrid_astar/steering/reeds_shepp_evaluator.hpp"
+#include "bench/warehouse_rs_fixture.hpp"
 #include <array>
 #include <cmath>
 #include <memory>
@@ -66,4 +67,46 @@ TEST_CASE("ompl_smoke contracts", "[ompl_smoke]") {
   const int exitCode=runLegacyAssertions();
   INFO("Legacy assertion exit code: " << exitCode);
   REQUIRE(exitCode == 0);
+}
+
+TEST_CASE("Warehouse A/B/C configurations keep the same grid and use RS only when enabled",
+          "[ompl][warehouse][rs-ab]") {
+  // Quick CTest smoke on the EXACT edited warehouse snapshot. The full
+  // 1M-expansion pose pair is an opt-in benchmark, not a routine unit test.
+  const auto fixture=bench::warehouseReedsSheppRequest();
+  REQUIRE(fixture.map->width==200);
+  REQUIRE(fixture.map->height==160);
+  REQUIRE(fixture.map->resolutionMeters==.25);
+  REQUIRE(fixture.map->revision==187);
+  REQUIRE(fixture.map->cells[119*200+100]==100);
+  REQUIRE(fixture.options.footprintInflationMeters==.5);
+  REQUIRE(fixture.options.analytic.attemptRatio==3.5);
+  auto request=fixture;
+  // Near the same warehouse start pose, this common easy goal is safely
+  // traversable in all three modes; timing the hard case belongs in bench/.
+  request.goal={6.68,6.68,0};
+  request.options.maxExpansions=250;
+  request.options.maxGeneratedNodes=1000;
+  const auto a=plan(request);
+  const auto b=planWithReedsShepp(request,false);
+  const auto c=planWithReedsShepp(request,true);
+  INFO("grid="<<int(a.status)<<" connector="<<int(b.status)
+       <<" connector+distance="<<int(c.status));
+  for(const auto* result:{&a,&b,&c}) {
+    REQUIRE(result->status==PlanStatus::Success);
+    REQUIRE(result->collisionEvidence==
+            CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+    REQUIRE(result->diagnostics.expanded<=250);
+    REQUIRE(result->geometricLengthMeters>0);
+  }
+  REQUIRE(a.diagnostics.analyticAttempts==0);
+  REQUIRE(a.diagnostics.analyticAccepted==0);
+  REQUIRE(b.diagnostics.analyticAttempts>=1);
+  REQUIRE(b.diagnostics.analyticAccepted>=1);
+  REQUIRE(c.diagnostics.analyticAttempts>=1);
+  REQUIRE(c.diagnostics.analyticAccepted>=1);
+  // All three use the same noncertified obstacle-grid heuristic configuration.
+  REQUIRE_FALSE(a.heuristicCertifiedAdmissible);
+  REQUIRE_FALSE(b.heuristicCertifiedAdmissible);
+  REQUIRE_FALSE(c.heuristicCertifiedAdmissible);
 }
