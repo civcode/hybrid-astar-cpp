@@ -3,12 +3,14 @@
 #include "bench/hard_scenarios.hpp"
 #include "bench/warehouse_scenarios.hpp"
 #include "hybrid_astar/ackermann/planner.hpp"
+#include "hybrid_astar/ackermann/cover_prefilter.hpp"
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -132,9 +134,83 @@ PlanResult measure(const Scenario& scene,PlanRequest q,const char* variant,int r
   csvRow(scene,variant,q.options,repeats,ms,last);
   return last;
 }
+// Fixed-pose collision microbenchmark. Unlike whole search comparisons,
+ // this holds the exact list of pose transforms constant across margins.
+ // Prefilter construction and counter-collection are excluded from timed
+ // checker loops. A counted verification pass reports work independently.
+void collisionMicro(int repeats) {
+  const auto cases=bench::ackermannWarehouseCases(1000);
+  const auto& request=cases.front().second;
+  const auto& map=*request.map;
+  std::vector<Pose2D> poses;
+  for(std::size_t iy=4;iy+4<map.height;iy+=4)
+    for(std::size_t ix=4;ix+4<map.width;ix+=4)
+      for(double yaw:{0.,.39269908169872414,.7853981633974483,
+                      1.5707963267948966})
+        poses.push_back({(ix+.31)*map.resolutionMeters,
+                         (iy+.19)*map.resolutionMeters,yaw});
+  std::cout<<"benchmark,margin_m,discs,poses,repeats,p50_ms,p95_ms,"
+      "exact_calls,disc_clear,collisions,candidate_cells,occupied_cells,"
+      "sat_tests,distance_tests,boundary_rejections\n";
+  for(double margin:{0.,.5}) {
+    ExactCollisionChecker checker(map,request.occupancy,request.footprint,margin);
+    // The same fixed pose list serves as the oracle for both disc variants.
+    std::vector<PoseCollision> reference;
+    reference.reserve(poses.size());
+    for(const auto& pose:poses)reference.push_back(checker.check(pose));
+    for(std::size_t discs:{std::size_t{0},std::size_t{4}}) {
+      std::unique_ptr<ConservativeDiscPrefilter> prefilter;
+      if(discs)prefilter=std::make_unique<ConservativeDiscPrefilter>(
+          map,request.occupancy,request.footprint,discs,margin);
+      std::vector<double> ms;
+      volatile std::size_t sink=0;
+      for(int run=0;run<repeats;++run) {
+        std::size_t collisionCount=0;
+        const auto t0=std::chrono::steady_clock::now();
+        for(const auto& pose:poses) {
+          if(prefilter&&prefilter->definitelyClear(pose))continue;
+          collisionCount+=checker.check(pose)==PoseCollision::Colliding;
+        }
+        const auto t1=std::chrono::steady_clock::now();
+        sink=sink+collisionCount;
+        ms.push_back(std::chrono::duration<double,std::milli>(t1-t0).count());
+      }
+      (void)sink;
+      CollisionWorkCounters work;
+      std::size_t bypassed=0,exactCalls=0,collisions=0;
+      for(std::size_t k=0;k<poses.size();++k) {
+        if(prefilter&&prefilter->definitelyClear(poses[k])) {
+          if(reference[k]!=PoseCollision::Clear)
+            throw std::runtime_error("Disc prefilter bypassed a collision");
+          ++bypassed;
+          continue;
+        }
+        ++exactCalls;
+        const auto verdict=checker.check(poses[k],&work);
+        if(verdict!=reference[k])
+          throw std::runtime_error("Collision counters changed geometry verdict");
+        collisions+=verdict==PoseCollision::Colliding;
+      }
+      std::cout<<"ackermann_warehouse_fixed_poses,"<<std::fixed<<std::setprecision(3)
+               <<margin<<','<<discs<<','<<poses.size()<<','<<repeats<<','
+               <<quantile(ms,.5)<<','<<quantile(ms,.95)<<','
+               <<exactCalls<<','<<bypassed<<','<<collisions<<','
+               <<work.candidateCells<<','<<work.occupiedCells<<','
+               <<work.satTests<<','<<work.distanceTests<<','
+               <<work.boundaryRejections<<'\n';
+    }
+  }
+}
 }
 int main(int argc,char** argv) {
   try {
+    if(argc>1&&std::string(argv[1])=="--ackermann-collision-micro") {
+      if(argc>3)throw std::invalid_argument(
+          "Usage: --ackermann-collision-micro [repeats]");
+      const int repeats=argc==3?number(argv[2],1,100):5;
+      collisionMicro(repeats);
+      return 0;
+    }
     Mode mode=Mode::Baseline;
     int first=1;
     if(argc>1 && argv[1][0]=='-') {
