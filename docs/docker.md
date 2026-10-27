@@ -274,3 +274,111 @@ To test overhead and collision-work reductions, run
 `--ackermann-collision-micro` as documented in
 [W6](architecture/w6-hotpath-profiling.md#ackermann-default-cover-and-exact-empty-aabb-bypass-october-2026).
 All are manual opt-in benchmarks, never scheduled in CTest.
+
+## Manual Reeds–Shepp A/B/C warehouse comparison
+
+This experiment compares three Ackermann planning configurations on the **same**
+200x160 grid (0.25 m/cell), including the 143 edited warehouse occupancy cells
+from Planning Lab revision 187. Every run uses start `(5.68,6.68,0°)`,
+goal `(30.32,35.13,-90°)`, footprint inflation `0.50 m`, the
+obstacle-grid heuristic, the default 4 m minimum turning radius, and the
+unchanged adaptive analytic attempt scheduler (ratio 3.5):
+
+1. `grid_only`: obstacle-grid guidance, no Reeds–Shepp connector.
+2. `grid_plus_rs_connector`: identical grid guidance plus adaptively attempted
+   Reeds–Shepp connection, **without** per-state Reeds–Shepp distance.
+3. `grid_plus_rs_connector_and_distance`: connector **and** the Reeds–Shepp
+   distance contribution to the heuristic (the current Planning Lab mode).
+
+The executable uses the same callback behavior as
+`planWithReedsShepp(request, false/true)`, with additional counters for
+the full RS path generator and RS distance evaluator. It does **not** enable
+post-search refinement: this isolates search and analytic-expansion overhead.
+A single map instance is shared immutably across runs, while each run gets a
+fresh search/scheduler/evaluator. Run order rotates across repetitions.
+
+```bash
+# Build the OMPL-enabled benchmark; no tests/benchmarks run during image build.
+PROFILE_HOTPATHS=OFF docker compose build test
+
+# Fast warehouse A/B/C functional smoke (included in the standard test suite).
+docker compose run --rm test \
+  ctest --test-dir build-docker -R ompl_smoke --output-on-failure
+
+# Explicitly launch the expensive comparison, 1 repetition and 1M expansions.
+PROFILE_HOTPATHS=OFF docker compose run --rm test \
+  ./build-docker/hybrid_astar_warehouse_rs_ab 1 1000000 > warehouse-rs-ab.csv
+
+# Optional: 3 repetitions (9 full planning runs); use an idle CPU.
+PROFILE_HOTPATHS=OFF docker compose run --rm test \
+  ./build-docker/hybrid_astar_warehouse_rs_ab 3 1000000 > warehouse-rs-ab-3.csv
+```
+
+The CSV has one row per run, with status, termination reason, elapsed
+milliseconds, expansions, generated nodes, strict/search pose checks,
+grid-settlement counts, `analytic_attempts`, `analytic_accepted`,
+`rs_path_calls`, `rs_distance_calls`, and validated path metrics when
+available. `rs_distance_calls` should be zero in modes 1 and 2; path
+generation calls should be zero in mode 1. Compare success rates **before**
+ranking runtimes; failure at the same expansion budget is not a speed win.
+Benchmark timings are environment-specific. The 1M-expansion benchmark is
+**manual only**, never a CTest or GitHub Actions job.
+
+### 100 difficult randomized warehouse pairs (10,000+ expansions in BOTH modes)
+
+The manual benchmark `bench/warehouse_rs_randomized.cpp` now **keeps
+generating random candidate start/goal pairs until 100 qualifying scenarios
+have been found**. These are the same edited 50 x 40 m warehouse map, with
+0.25 m cells, 143 edited obstacle cells and 0.50 m footprint inflation.
+
+Each candidate must have valid start and goal footprints (exact collision
+checker) and is planned in both configurations with the identical map,
+poses, 4 m minimum turn radius and adaptive RS attempt ratio of 3.5.
+There is **no minimum start/goal separation or distance-band quota**:
+actual measured planner expansions determine difficulty.
+
+- `grid_plus_rs_connector`: obstacle-grid heuristic + adaptive RS connector.
+- `grid_plus_rs_connector_and_distance`: the same, plus RS distance heuristic.
+
+A pair **QUALIFIES only if BOTH plans succeed with strict collision evidence
+and BOTH expand at least 10,000 nodes** (default). The output CSV contains
+exactly 200 rows on success: both results for each of the 100 qualified pairs.
+It includes full poses and costs, timings, expansion counts, validation counts
+and RS path/distance call counts. Rejected candidates are not included in
+runtime quantiles; the summary explicitly reports how many were screened out
+because of low expansions or planning failures, and how often only one mode
+was below the threshold. There is a configurable 20,000-candidate safety
+ceiling: if too few qualify, the executable exits nonzero and preserves the
+partial CSV rather than silently lowering the threshold.
+
+**Selection bias warning:** requiring both planners to expand at least 10k
+nodes intentionally excludes cases where one method solves an instance
+quickly and the other struggles, and requiring both to succeed excludes
+feasibility differences. This is a *conditional hard-case latency comparison*,
+not an unbiased benchmark of all warehouse tasks or a success-rate estimate.
+Retain the original unfiltered 100-case comparison as a complementary measure.
+The earlier 6–12/12–20/20–30/30–60 m fixed quotas have been removed
+because some bands rarely satisfy the 10k expansion filter.
+
+```bash
+git fetch origin
+git switch test/warehouse-reeds-shepp-ab
+git pull --ff-only
+BUILD_JOBS=28 TEST_JOBS=4 docker compose build test
+
+# Fast functional regression, not the expensive randomized benchmark.
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
+  ctest --test-dir build-docker -R ompl_smoke --output-on-failure
+
+# Fixed seed, 1M expansion budget, minimum 10k expansions in BOTH modes.
+# Last argument is the maximum number of evaluated candidate pairs (20000).
+BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
+  ./build-docker/hybrid_astar_warehouse_rs_randomized \
+  20261027 1000000 10000 20000 \
+  > warehouse-rs-hard.csv 2> warehouse-rs-hard-summary.txt
+```
+
+The CSV is streamed as pairs qualify; progress and screening diagnostics
+are written to stderr. This experiment is manually invoked only, **not**
+registered as a CTest or GitHub Actions task. Repeat with other seeds to
+check robustness, and run benchmarks on an otherwise idle machine.

@@ -151,6 +151,7 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   add_test(NAME clearance_test COMMAND hybrid_astar_clearance_test)
   if(HYBRID_ASTAR_ENABLE_OMPL)
     add_executable(hybrid_astar_ompl_smoke tests/ompl_smoke.cpp)
+    target_include_directories(hybrid_astar_ompl_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(hybrid_astar_ompl_smoke PRIVATE hybrid_astar::ompl)
     add_test(NAME ompl_smoke COMMAND hybrid_astar_ompl_smoke)
     add_executable(hybrid_astar_ompl_integration_test tests/ompl_integration_test.cpp)
@@ -177,6 +178,17 @@ if(HYBRID_ASTAR_BUILD_BENCHMARKS)
   target_link_libraries(hybrid_astar_planner_bench PRIVATE hybrid_astar::core)
   add_executable(hybrid_astar_refinement_bench bench/refinement_bench.cpp)
   target_link_libraries(hybrid_astar_refinement_bench PRIVATE hybrid_astar::core)
+  if(HYBRID_ASTAR_ENABLE_OMPL)
+    # Opt-in 1M-expansion warehouse A/B/C: never registered as a CTest.
+    add_executable(hybrid_astar_warehouse_rs_ab bench/warehouse_rs_ab.cpp)
+    target_include_directories(hybrid_astar_warehouse_rs_ab PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(hybrid_astar_warehouse_rs_ab PRIVATE hybrid_astar::ompl)
+    # 100 deterministic randomized start/goal pairs, both RS configurations.
+    # This expensive benchmark is manual only, not registered with CTest.
+    add_executable(hybrid_astar_warehouse_rs_randomized bench/warehouse_rs_randomized.cpp)
+    target_include_directories(hybrid_astar_warehouse_rs_randomized PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(hybrid_astar_warehouse_rs_randomized PRIVATE hybrid_astar::ompl)
+  endif()
 endif()
 
 # Developer demo only: standalone browser UI served exclusively on loopback.
