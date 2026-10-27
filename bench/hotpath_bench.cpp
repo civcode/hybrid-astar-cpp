@@ -24,7 +24,8 @@ constexpr std::array<Variant,5> variants{{
     {"baseline",0,0},{"reserve_4096",4096,0},{"reserve_16384",16384,0},
     {"disc_4",0,4},{"reserve_4096_disc_4",4096,4}}};
 enum class Mode { Baseline, Warehouse, Heuristics, WarehouseHeuristics,
-                  AckermannWarehouse, AckermannWarehouseHeuristics };
+                  AckermannWarehouse, AckermannWarehouseHeuristics,
+                  AckermannCollisionAB, AckermannCollisionWork };
 struct Scenario {
   std::string name;
   PlanRequest request;
@@ -75,7 +76,9 @@ void csvHeader() {
       "start_x,start_y,start_yaw,goal_x,goal_y,goal_yaw,footprint_margin_m,"
       "reopened,pruned_by_key,strict_goal_candidates,strict_rejected_collision,"
       "label_update_count,open_peak_size,open_peak_storage_bytes,"
-      "grid_peak_size,grid_peak_storage_bytes\n";
+      "grid_peak_size,grid_peak_storage_bytes,"
+      "collision_work_enabled,collision_candidate_cells,collision_occupied_cells,"
+      "collision_sat_tests,collision_distance_tests,collision_boundary_rejections\n";
 }
 void csvRow(const Scenario& scene,const char* variant,const PlanOptions& options,
             int repeats,const std::vector<double>& times,const PlanResult& last) {
@@ -109,10 +112,14 @@ void csvRow(const Scenario& scene,const char* variant,const PlanOptions& options
     <<d.reopened<<','<<d.prunedByKey<<','<<d.strictGoalCandidates<<','
     <<d.strictRejectedCollision<<','<<d.labelUpdates<<','
     <<d.openQueuePeakSize<<','<<d.openQueuePeakStorageBytes<<','
-    <<d.gridQueuePeakSize<<','<<d.gridQueuePeakStorageBytes<<'\n';
+    <<d.gridQueuePeakSize<<','<<d.gridQueuePeakStorageBytes<<','
+    <<int(d.collectCollisionWork)<<','<<d.collisionWork.candidateCells<<','
+    <<d.collisionWork.occupiedCells<<','<<d.collisionWork.satTests<<','
+    <<d.collisionWork.distanceTests<<','
+    <<d.collisionWork.boundaryRejections<<'\n';
 }
-void measure(const Scenario& scene,PlanRequest q,const char* variant,int repeats,
-             bool warmup) {
+PlanResult measure(const Scenario& scene,PlanRequest q,const char* variant,int repeats,
+                   bool warmup) {
   std::vector<double> ms;
   PlanResult last;
   for(int run=0;run<repeats+(warmup?1:0);++run) {
@@ -123,6 +130,7 @@ void measure(const Scenario& scene,PlanRequest q,const char* variant,int repeats
     last=std::move(result);
   }
   csvRow(scene,variant,q.options,repeats,ms,last);
+  return last;
 }
 }
 int main(int argc,char** argv) {
@@ -137,11 +145,18 @@ int main(int argc,char** argv) {
       else if(flag=="--ackermann-warehouse")mode=Mode::AckermannWarehouse;
       else if(flag=="--ackermann-warehouse-heuristics")
         mode=Mode::AckermannWarehouseHeuristics;
+      else if(flag=="--ackermann-collision-ab")
+        mode=Mode::AckermannCollisionAB;
+      else if(flag=="--ackermann-collision-work")
+        mode=Mode::AckermannCollisionWork;
       else throw std::invalid_argument("Unknown benchmark mode");
     }
     const bool warehouse=mode==Mode::Warehouse||mode==Mode::WarehouseHeuristics;
+    const bool collisionMatrix=mode==Mode::AckermannCollisionAB||
+                               mode==Mode::AckermannCollisionWork;
     const bool ackermannWarehouse=mode==Mode::AckermannWarehouse||
-                                  mode==Mode::AckermannWarehouseHeuristics;
+                                  mode==Mode::AckermannWarehouseHeuristics||
+                                  collisionMatrix;
     const bool largeCase=warehouse||ackermannWarehouse;
     const bool heuristicAB=mode==Mode::Heuristics||
         mode==Mode::WarehouseHeuristics||mode==Mode::AckermannWarehouseHeuristics;
@@ -153,14 +168,21 @@ int main(int argc,char** argv) {
       throw std::invalid_argument(
           "Usage: [repeats] | --warehouse [repeats] [budget] | "
           "--heuristics [repeats] | --warehouse-heuristics [repeats] [budget] | "
-          "--ackermann-warehouse[(-heuristics)] [repeats] [budget] [case_name]");
+          "--ackermann-warehouse[(-heuristics)] [repeats] [budget] [case_name] | "
+          "--ackermann-collision-(ab|work) [repeats] [budget] [case_name]");
     std::vector<Scenario> scenes;
     if(warehouse) scenes.push_back({"mecanum_warehouse_off_grid",
                                      bench::mecanumWarehouseCase(std::size_t(budget))});
     else if(ackermannWarehouse) {
       for(auto&& [name,request]:
           bench::ackermannWarehouseCases(std::size_t(budget))) {
-        if(filter.empty()||filter==name)
+        // Default collision matrix profiles two distinct Ackermann routes,
+        // not all five closely related margin/improvement variations.
+        const bool selected=filter.empty()?
+            (!collisionMatrix||name=="ack_across_first_margin_050"||
+             name=="ack_corner_margin_000"):
+            filter==name;
+        if(selected)
           scenes.push_back({std::move(name),std::move(request)});
       }
       if(scenes.empty())
@@ -169,6 +191,38 @@ int main(int argc,char** argv) {
       scenes.push_back({std::move(s.name),std::move(s.request)});
     csvHeader();
     for(const auto& scene:scenes) {
+      if(collisionMatrix) {
+        // Full factorial: identical warehouse request for each heuristic,
+        // margin and disc-count pair. The AB mode is the unbiased wall-clock
+        // measurement; "work" separately counts grid visits and SAT/distance
+        // tests, which necessarily adds instrumentation overhead.
+        for(const auto heuristic:{HeuristicMode::CertifiedRegionEuclidean,
+                                  HeuristicMode::PerformanceReedsSheppAndObstacleGrid})
+          for(const double margin:{0.,.5}) {
+            PlanResult baseline;
+            for(const std::size_t discCount:{std::size_t{0},std::size_t{4}}) {
+              auto q=scene.request;
+              q.options.heuristicMode=heuristic;
+              q.options.performanceHeuristicWeight=1.0;
+              q.options.footprintInflationMeters=margin;
+              q.options.discPrefilterCount=discCount;
+              q.options.searchLabelReserve=0;
+              q.options.collectCollisionWork=mode==Mode::AckermannCollisionWork;
+              const std::string label=std::string(heuristicName(heuristic))+
+                  (discCount?"_disc4":"_disc0")+
+                  (margin>0?"_margin050":"_margin000");
+              auto outcome=measure(scene,q,label.c_str(),repeats,false);
+              if(discCount==0)baseline=std::move(outcome);
+              else {
+                equivalent(baseline,outcome);
+                if(outcome.diagnostics.exactCollisionPoseCalls>
+                   baseline.diagnostics.exactCollisionPoseCalls)
+                  throw std::runtime_error("Cover increased exact collision calls");
+              }
+            }
+          }
+        continue;
+      }
       // A/B keeps the request, map, budget, model, collision settings, and
       // noncertified heuristic weight (1.0) identical apart from heuristic mode.
       // Different heuristic ordering may legitimately yield different paths.
