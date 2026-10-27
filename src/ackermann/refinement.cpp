@@ -154,6 +154,48 @@ std::vector<MotionSection> straightShortcut(const Pose2D& start,const Pose2D& en
   const auto gear=longitudinal>0?Gear::Forward:Gear::Reverse;
   return {makeSection(start,gear,0,std::abs(longitudinal))};
 }
+// Differential drives can pivot in place, translate straight in either gear,
+// then pivot again. These candidates are geometric, and still require strict
+// whole-path validation before they can replace any search result.
+std::vector<MotionSection> spinStraightSpin(const Pose2D& from,const Pose2D& to,
+                                           Gear gear) {
+  if(!finite(from)||!finite(to))return {};
+  std::vector<MotionSection> sections;
+  Pose2D pose=from;
+  const double dx=to.x-from.x,dy=to.y-from.y;
+  const double length=std::hypot(dx,dy);
+  auto spin=[&](double yaw) {
+    const double angle=std::remainder(yaw-pose.yaw,2*pi);
+    if(std::abs(angle)>1e-9) {
+      sections.push_back(makeRotationSection(pose,angle));
+      pose=sections.back().end;
+    }
+  };
+  if(length>1e-9) {
+    const double travelHeading=std::atan2(dy,dx)+
+        (gear==Gear::Reverse?pi:0.0);
+    spin(travelHeading);
+    sections.push_back(makeSection(pose,gear,0,length));
+    pose=sections.back().end;
+  }
+  spin(to.yaw);
+  return close(pose,to)?sections:std::vector<MotionSection>{};
+}
+std::vector<std::vector<MotionSection>> differentialShortcuts(
+    const Pose2D& from,const Pose2D& to,const RefinementOptions& opt) {
+  std::vector<std::vector<MotionSection>> candidates;
+  if(opt.useCurvatureBoundedShortcuts) {
+    candidates=generateCurvatureBoundedShortcuts(
+        from,to,opt.differentialCurveRadiusMeters);
+  }
+  // Turning-in-place is always a physically possible candidate for the ideal
+  // differential-drive model, even when a fixed-curvature CSC does not fit.
+  for(Gear gear:{Gear::Forward,Gear::Reverse}) {
+    auto sections=spinStraightSpin(from,to,gear);
+    if(!sections.empty())candidates.push_back(std::move(sections));
+  }
+  return candidates;
+}
 PlanResult makeVerified(const PlanRequest& req, const PlanResult& source,
                         const Evaluated& evaluated) {
   PlanResult result=source;
@@ -240,9 +282,39 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
     for (std::size_t pass=0;pass<options.maxAccepted;++pass) {
       bool changed=false;
       const auto n=result.path.sections.size();
-      for (std::size_t i=0;i+1<n&&!changed;++i) {
-        // Try widest eligible window first, deterministic with finite count.
-        for (std::size_t j=n;j>=i+2;--j) {
+      const auto remaining=options.maxAttempts-result.attempted;
+      std::vector<std::pair<std::size_t,std::size_t>> windows;
+      windows.reserve(remaining);
+      const auto add=[&](std::size_t i,std::size_t j) {
+        if(j>n||j<=i+1||windows.size()>=remaining)return;
+        const auto window=std::pair{i,j};
+        if(std::find(windows.begin(),windows.end(),window)==windows.end())
+          windows.push_back(window);
+      };
+      if(req.options.model==PlanOptions::Model::DifferentialDrive) {
+        // Spread the bounded attempt budget along long, oscillating routes.
+        // Otherwise widest-first only tries windows starting at section zero.
+        const std::array<std::size_t,7> widths{
+          n,std::min(n,std::size_t{48}),std::min(n,std::size_t{24}),
+          std::min(n,std::size_t{12}),std::min(n,std::size_t{6}),
+          std::min(n,std::size_t{3}),std::min(n,std::size_t{2})};
+        const std::size_t perScale=std::max<std::size_t>(1,remaining/widths.size());
+        for(const auto width:widths) {
+          if(width<2||windows.size()>=remaining)continue;
+          const auto maxStart=n-width;
+          const auto stride=std::max<std::size_t>(1,
+              (maxStart+perScale-1)/perScale);
+          for(std::size_t i=0;i<=maxStart&&windows.size()<remaining;i+=stride)
+            add(i,i+width);
+          add(maxStart,n);
+        }
+      } else {
+        // Preserve Ackermann's historical widest-window-first traversal.
+        for(std::size_t i=0;i+1<n&&windows.size()<remaining;++i)
+          for(std::size_t j=n;j>=i+2&&windows.size()<remaining;--j)
+            add(i,j);
+      }
+      for(const auto [i,j]:windows) {
           if(result.attempted>=options.maxAttempts ||
              result.exactPoseChecks>=options.maxTotalPoseChecks) {limit=true;break;}
           if(cancelled(req)) {result.status=RefinementStatus::Cancelled;return result;}
@@ -252,12 +324,13 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
           std::vector<std::vector<MotionSection>> proposals;
           try {
             if (connector) proposals.push_back(connector(from,to));
+            else if(req.options.model==PlanOptions::Model::DifferentialDrive)
+              proposals=differentialShortcuts(from,to,options);
             else if (options.useCurvatureBoundedShortcuts)
               proposals=generateCurvatureBoundedShortcuts(
                   from,to,req.options.minimumTurningRadiusMeters);
             else proposals.push_back(straightShortcut(from,to));
           } catch(const std::exception&) {++result.rejected;continue;}
-          bool accepted=false;
           // Every geometric proposal gets the SAME independently exact,
           // complete-path validation. Work is bounded by total pose checks;
           // the native CSC provider returns at most eight alternatives.
@@ -301,12 +374,10 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
             result.path=makeVerified(req,result.path,evaluated);
             result.path.solutionQuality=SolutionQuality::FeasibleAfterRefinement;
             ++result.accepted;
-            changed=true;accepted=true;
+            changed=true;
             break;
           }
-          if(limit||accepted) break;
-        }
-        if(limit) break;
+        if(limit||changed) break;
       }
       if(limit||!changed) break;
     }
