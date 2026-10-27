@@ -105,7 +105,7 @@ struct PlanOptions {
   std::size_t maxExtraExpansionsAfterFirst = 2500; // optional, measured separately
   std::size_t gridMaxSettlementsPerQuery = 500;
   double performanceHeuristicWeight = 1.0; // opt-in noncertified h inflation [1,3]
-  std::size_t gridMaxTotalSettlements = 20000; // performance grid, entire request
+  std::size_t gridMaxTotalSettlements = 100000; // optional performance grid; bounded by reachable cells
   bool gridPreventDiagonalCornerCutting = true; // false only for controlled A/B trials
   double clearanceWeight = 0.0; // zero by default: equivalent-meter integral
   double clearanceInfluenceRadiusMeters = 0.40;

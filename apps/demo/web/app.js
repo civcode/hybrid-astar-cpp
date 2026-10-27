@@ -137,9 +137,13 @@ function stats(result) {
   const limit=result.limits;
   const exhausted=result.original.terminationReason==='WorkBudgetExceeded'||
     status==='BudgetExceeded'||result.original.terminationReason==='ValidationBudgetExhausted';
+  const failureDetail=status==='StrictValidationFailed'
+    ?' · goal-like paths were rejected by strict swept-collision validation'
+    :(exhausted?' · search work budget exhausted'
+       :' · search exhaustion is not a proof of continuous-space infeasibility');
   $('message').textContent=valid?('Validated geometric path · '+status+(refinement?' · refinement: '+refinement:'')+' · sampled footprint checking'):
-    ('No validated path · '+status+' · a work limit or NoPath is not a swept-safety proof'+
-     (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions, raise “Search budget”':''));
+    ('No validated path · '+status+failureDetail+
+     (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions':''));
   $('cost').textContent=valid?path.cost.toFixed(2)+' m':'—';
   $('length').textContent=valid?path.length.toFixed(2)+' m':'—';
   $('reverseLen').textContent=valid?path.reverseLength.toFixed(2)+' m':'—';
