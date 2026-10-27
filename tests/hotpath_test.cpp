@@ -1,11 +1,41 @@
 #include <catch2/catch_test_macros.hpp>
 #include "bench/hard_scenarios.hpp"
+#include "bench/warehouse_scenarios.hpp"
 #include "hybrid_astar/ackermann/planner.hpp"
 #include "hybrid_astar/ackermann/cover_prefilter.hpp"
 #include <cmath>
 #include <memory>
 using namespace hybrid_astar;
 using namespace hybrid_astar::ackermann;
+
+TEST_CASE("Ackermann warehouse profiling cases match the reported poses and margins",
+          "[w6][benchmark-fixture]") {
+  const auto cases=bench::ackermannWarehouseCases(200000);
+  REQUIRE(cases.size()==5);
+  for(const auto& item:cases) {
+    const auto& q=item.second;
+    REQUIRE(q.options.model==PlanOptions::Model::Ackermann);
+    REQUIRE(q.options.maxExpansions==200000);
+    REQUIRE(q.options.maxGeneratedNodes==800000);
+    REQUIRE(q.map->width==200);
+    REQUIRE(q.map->height==160);
+    REQUIRE(q.map->resolutionMeters==.25);
+    REQUIRE(q.footprint.frontX>3.);
+    REQUIRE(q.footprint.halfWidth>.5);
+    REQUIRE(q.map->cells[20*q.map->width+50]==100);
+  }
+  REQUIRE(cases[0].first=="ack_across_first_margin_050");
+  REQUIRE(cases[0].second.start.x==4.77);
+  REQUIRE(cases[0].second.start.y==32.84);
+  REQUIRE(cases[0].second.goal.x==44.62);
+  REQUIRE(cases[0].second.options.footprintInflationMeters==.5);
+  REQUIRE(cases[1].second.options.solutionPolicy==SolutionPolicy::ImproveIncumbent);
+  REQUIRE(cases[2].second.start.x==3.25);
+  REQUIRE(cases[2].second.goal.y==38.17);
+  REQUIRE(cases[2].second.options.footprintInflationMeters==0.);
+  REQUIRE(cases[3].second.options.footprintInflationMeters==.1);
+  REQUIRE(cases[4].second.options.footprintInflationMeters==.5);
+}
 
 TEST_CASE("Obstacle grid is the default and certified Euclidean is explicit",
           "[heuristic][default][w6]") {

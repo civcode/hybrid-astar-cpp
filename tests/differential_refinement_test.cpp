@@ -207,6 +207,32 @@ TEST_CASE("Differential CSC refinement is invariant under world rotation",
   checkDense(rotated,b.path);
 }
 
+TEST_CASE("Differential refinement supports fixed and multiple curve radii",
+          "[differential][refinement][radius-ab]") {
+  auto req=openRequest();
+  const auto sections=squiggle(req);
+  for(std::size_t variants:{std::size_t{1},std::size_t{4}}) {
+    RefinementOptions options;
+    options.useCurvatureBoundedShortcuts=true;
+    options.differentialRadiusVariants=variants;
+    const auto result=refinePath(req,raw(req,sections),{},options);
+    INFO("radii="<<variants);
+    REQUIRE(result.path.status==PlanStatus::Success);
+    REQUIRE(result.path.collisionEvidence==
+            CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled);
+    REQUIRE(result.path.weightedCostMeters<=2.32);
+    for(const auto& part:result.path.sections)
+      REQUIRE(part.kind!=MotionKind::RotateInPlace);
+  }
+  RefinementOptions invalid;
+  invalid.differentialRadiusVariants=0;
+  REQUIRE(refinePath(req,raw(req,sections),{},invalid).status==
+          RefinementStatus::InvalidInput);
+  invalid.differentialRadiusVariants=5;
+  REQUIRE(refinePath(req,raw(req,sections),{},invalid).status==
+          RefinementStatus::InvalidInput);
+}
+
 TEST_CASE("Differential refiner keeps original if stricter work cap prevents verification",
           "[differential][refinement][budget]") {
   auto req=openRequest();
