@@ -332,9 +332,10 @@ have been found**. These are the same edited 50 x 40 m warehouse map, with
 0.25 m cells, 143 edited obstacle cells and 0.50 m footprint inflation.
 
 Each candidate must have valid start and goal footprints (exact collision
-checker), at least **25 m direct XY separation** (to reduce trivial one-shot
-connections), and is planned in both configurations with the identical map,
-poses, 4 m minimum turn radius and adaptive RS attempt ratio of 3.5:
+checker) and is planned in both configurations with the identical map,
+poses, 4 m minimum turn radius and adaptive RS attempt ratio of 3.5.
+There is **no minimum start/goal separation or distance-band quota**:
+actual measured planner expansions determine difficulty.
 
 - `grid_plus_rs_connector`: obstacle-grid heuristic + adaptive RS connector.
 - `grid_plus_rs_connector_and_distance`: the same, plus RS distance heuristic.
@@ -356,8 +357,8 @@ quickly and the other struggles, and requiring both to succeed excludes
 feasibility differences. This is a *conditional hard-case latency comparison*,
 not an unbiased benchmark of all warehouse tasks or a success-rate estimate.
 Retain the original unfiltered 100-case comparison as a complementary measure.
-The earlier 6–12/12–20/20–30/30–60 m fixed quotas have been removed because
-short cases rarely satisfy the 10k expansion filter.
+The earlier 6–12/12–20/20–30/30–60 m fixed quotas have been removed
+because some bands rarely satisfy the 10k expansion filter.
 
 ```bash
 git fetch origin
