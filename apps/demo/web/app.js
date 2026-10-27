@@ -153,13 +153,17 @@ function stats(result) {
 }
 let modelCapabilities={ompl:false};
 function syncModelOptions() {
-  const diff=$('model').value!=='ackermann';
-  for(const id of ['ompl','refine','curved']) {
-    const el=$(id);
-    if(diff)el.checked=false;
-    el.disabled=diff || (id==='ompl'?!modelCapabilities.ompl:
-                          id==='curved'?!$('refine').checked:false);
-  }
+  const model=$('model').value;
+  const ackermann=model==='ackermann';
+  const mecanum=model==='mecanum';
+  // OMPL is Ackermann-only, but strict native refinement/CSC also support
+  // differential drive. Keep mecanum off until it has its own validator.
+  if(!ackermann)$('ompl').checked=false;
+  $('ompl').disabled=!ackermann||!modelCapabilities.ompl;
+  if(mecanum)$('refine').checked=false;
+  $('refine').disabled=mecanum;
+  if(mecanum)$('curved').checked=false;
+  $('curved').disabled=mecanum||!$('refine').checked;
 }
 $('model').addEventListener('change',()=>{
   syncModelOptions();invalidateRoute();replan();
@@ -265,7 +269,7 @@ $('exportButton').addEventListener('click',()=>{
   document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(href),2000);
 });
-$('refine').addEventListener('change',()=>{$('curved').disabled=!$('refine').checked;});
+$('refine').addEventListener('change',syncModelOptions);
 $('resetMap').addEventListener('click',()=>{
   if(!editMap.size)return;
   editMap.clear();generation++;showEditCount();invalidateRoute();replan();
