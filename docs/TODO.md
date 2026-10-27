@@ -22,6 +22,19 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Differential-drive post-path smoothing — 2026-10-27
+
+- [x] Extend independently collision-checked, bounded post-path refinement
+  to differential drive, including spin/translation costs and wheel-rate
+  feasibility checks for constant-curvature candidates.
+- [x] Add rotate–straight–rotate plus optional 0.75 m radius CSC connectors,
+  and spread bounded attempts across long paths at multiple scales.
+- [x] Enable both Planning Lab refinement toggles for differential drive
+  while retaining Ackermann-only OMPL and unsupported mecanum refinement.
+- [x] Add strict geometric regression cases, demo contract and HTTP checks.
+- [ ] Run the C++/Docker test suite and inspect Planning Lab smoothing on a
+  real zigzag warehouse map; measure cost, sections and elapsed time.
+
 ## Differential-drive near-goal robustness — 2026-10-27
 
 - [x] Use a consistent 1e-9 numerical slack for ordinary goal acceptance,

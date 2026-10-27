@@ -87,6 +87,17 @@ def main(exe):
         warehouse = json.loads(body)
         assert code == 200 and warehouse["original"]["status"] == "Success"
         assert warehouse["mapRuns"]
+        # Differential-drive post-path refinement is available through the
+        # same HTTP flags as Ackermann, and must preserve strict validation.
+        code, _, body = get(base + "/api/plan?scenario=open&model=differential"
+                            "&refine=1&curved=1")
+        smooth = json.loads(body)
+        assert code == 200 and smooth["original"]["status"] == "Success", body
+        assert smooth["refinement"] is not None
+        assert smooth["refinement"]["path"] is not None
+        assert smooth["refinement"]["path"]["status"] == "Success"
+        assert smooth["refinement"]["path"]["cost"] <= smooth["original"]["cost"] + 1e-8
+        assert smooth["refinement"]["path"]["collisionEvidence"] ==             "FullFootprintBodyMotionAdaptiveSampled"
         # Work budgets are request-tunable. Hitting one is a limit, never a NoPath.
         # Keep this starvation check on certified Euclidean ordering: the
         # new default obstacle-grid can solve the warehouse with fewer nodes.

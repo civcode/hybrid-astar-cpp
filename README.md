@@ -196,6 +196,27 @@ because a 1M-expansion run may be expensive. The CSV now exposes exact-goal
 connector attempts/strict rejections and grid settlements/fallbacks.
 Four-disc direct-checker implication tests cover rotated maps, contacts,
 narrow gaps and mecanum. The default prefilter stays OFF pending validation.
+
+### Differential-drive path smoothing (manual opt-in)
+
+The strict post-path refiner now also accepts `Model::DifferentialDrive`
+and preserves the original path unless independent full-body verification
+confirms an actual weighted-cost reduction. Native candidate connections
+include short in-place rotations with straight-line travel (in either gear)
+and optional CSC curved shortcuts with a configurable 0.75 m radius.
+Candidate constant-curvature commands are checked against differential
+wheel-rate limits and can be traversed at reduced positive speeds.
+The finite candidate scheduler samples different spans of long paths.
+This is geometric simplification, not a continuous-curvature, acceleration,
+or actuator-tracking guarantee.
+
+In Planning Lab choose **Differential drive**, then check **Strict post-path
+refinement**; optionally check **Native curved CSC candidates**. Exported
+JSON includes both `original` and `refinement.path` when validation succeeds.
+The C++ interface remains `ackermann::refinePath(request, original)`, with
+`RefinementOptions.useCurvatureBoundedShortcuts` and
+`differentialCurveRadiusMeters` providing opt-in CSC. Mecanum remains
+unsupported by this refiner. Tests were added but must be executed locally.
 See [the expanded experiment guide](docs/architecture/w6-hotpath-profiling.md).
 
 A second profiling-**OFF** build is required to compare end-to-end

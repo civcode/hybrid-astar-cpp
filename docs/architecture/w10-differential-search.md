@@ -143,3 +143,49 @@ million-expansion case is resolved. The demo JSON now emits generated
 nodes, key pruning, grid settlements/fallbacks, and terminal attempt/
 validation/rejection counters to help reproduce failures.
 
+ 
+## Strict differential-drive path refinement (2026-10-27)
+
+The core `ackermann::refinePath(request, validatedPlan, connector, options)`
+now accepts `PlanOptions::Model::DifferentialDrive`, in addition to
+Ackermann. The model's search and collision checking are not changed. The
+post-search refiner independently revalidates the **entire original** against
+the pinned map/revision and full rectangular footprint before considering any
+replacement; malformed, stale, budget-starved, or geometrically colliding
+inputs cannot turn into an advertised validated success.
+
+For differential drive, native candidates consist of:
+
+- Spin–straight–spin connectors in either forward or reverse gear. The spin
+  amounts and straight distance are continuously computed from the chosen
+  section-boundary poses, rather than restricted to the search's 22.5-degree
+  heading increments.
+- Optional fixed-gear CSC curves (LSL/LSR/RSL/RSR at a configurable 0.75 m
+  candidate radius). Each arc is an ideal differential-drive constant
+  curvature motion. The checker confirms that a positive finite control speed
+  exists under the differential wheel-rate limits; it may be lower than the
+  configured primitive translation speed.
+
+The strict verifier evaluates every exact motion section, including body-swept
+in-place rotations, at the configured final sampling density, with finite
+candidate attempts, accepted replacements and total pose-check limits.
+It recomputes all path costs (including angular rotation cost and gear-switch
+penalties), terminal state, gear/cusp metadata and validation evidence.
+Replacing a window requires a strict **whole-path cost reduction**;
+otherwise the verified original is retained. Motion sections are geometrically
+continuous, but curvature transitions, wheel accelerations, jerk and physical
+tracking dynamics are **not** certified.
+
+The differential search sometimes emits hundreds of small sections, so the
+candidate window schedule spreads trials across the route at several scales
+rather than burning every attempt on the first path prefix. The Planning Lab
+sets differential refinement budgets to 160 candidate windows, 8 accepted
+replacements and 200,000 strict pose checks; the C++ library API remains
+separately tunable. Enabling `refine` alone tries rotate–straight–rotate;
+also enabling `curved` allows native CSC arcs. Both are opt-in.
+
+Unit tests in `differential_refinement_test` cover a reducible zigzag,
+a blocked shortcut, a colliding swept spin, strict work-budget behavior and
+unsupported mecanum. `demo_test` and `demo_http_test` cover the Planning
+Lab integration. Run these plus `refinement_test`, `curved_shortcuts_test`
+and `w10_differential_search_test` before treating the feature as verified.
