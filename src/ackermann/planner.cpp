@@ -672,6 +672,8 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
         r.options.discPrefilterCount==PlanOptions::AutomaticDiscPrefilter?
         (ackermann?4U:0U):r.options.discPrefilterCount;
     result.diagnostics.discPrefilterCountUsed=discCount;
+    result.diagnostics.emptyRegionPrefixSumUsed=
+        ackermann&&r.options.useEmptyRegionPrefixSum;
     std::unique_ptr<ConservativeDiscPrefilter> prefilter;
     if(discCount)
       prefilter=std::make_unique<ConservativeDiscPrefilter>(

@@ -96,6 +96,8 @@ void pathJson(std::ostream& os,const PlanResult& path) {
     <<",\"strictRejectedCollision\":"<<path.diagnostics.strictRejectedCollision
     <<",\"strictRejectedContinuity\":"<<path.diagnostics.strictRejectedContinuity
     <<",\"strictRejectedGoalMismatch\":"<<path.diagnostics.strictRejectedGoalMismatch
+    <<",\"discPrefilterCountUsed\":"<<path.diagnostics.discPrefilterCountUsed
+    <<",\"emptyRegionPrefixSumUsed\":"<<(path.diagnostics.emptyRegionPrefixSumUsed?"true":"false")
     <<",\"spinShortcutsAttempted\":"<<path.diagnostics.mecanumSpinShortcutsAttempted
     <<",\"spinShortcutsAccepted\":"<<path.diagnostics.mecanumSpinShortcutsAccepted
     <<",\"finalChecks\":"<<path.diagnostics.finalPoseChecks

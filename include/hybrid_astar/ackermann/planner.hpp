@@ -213,6 +213,7 @@ struct PlanDiagnostics {
   std::size_t terminalValidated = 0, terminalRejected = 0;
   std::size_t mecanumSpinShortcutsAttempted = 0, mecanumSpinShortcutsAccepted = 0;
   std::size_t discPrefilterCountUsed = 0; // resolved after model-specific default
+  bool emptyRegionPrefixSumUsed = false;
   std::size_t discDefinitelyClear = 0, discExactFallback = 0;
   std::size_t clearanceSamples = 0;
 };

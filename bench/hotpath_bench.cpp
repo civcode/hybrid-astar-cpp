@@ -27,7 +27,8 @@ constexpr std::array<Variant,5> variants{{
     {"disc_4",0,4},{"reserve_4096_disc_4",4096,4}}};
 enum class Mode { Baseline, Warehouse, Heuristics, WarehouseHeuristics,
                   AckermannWarehouse, AckermannWarehouseHeuristics,
-                  AckermannCollisionAB, AckermannCollisionWork };
+                  AckermannCollisionAB, AckermannCollisionWork,
+                  AckermannEmptyRegionAB };
 struct Scenario {
   std::string name;
   PlanRequest request;
@@ -80,7 +81,9 @@ void csvHeader() {
       "label_update_count,open_peak_size,open_peak_storage_bytes,"
       "grid_peak_size,grid_peak_storage_bytes,"
       "collision_work_enabled,collision_candidate_cells,collision_occupied_cells,"
-      "collision_sat_tests,collision_distance_tests,collision_boundary_rejections\n";
+      "collision_sat_tests,collision_distance_tests,collision_boundary_rejections,"
+      "effective_disc_count,empty_region_prefix_enabled,"
+      "empty_region_queries,empty_region_bypasses\n";
 }
 void csvRow(const Scenario& scene,const char* variant,const PlanOptions& options,
             int repeats,const std::vector<double>& times,const PlanResult& last) {
@@ -118,7 +121,10 @@ void csvRow(const Scenario& scene,const char* variant,const PlanOptions& options
     <<int(d.collectCollisionWork)<<','<<d.collisionWork.candidateCells<<','
     <<d.collisionWork.occupiedCells<<','<<d.collisionWork.satTests<<','
     <<d.collisionWork.distanceTests<<','
-    <<d.collisionWork.boundaryRejections<<'\n';
+    <<d.collisionWork.boundaryRejections<<','
+    <<d.discPrefilterCountUsed<<','<<int(d.emptyRegionPrefixSumUsed)<<','
+    <<d.collisionWork.emptyRegionQueries<<','
+    <<d.collisionWork.emptyRegionBypasses<<'\n';
 }
 PlanResult measure(const Scenario& scene,PlanRequest q,const char* variant,int repeats,
                    bool warmup) {
@@ -227,11 +233,14 @@ int main(int argc,char** argv) {
         mode=Mode::AckermannCollisionAB;
       else if(flag=="--ackermann-collision-work")
         mode=Mode::AckermannCollisionWork;
+      else if(flag=="--ackermann-empty-region-ab")
+        mode=Mode::AckermannEmptyRegionAB;
       else throw std::invalid_argument("Unknown benchmark mode");
     }
     const bool warehouse=mode==Mode::Warehouse||mode==Mode::WarehouseHeuristics;
     const bool collisionMatrix=mode==Mode::AckermannCollisionAB||
-                               mode==Mode::AckermannCollisionWork;
+                               mode==Mode::AckermannCollisionWork||
+                               mode==Mode::AckermannEmptyRegionAB;
     const bool ackermannWarehouse=mode==Mode::AckermannWarehouse||
                                   mode==Mode::AckermannWarehouseHeuristics||
                                   collisionMatrix;
@@ -247,7 +256,8 @@ int main(int argc,char** argv) {
           "Usage: [repeats] | --warehouse [repeats] [budget] | "
           "--heuristics [repeats] | --warehouse-heuristics [repeats] [budget] | "
           "--ackermann-warehouse[(-heuristics)] [repeats] [budget] [case_name] | "
-          "--ackermann-collision-(ab|work) [repeats] [budget] [case_name]");
+          "--ackermann-collision-(ab|work) [repeats] [budget] [case_name] | "
+          "--ackermann-empty-region-ab [repeats] [budget] [case_name]");
     std::vector<Scenario> scenes;
     if(warehouse) scenes.push_back({"mecanum_warehouse_off_grid",
                                      bench::mecanumWarehouseCase(std::size_t(budget))});
@@ -269,6 +279,37 @@ int main(int argc,char** argv) {
       scenes.push_back({std::move(s.name),std::move(s.request)});
     csvHeader();
     for(const auto& scene:scenes) {
+      if(mode==Mode::AckermannEmptyRegionAB) {
+        // Compare integral-image bypass OFF vs ON for fixed disc and
+        // margin settings. The original grid scanner is the oracle.
+        for(double margin:{0.,.5})
+          for(std::size_t discs:{std::size_t{0},std::size_t{4}}) {
+            PlanResult baseline;
+            for(bool prefix:{false,true}) {
+              auto q=scene.request;
+              q.options.heuristicMode=
+                  HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+              q.options.footprintInflationMeters=margin;
+              q.options.discPrefilterCount=discs;
+              q.options.useEmptyRegionPrefixSum=prefix;
+              // Work counts in this mode are intentional; compare timings
+              // with prefix-off while counters stay identically enabled.
+              q.options.collectCollisionWork=true;
+              const std::string label=std::string(prefix?"prefix1":"prefix0")+
+                  (discs?"_disc4":"_disc0")+
+                  (margin>0?"_margin050":"_margin000");
+              auto outcome=measure(scene,q,label.c_str(),repeats,false);
+              if(!prefix)baseline=std::move(outcome);
+              else {
+                equivalent(baseline,outcome);
+                if(outcome.diagnostics.collisionWork.candidateCells>
+                   baseline.diagnostics.collisionWork.candidateCells)
+                  throw std::runtime_error("Integral AABB increased cell scans");
+              }
+            }
+          }
+        continue;
+      }
       if(collisionMatrix) {
         // Full factorial: identical warehouse request for each heuristic,
         // margin and disc-count pair. The AB mode is the unbiased wall-clock
@@ -284,6 +325,7 @@ int main(int argc,char** argv) {
               q.options.performanceHeuristicWeight=1.0;
               q.options.footprintInflationMeters=margin;
               q.options.discPrefilterCount=discCount;
+              q.options.useEmptyRegionPrefixSum=false; // historical A/B
               q.options.searchLabelReserve=0;
               q.options.collectCollisionWork=mode==Mode::AckermannCollisionWork;
               const std::string label=std::string(heuristicName(heuristic))+
@@ -311,12 +353,14 @@ int main(int argc,char** argv) {
           q.options.heuristicMode=heuristic;
           q.options.performanceHeuristicWeight=1.0;
           q.options.discPrefilterCount=0;
+          q.options.useEmptyRegionPrefixSum=false; // historical heuristic A/B
           q.options.searchLabelReserve=0;
           measure(scene,q,heuristicName(heuristic),repeats,!largeCase);
         }
         continue;
       }
       auto q=scene.request;
+      q.options.useEmptyRegionPrefixSum=false; // preserve prior variant baseline
       if(!largeCase) {
         // Historical five-way baseline for comparison to existing CSV runs.
         q.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
