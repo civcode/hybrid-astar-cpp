@@ -62,6 +62,38 @@ static void runLegacyAssertions() {
           "differential refinement cannot increase path cost");
   require(toJson(smooth).find("\"refinement\":{")!=std::string::npos,
           "differential refined path serialized");
+  // Reported warehouse case: a redundant internal spin near the first
+  // partition should be removable when a shorter, strictly checked moving
+  // twist exists. The cleanup cannot worsen cost or change search results.
+  Options warehouse;
+  warehouse.model="mecanum";warehouse.scenario="warehouse";
+  warehouse.start=Pose2D{7.05,32.31,0.};
+  warehouse.goal=Pose2D{30.02,33.30,0.};
+  warehouse.footprintInflationEnabled=true;
+  warehouse.footprintInflationMeters=.5;
+  const auto optimizedWarehouse=run(warehouse);
+  require(optimizedWarehouse.original.status==PlanStatus::Success,
+          "mecanum warehouse with inflated footprint reaches goal");
+  auto unsmoothedRequest=optimizedWarehouse.request;
+  unsmoothedRequest.options.mecanumMergeIntermediateSpins=false;
+  const auto rawWarehouse=plan(unsmoothedRequest);
+  require(rawWarehouse.status==PlanStatus::Success,
+          "same mecanum warehouse without spin cleanup also succeeds");
+  require(rawWarehouse.diagnostics.expanded==
+          optimizedWarehouse.original.diagnostics.expanded,
+          "post-search mecanum cleanup leaves node expansion unchanged");
+  require(optimizedWarehouse.original.weightedCostMeters<=
+          rawWarehouse.weightedCostMeters+1e-7,
+          "mecanum cleanup does not worsen search objective");
+  if(optimizedWarehouse.original.diagnostics.mecanumSpinShortcutsAccepted>0) {
+    std::size_t oldSpins=0,newSpins=0;
+    for(const auto& section:rawWarehouse.sections)
+      oldSpins+=section.kind==MotionKind::RotateInPlace;
+    for(const auto& section:optimizedWarehouse.original.sections)
+      newSpins+=section.kind==MotionKind::RotateInPlace;
+    require(newSpins<oldSpins,
+            "accepted moving-twist shortcut removes stationary spins");
+  }
   Options unreachable;unreachable.scenario="blocked";
   unreachable.start=Pose2D{15,20,0};unreachable.goal=Pose2D{35,20,0};
   auto impossible=run(unreachable);

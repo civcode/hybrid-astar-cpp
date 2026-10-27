@@ -33,6 +33,23 @@ static a::PlanRequest request() {
   return r;
 }
 
+TEST_CASE("Mecanum stationary stops cost more than equivalent moving turns",
+          "[w12][smoothing][model]") {
+  auto r=request();
+  r.options.mecanumStationarySpinPenaltyMeters=.35;
+  const po::MecanumPolicy policy{r};
+  const auto spin=a::makeRotationSection(r.start,.39269908169872414);
+  const auto twist=a::makeHolonomicSection(r.start,1,0,.39269908169872414);
+  REQUIRE(policy.terminalEdgeCost(spin)==
+          Approx(r.options.rotationCostMetersPerRadian*std::abs(spin.turnRadians)+.35));
+  REQUIRE(policy.terminalEdgeCost(twist)==
+          Approx(twist.lengthMeters+
+                 r.options.rotationCostMetersPerRadian*std::abs(twist.turnRadians)));
+  REQUIRE(policy.terminalEdgeCost(spin)>0);
+  r.options.mecanumStationarySpinPenaltyMeters=-.1;
+  REQUIRE_THROWS_AS(po::MecanumPolicy{r}.validate(),std::invalid_argument);
+}
+
 TEST_CASE("Mecanum wheel mapping bounds are enforced on all four wheels","[w12][model]") {
   const me::Model model;
   auto rates=model.wheelRates({0,.5,0});
