@@ -120,6 +120,17 @@ static void runLegacyAssertions() {
   must(bounded.status==RefinementStatus::WorkBudgetExceeded&&
        bounded.path.status==PlanStatus::Success&&bounded.path.sections.size()==4,
        "work cap preserves independently rechecked detour");
+  // If there is only one eligible window, exactly one allowed attempt
+  // exhausts the search space rather than being a work-budget failure.
+  req.map=clear;req.goal={22,20,0};
+  const auto firstHalf=makeSection(req.start,Gear::Forward,0,1);
+  const auto secondHalf=makeSection(firstHalf.end,Gear::Forward,0,1);
+  const auto alreadyStraight=refinePath(
+      req,raw(req,{firstHalf,secondHalf}),{},finiteAttempts);
+  must(alreadyStraight.status==RefinementStatus::Unchanged &&
+       alreadyStraight.attempted==1 &&
+       alreadyStraight.path.status==PlanStatus::Success,
+       "fully enumerated refinement windows do not falsely exhaust budget");
   // Optional provider may suggest reverse/cusp sections, but each must pass
   // the same full-path kinematic, objective, and strict collision gate.
   req.map=clear;req.goal={22,20,0};
