@@ -447,6 +447,8 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
   PlanResult result;
   if (r.map) { result.mapRevision=r.map->revision; result.mapFrameId=r.map->frameId; result.mapSourceId=r.map->sourceId; }
   result.effectiveOccupancy=r.occupancy;
+  result.heuristicCertifiedAdmissible=
+      r.options.heuristicMode==HeuristicMode::CertifiedRegionEuclidean;
   if (!r.map || !finite(r.start) || !finite(r.goal)) return result;
   try {
     validateOptions(r.options);
@@ -516,7 +518,6 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     result.diagnostics.labelPeakBuckets=active.bucket_count();
     SearchOpenQueue open(opt.openQueueMode);
     steering::AnalyticExpansionScheduler scheduler(opt.analytic);
-    result.heuristicCertifiedAdmissible=opt.heuristicMode==HeuristicMode::CertifiedRegionEuclidean;
     std::unique_ptr<LazyGrid> grid;
     if (opt.heuristicMode==HeuristicMode::PerformanceReedsSheppAndObstacleGrid)
       grid=std::make_unique<LazyGrid>(*r.map,r.occupancy,r.goal,

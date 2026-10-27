@@ -10,6 +10,13 @@ static void require(bool v,const char* msg) { INFO(msg); REQUIRE(v); }
 static void runLegacyAssertions() {
   auto open=run({});
   require(open.original.status==PlanStatus::Success,"open plan success");
+  require(!open.original.heuristicCertifiedAdmissible,"default demo uses obstacle grid");
+  Options certifiedOptions;
+  certifiedOptions.performanceHeuristic=false;
+  const auto certified=run(certifiedOptions);
+  require(certified.original.status==PlanStatus::Success &&
+          certified.original.heuristicCertifiedAdmissible,
+          "demo explicitly selects certified Euclidean mode");
   require(open.original.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,
           "strict collision evidence");
   const auto json=toJson(open);

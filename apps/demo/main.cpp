@@ -269,8 +269,8 @@ void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<
 #endif
 void usage(){std::cout<<"Usage: hybrid_astar_demo [--model ackermann|differential|mecanum] [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
   " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS | --map-yaml FILE.yaml] [--output FILE.json --once]"
-  " [--ompl] [--refine] [--curved] [--performance] [--improve] [--budget 100..1000000]\n"
-  "Default: serve interactive UI on 127.0.0.1 only. --once prints machine-readable JSON.\n";}
+  " [--ompl] [--refine] [--curved] [--performance|--certified] [--improve] [--budget 100..1000000]\n"
+  "Default: obstacle-grid heuristic (weight 1.0); --certified selects Euclidean. --once prints JSON.\n";}
 }
 int main(int argc,char** argv) {
   try {
@@ -320,6 +320,7 @@ int main(int argc,char** argv) {
       else if(arg=="--refine")options.refine=true;
       else if(arg=="--curved")options.curvedRefinement=true;
       else if(arg=="--performance")options.performanceHeuristic=true;
+      else if(arg=="--certified")options.performanceHeuristic=false;
       else if(arg=="--improve")options.improve=true;
       else if(arg=="--budget"){
         if(i+1>=argc)throw std::invalid_argument("Missing budget");

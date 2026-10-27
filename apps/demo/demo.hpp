@@ -20,7 +20,7 @@ struct Options {
   std::optional<std::size_t> maxExpansions;
   bool refine = false;
   bool curvedRefinement = false;
-  bool performanceHeuristic = false;
+  bool performanceHeuristic = true; // grid by default; false = certified Euclidean
   bool improve = false;
   bool ompl = false;
 };

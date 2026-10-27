@@ -86,6 +86,7 @@ void pathJson(std::ostream& os,const PlanResult& path) {
     <<",\"reverseLength\":"<<path.reverseLengthMeters
     <<",\"expanded\":"<<path.diagnostics.expanded
     <<",\"finalChecks\":"<<path.diagnostics.finalPoseChecks
+    <<",\"heuristicCertifiedAdmissible\":"<<(path.heuristicCertifiedAdmissible?"true":"false")
     <<",\"validated\":"<<(path.status==PlanStatus::Success?"true":"false")
     <<",\"sections\":[";
   for(std::size_t i=0;i<path.sections.size();++i) {
@@ -177,8 +178,9 @@ Outcome run(const Options& opt) {
     out.request.options.rotationCostMetersPerRadian=.4;
   } else if(opt.model!="ackermann")
     throw std::invalid_argument("Unknown model (ackermann, differential or mecanum)");
-  if(opt.performanceHeuristic)
-    out.request.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+  out.request.options.heuristicMode=opt.performanceHeuristic
+      ?HeuristicMode::PerformanceReedsSheppAndObstacleGrid
+      :HeuristicMode::CertifiedRegionEuclidean;
   if(opt.improve) {
     out.request.options.solutionPolicy=SolutionPolicy::ImproveIncumbent;
     out.request.options.maxExtraExpansionsAfterFirst=700;

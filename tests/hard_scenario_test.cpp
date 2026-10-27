@@ -12,7 +12,9 @@ using namespace hybrid_astar::ackermann;
 
 namespace {
 PlanResult execute(PlanRequest q,bool performance,bool ompl) {
-  if(performance)q.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+  q.options.heuristicMode=performance
+      ?HeuristicMode::PerformanceReedsSheppAndObstacleGrid
+      :HeuristicMode::CertifiedRegionEuclidean;
 #ifdef HYBRID_ASTAR_HARD_CASES_WITH_OMPL
   if(ompl)return steering::planWithReedsShepp(std::move(q),performance);
 #else

@@ -100,11 +100,13 @@ struct PlanOptions {
   mecanum::PrimitiveConfig mecanumPrimitives{};
   double rotationCostMetersPerRadian = 0.40; // must be strictly positive
   steering::AnalyticExpansionOptions analytic; // only used with connector
-  HeuristicMode heuristicMode = HeuristicMode::CertifiedRegionEuclidean;
+  // Performance default: bounded lazy obstacle-aware ordering is not a
+  // certified continuous-space lower bound. Certified mode is still opt-in.
+  HeuristicMode heuristicMode = HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
   SolutionPolicy solutionPolicy = SolutionPolicy::FirstStrictlyValidated;
   std::size_t maxExtraExpansionsAfterFirst = 2500; // optional, measured separately
   std::size_t gridMaxSettlementsPerQuery = 500;
-  double performanceHeuristicWeight = 1.0; // opt-in noncertified h inflation [1,3]
+  double performanceHeuristicWeight = 1.0; // no default inflation; optional weight [1,3]
   std::size_t gridMaxTotalSettlements = 100000; // optional performance grid; bounded by reachable cells
   bool gridPreventDiagonalCornerCutting = true; // false only for controlled A/B trials
   double clearanceWeight = 0.0; // zero by default: equivalent-meter integral
@@ -190,7 +192,7 @@ struct PlanResult {
   CollisionEvidence collisionEvidence = CollisionEvidence::None;
   bool modelGeometryValid = false;
   bool trajectoryActuatorFeasible = false; // external timing validator needed
-  bool heuristicCertifiedAdmissible = true; // Euclidean-to-goal-region only
+  bool heuristicCertifiedAdmissible = false; // true only for certified Euclidean mode
   std::string mapFrameId, mapSourceId;
   std::uint64_t mapRevision = 0;
   OccupancyPolicy effectiveOccupancy;

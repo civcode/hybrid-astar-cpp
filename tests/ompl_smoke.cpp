@@ -46,7 +46,12 @@ static int runLegacyAssertions() {
   const auto basic=planWithReedsShepp(request);
   check(basic.status==PlanStatus::Success&&basic.diagnostics.analyticAttempts==1&&
         basic.diagnostics.analyticAccepted==1,"OMPL automatically connected to complete planner");
-  check(basic.heuristicCertifiedAdmissible,"OMPL connector retains certified heuristic default");
+  check(!basic.heuristicCertifiedAdmissible,"OMPL connector follows grid heuristic default");
+  PlanRequest certifiedRequest=request;
+  certifiedRequest.options.heuristicMode=HeuristicMode::CertifiedRegionEuclidean;
+  const auto certified=planWithReedsShepp(certifiedRequest);
+  check(certified.status==PlanStatus::Success&&certified.heuristicCertifiedAdmissible,
+        "OMPL connector preserves explicitly selected certified Euclidean mode");
   check(basic.finalGear==Gear::Reverse&&basic.reverseLengthMeters>.9,"RS reverse path metadata");
   const auto performance=planWithReedsShepp(request,true);
   check(performance.status==PlanStatus::Success&&!performance.heuristicCertifiedAdmissible,

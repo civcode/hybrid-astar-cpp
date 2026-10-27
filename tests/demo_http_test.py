@@ -77,7 +77,12 @@ def main(exe):
         result = json.loads(body)
         assert code == 200 and result["original"]["status"] == "Success"
         assert result["original"]["validated"] is True
+        assert result["original"]["heuristicCertifiedAdmissible"] is False
         assert result["original"]["reverseLength"] >= 3.5
+        code, _, body = get(base + "/api/plan?scenario=reverse&performance=0")
+        certified = json.loads(body)
+        assert code == 200 and certified["original"]["status"] == "Success"
+        assert certified["original"]["heuristicCertifiedAdmissible"] is True
         code, _, body = get(base + "/api/plan?scenario=warehouse&performance=1")
         warehouse = json.loads(body)
         assert code == 200 and warehouse["original"]["status"] == "Success"
