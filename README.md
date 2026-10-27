@@ -23,6 +23,29 @@ The [consolidated external-review specification](docs/architecture/Hybrid_AStar_
 
 The core now implements a first standalone Ackermann search: six exact analytic primitives, continuous states with gear-aware one-label keys, append-only parent records/reopening, full-body rectangle-versus-closed-grid-square collision, request-pinned occupancy snapshots, and an independent stricter full-path sampled validation pass. This is a geometric initializer; sampling does not prove full continuous swept safety or timed actuation feasibility.
 
+## Continuous footprint collision inflation
+
+`PlanOptions::footprintInflationMeters` adds a nonnegative **metric
+Minkowski-disk offset** around the current physical robot rectangle without
+discrete grid dilation (default `0.0`). Example:
+
+```cpp
+request.options.footprintInflationMeters = 0.05; // 5 cm margin
+```
+
+The inflated collision checker checks geometric rectangle-to-occupied-cell
+distance, rounded corners and map boundaries, retaining the legacy SAT-only
+fast path at zero margin. The margin propagates to search and independent
+final validation, conservative-disc cover and strict post-path refinement.
+It is independent of soft clearance scoring. The Planning Lab exposes a
+checkbox plus arbitrary finite meter input (e.g. 0.05 or 0.1, up to 10 m in
+the demo); its JSON exports carry the effective value. The currently
+supported collision primitive is a rectangle; a shared convex-polygon versus
+square distance utility is ready for other convex geometries later.
+This **does not** establish full swept-volume or tracking guarantees.
+See [Planning Lab usage](apps/demo/README.md#continuous-metric-footprint-inflation)
+and the focused `footprint_inflation_test` regressions.
+
 ## Interactive path planning demo
 
 A new [`apps/demo/` Planning Lab](apps/demo/README.md) provides a **browser-based

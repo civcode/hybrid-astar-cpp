@@ -72,6 +72,49 @@ strict adaptive-sampled validator can be labeled validated. There is **no
 continuous swept guarantee or steering-rate/actuator feasibility** claim.
 A budget-limited response is not proof of a geometric NoPath.
 
+## Continuous metric footprint inflation
+
+The Planning Lab now has **Geometric footprint safety margin** (checkbox,
+off by default) and an **Inflation distance (m)** input. Enter any finite
+nonnegative distance up to the demo's 10 m safety limit, such as `0.05`
+or `0.1`. Unchecking inflation sets the effective margin to **zero**
+without discarding the typed value. Click **Plan path** to apply changes.
+
+The parameter is a **Euclidean offset** around the physical filled robot
+rectangle (rounded corners). For every sampled robot pose the exact checker
+tests continuous rectangle-to-occupied-square distance, including rotated
+map origins and finite map boundaries. The occupied grid is **not dilated**,
+and the margin does not round to whole map cells. The original robot dimensions
+remain unchanged for animation, and an amber halo visualizes the extra zone
+around its body.
+
+The same margin applies to the start pose, search collision checks, strictly
+rechecked goal paths, optional post-path refinement, and the conservative disc
+prefilter. The prefilter's enclosing discs increase in radius by the margin,
+so they cannot bypass inflated collisions. When the parameter is zero the
+original SAT-only intersection fast path is retained. Higher margin values
+can make narrow passages unreachable or increase search expansions.
+
+HTTP GET/POST `/api/plan` accepts `inflate=1&inflationMeters=0.05`;
+use `inflate=0` to turn off the feature without resetting the configured
+value. JSON exports include the **effective** `footprintInflationMeters`.
+The equivalent one-shot CLI flag is `--inflate 0.05`, for example:
+
+```bash
+./build-demo/hybrid_astar_demo --once --scenario warehouse \
+  --model differential --inflate 0.05
+```
+
+The margin is **independent of** optional soft `clearanceWeight`: the former
+is a hard sampled geometric rejection rule, the latter is a path-quality
+penalty computed from the physical footprint. Exact metric offsets are
+implemented for the repository's **current rectangular collision model**.
+The reusable polygon-to-square distance routine admits future convex-body
+collision implementations, but circles, concave bodies and multi-body
+geometries are **not yet active** in the current planner. As before,
+adaptive checking samples whole paths; it is not a mathematically continuous
+swept-volume certificate.
+
 ## Choose the vehicle model — Ackermann, differential drive or mecanum
 
 Planning Lab's **Kinematic model** selector chooses the existing

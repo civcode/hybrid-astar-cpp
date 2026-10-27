@@ -22,6 +22,19 @@ of an earlier strictly validated incumbent. Full installed OMPL package
 verification, complete GitHub checkout build, geometric swept certification
 and steering actuator modeling remain future work.
 
+## Continuous footprint inflation — 2026-10-27
+
+- [x] Introduce `PlanOptions::footprintInflationMeters` default 0 with
+  exact metric rectangle-to-cell distance and zero-margin SAT fast path.
+- [x] Apply the geometric margin to all model search/final checks, rotated
+  map boundaries, conservative disc prefilter and strict refinement.
+- [x] Add Planning Lab checkbox and meter input, HTTP/CLI options, JSON
+  metadata and visual halo for the configured margin.
+- [x] Add threshold/corner/rotated-map/boundary/prefilter/refinement tests.
+- [ ] Verify Docker/CTest and performance on representative 0/.05/.1m maps;
+  evaluate actual robot localization and tracking error before relying on
+  this margin for deployed clearance guarantees.
+
 ## Differential-drive post-path smoothing — 2026-10-27
 
 - [x] Extend independently collision-checked, bounded post-path refinement
