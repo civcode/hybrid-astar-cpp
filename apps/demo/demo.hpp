@@ -23,7 +23,7 @@ struct Options {
   bool footprintInflationEnabled = false;
   double footprintInflationMeters = 0.05; // UI value retained while disabled
   bool performanceHeuristic = true; // grid by default; false = certified Euclidean
-  bool rsDistanceHeuristic = false; // opt-in RS distance guidance, independent of connector
+  bool rsDistanceHeuristic = false; // extra RS distance guidance, requires the RS connector
   bool improve = false;
   bool ompl = false;
 };
