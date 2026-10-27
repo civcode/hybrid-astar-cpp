@@ -33,6 +33,23 @@ static void runLegacyAssertions() {
           "refined or original route revalidated");
   require(refined.refinement->path.weightedCostMeters<=refined.original.weightedCostMeters+1e-8,
           "refinement never raises weighted cost");
+  Options differential;
+  differential.model="differential";
+  differential.scenario="open";
+  differential.refine=true;
+  differential.curvedRefinement=true;
+  const auto smooth=run(differential);
+  require(smooth.original.status==PlanStatus::Success,"differential plan succeeds");
+  require(smooth.refinement.has_value(),"differential refinement is available");
+  require(smooth.refinement->path.status==PlanStatus::Success,
+          "differential refinement returns reverified original or improvement");
+  require(smooth.refinement->path.collisionEvidence==
+          CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled,
+          "differential refined output is strictly validated");
+  require(smooth.refinement->path.weightedCostMeters<=smooth.original.weightedCostMeters+1e-8,
+          "differential refinement cannot increase path cost");
+  require(toJson(smooth).find("\"refinement\":{")!=std::string::npos,
+          "differential refined path serialized");
   Options unreachable;unreachable.scenario="blocked";
   unreachable.start=Pose2D{15,20,0};unreachable.goal=Pose2D{35,20,0};
   auto impossible=run(unreachable);
