@@ -193,6 +193,8 @@ Outcome run(const Options& opt) {
     out.request.options.rotationCostMetersPerRadian=.4;
   } else if(opt.model!="ackermann")
     throw std::invalid_argument("Unknown model (ackermann, differential or mecanum)");
+  if(opt.rsDistanceHeuristic && (!opt.ompl || !opt.performanceHeuristic || opt.model!="ackermann"))
+    throw std::invalid_argument("RS distance guidance requires Ackermann, the RS connector and obstacle-grid heuristic");
   if(!std::isfinite(opt.footprintInflationMeters)||
      opt.footprintInflationMeters<0||opt.footprintInflationMeters>10)
     throw std::invalid_argument("Footprint inflation must be between 0 and 10 m");
@@ -218,10 +220,11 @@ Outcome run(const Options& opt) {
     if(opt.refine) {
       ackermann::RefinementOptions settings;
       settings.maxAttempts=35;settings.maxAccepted=3;
-      const auto combined=steering::planAndRefineWithReedsShepp(out.request,settings,opt.performanceHeuristic);
+      settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
+      const auto combined=steering::planAndRefineWithReedsShepp(out.request,settings,opt.rsDistanceHeuristic);
       out.original=combined.original;
       out.refinement=combined.refinement;
-    } else out.original=steering::planWithReedsShepp(out.request,opt.performanceHeuristic);
+    } else out.original=steering::planWithReedsShepp(out.request,opt.rsDistanceHeuristic);
   } else
 #endif
   {
