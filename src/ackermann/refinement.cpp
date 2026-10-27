@@ -137,11 +137,11 @@ Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed
                std::size_t& checks,std::size_t maxChecks,Evaluated& out) {
   const auto& opt=req.options;
   const bool differential=opt.model==PlanOptions::Model::DifferentialDrive;
-  const bool mecanum=opt.model==PlanOptions::Model::Mecanum;
+  const bool mecanumMode=opt.model==PlanOptions::Model::Mecanum;
   std::unique_ptr<differential_drive::Model> diffModel;
   if(differential) diffModel=std::make_unique<differential_drive::Model>(opt.diffParameters);
   std::unique_ptr<mecanum::Model> mecanumModel;
-  if(mecanum)mecanumModel=std::make_unique<mecanum::Model>(opt.mecanumParameters);
+  if(mecanumMode)mecanumModel=std::make_unique<mecanum::Model>(opt.mecanumParameters);
   out=Evaluated{};
   out.sections.reserve(proposed.size());
   out.last=req.start;
@@ -157,11 +157,11 @@ Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed
     const bool spin=part.kind==MotionKind::RotateInPlace;
     const bool holo=part.kind==MotionKind::HolonomicTwist;
     if(spin) {
-      if((!differential&&!mecanum)||part.gear!=Gear::None||
+      if((!differential&&!mecanumMode)||part.gear!=Gear::None||
          part.lengthMeters!=0||part.curvature!=0||
          std::abs(part.turnRadians)<=1e-12)return Check::Invalid;
     } else if(holo) {
-      if(!mecanum||part.gear!=Gear::None ||
+      if(!mecanumMode||part.gear!=Gear::None ||
          !std::isfinite(part.forwardMeters)||
          !std::isfinite(part.lateralMeters)||
          part.lengthMeters<=0||std::abs(part.curvature)>1e-12||
@@ -174,14 +174,14 @@ Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed
               (!differential &&
                std::abs(part.curvature)>1.0/opt.minimumTurningRadiusMeters+1e-10))
       return Check::Invalid;
-    if(mecanum&&!spin&&!holo)return Check::Invalid;
+    if(mecanumMode&&!spin&&!holo)return Check::Invalid;
     const auto sec=spin?makeRotationSection(out.last,part.turnRadians)
                    :holo?makeHolonomicSection(out.last,part.forwardMeters,
                                                part.lateralMeters,part.turnRadians)
                    :makeSection(out.last,part.gear,part.curvature,part.lengthMeters);
     if (!close(sec.end,part.end) ||
         (differential&&!differentialMotionFeasible(req,sec,*diffModel)) ||
-        (mecanum&&!mecanumMotionFeasible(req,sec,*mecanumModel)))
+        (mecanumMode&&!mecanumMotionFeasible(req,sec,*mecanumModel)))
       return Check::Invalid;
     const double radius=checker.maxBodyRadius();
     const double countD=spin?radius*std::abs(sec.turnRadians)/opt.finalMaxBodyPointMotionMeters
