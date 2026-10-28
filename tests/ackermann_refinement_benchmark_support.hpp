@@ -3,6 +3,9 @@
 // asserted and these workloads are not part of normal CTest runs.
 #include "bench/warehouse_scenarios.hpp"
 #include "hybrid_astar/ackermann/refinement.hpp"
+#ifdef HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL
+#include "hybrid_astar/steering/reeds_shepp_evaluator.hpp"
+#endif
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -83,7 +86,11 @@ inline std::vector<Scenario> discover(const Config& config) {
   for(const auto& candidate:candidates) {
     auto request=common;
     request.start=candidate.start;request.goal=candidate.goal;
+#ifdef HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL
+    auto original=steering::planWithReedsShepp(request); // Planning Lab default
+#else
     auto original=plan(request);
+#endif
     if(original.status==PlanStatus::Success &&
        original.modelGeometryValid &&
        original.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled &&
@@ -150,9 +157,19 @@ inline Measurement run(const Scenario& scenario,const Config& config,
   const auto originalSmoothness=measure(scenario.original.sections);
   const double initialObjective=scenario.original.weightedCostMeters+
       variant.curvatureVariationWeightMetersSquared*originalSmoothness.totalVariation;
+  // Match the Planning Lab connector when OMPL is enabled in this build.
+  // One evaluator per variant is reused across warmup and timed repetitions.
+  RefinementConnector connector;
+#ifdef HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL
+  steering::ReedsSheppEvaluator evaluator(
+      scenario.request.options.minimumTurningRadiusMeters);
+  connector=[&evaluator](const Pose2D& from,const Pose2D& to) {
+    return evaluator.shortestPath(from,to);
+  };
+#endif
   // Warm up this profile once (unmeasured) to reduce first-use allocator and
   // instruction-cache bias; timed runs all refine the unchanged raw path.
-  const auto warmup=refinePath(scenario.request,scenario.original,{},options);
+  const auto warmup=refinePath(scenario.request,scenario.original,connector,options);
   if(warmup.path.status!=PlanStatus::Success ||
      warmup.path.weightedCostMeters>initialObjective+1e-6)
     throw std::runtime_error(std::string("Invalid warmup refinement: ")+variant.name);
@@ -160,7 +177,7 @@ inline Measurement run(const Scenario& scenario,const Config& config,
   RefinementResult last;
   for(std::size_t i=0;i<config.repeats;++i) {
     const auto start=std::chrono::steady_clock::now();
-    auto result=refinePath(scenario.request,scenario.original,{},options);
+    auto result=refinePath(scenario.request,scenario.original,connector,options);
     const auto end=std::chrono::steady_clock::now();
     timings.push_back(std::chrono::duration<double,std::milli>(end-start).count());
     if(result.path.status!=PlanStatus::Success ||
@@ -177,7 +194,7 @@ inline Measurement run(const Scenario& scenario,const Config& config,
   return {std::move(last),percentile(timings,.5),percentile(timings,.95)};
 }
 inline void printHeader() {
-  std::cout<<"scenario,variant,search_expanded,raw_sections,raw_length_m,"
+  std::cout<<"scenario,connector,variant,search_expanded,raw_sections,raw_length_m,"
       "raw_curvature_tv_inv_m,raw_steering_reversals,max_attempts,max_accepted,max_pose_checks,"
       "curvature_weight_m2,attempted,accepted,rejected,cost_pruned,strict_checks,"
       "refine_status,refined_sections,refined_length_m,refined_curvature_tv_inv_m,"
@@ -189,7 +206,13 @@ inline void printRow(const Scenario& scenario,const Config& config,
   const auto& out=measurement.result;
   const auto originalSmoothness=measure(scenario.original.sections);
   const auto smoothness=measure(out.path.sections);
-  std::cout<<scenario.name<<','<<variant.name<<','
+  std::cout<<scenario.name<<','
+#ifdef HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL
+      <<"ompl_rs_plus_native_csc,"
+#else
+      <<"native_csc_only,"
+#endif
+      <<variant.name<<','
       <<scenario.original.diagnostics.expanded<<','
       <<scenario.original.sections.size()<<','
       <<std::fixed<<std::setprecision(6)<<scenario.original.geometricLengthMeters<<','
