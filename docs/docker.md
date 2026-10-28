@@ -298,3 +298,59 @@ BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
 BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
   ./build-docker/hybrid_astar_demo --once --scenario parking --ompl --rs-distance
 ```
+
+
+## Ackermann refinement budget and steering-smoothness A/B (manual)
+
+The Planning Lab Ackermann refinement budgets now match differential drive:
+**160 attempted windows, 8 accepted changes and 200000 full-pose checks**,
+including the OMPL-assisted path. The previous settings were 35 / 3 /
+100000. The optional `RefinementOptions::curvatureVariationWeightMetersSquared`
+defaults to zero; setting it to 1.0 adds the nonnegative penalty
+`1.0 m² * sum(abs(kappa[i]-kappa[i-1]))` to the verified objective. This
+changes the meaning of `weightedCostMeters` only for opted-in refinement.
+It is not a steering-rate constraint and CSC proposals are not curvature
+continuous.
+
+Two separate C++ benchmark tests are built with
+`HYBRID_ASTAR_BUILD_BENCHMARKS=ON` (as in the Docker image). They discover
+deterministic viable Ackermann warehouse start/goal pairs with at least a
+configurable number of search expansions, **reuse exactly the same validated
+original route for every variant**, hold inflation and strict-check limits
+constant, and exclude pose discovery/search from the measured optimizer time.
+Each reports CSV with path length, curvature total variation (1/m), sign
+reversals, maximum curvature jump, refinement diagnostics, and p50/p95
+refinement milliseconds. Results are descriptive; no latency or improvement
+threshold is asserted.
+
+```bash
+git switch feature/ackermann-refinement-smoothness-benchmarks
+export BUILD_JOBS=28 TEST_JOBS=4
+docker compose build test
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure -j "$TEST_JOBS"
+
+# Positional args: repeats minimum_expansions max_cases search_budget.
+# Baseline 35/3 versus increased 160/8, steering weight zero in both.
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_ackermann_refinement_budget_benchmark_test \
+  5 1000 3 120000
+
+# Four-way comparison: 35/3 and 160/8, each with steering weights 0 and 1 m².
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_ackermann_refinement_smoothness_benchmark_test \
+  5 1000 3 120000
+
+# Focused contract test (fast, included in normal CTest):
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker -R steering_objective_test --output-on-failure
+```
+
+To register the time-consuming A/B cases as named CTest tests, configure
+`-DHYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS=ON` along with
+`-DHYBRID_ASTAR_BUILD_BENCHMARKS=ON` and
+`-DHYBRID_ASTAR_BUILD_TESTS=ON`. These CTest cases are **off by default**
+and are never scheduled as GitHub Actions workflows. Run them on an idle
+machine for meaningful latency comparisons; `BUILD_JOBS=28` needs
+sufficient memory, while `TEST_JOBS=4` does not affect the manual
+sequential benchmark timings.
