@@ -99,7 +99,7 @@ inline const std::array<Endpoints,4>& warehouseSeeds() {
     {{4.77,32.84,0},{44.62,33.53,-.5*std::numbers::pi_v<double>}},
     // Additional regions (admitted only after a real successful search).
     {{4.92,6.68,0},{46.75,31.86,.5*std::numbers::pi_v<double>}},
-    {{4.77,32.84,0},{44.62,33.53,-.5*std::numbers::pi_v<double>}},
+    {{5.40,34.20,0},{44.00,32.50,-.5*std::numbers::pi_v<double>}},
     {{4.77,20,0},{43,20,0}}
   }};
   return seeds;
@@ -139,15 +139,17 @@ inline std::vector<std::int64_t> pathSignature(const PlanResult& path) {
     return static_cast<std::int64_t>(std::llround(x*scale));
   };
   std::vector<std::int64_t> signature;
-  signature.reserve(path.sections.size()*8+1);
+  signature.reserve(path.sections.size()*10+1);
   signature.push_back(static_cast<std::int64_t>(path.sections.size()));
   for(const auto& s:path.sections) {
     signature.push_back(static_cast<std::int64_t>(s.kind));
     signature.push_back(static_cast<std::int64_t>(s.gear));
     signature.push_back(quantize(s.start.x,20.0)); // 5 cm resolution
     signature.push_back(quantize(s.start.y,20.0));
+    signature.push_back(quantize(s.start.yaw,100.0)); // ~0.01 radian
     signature.push_back(quantize(s.end.x,20.0));
     signature.push_back(quantize(s.end.y,20.0));
+    signature.push_back(quantize(s.end.yaw,100.0));
     signature.push_back(quantize(s.curvature,1000.0));
     signature.push_back(quantize(s.lengthMeters,20.0));
   }
