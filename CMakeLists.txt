@@ -191,6 +191,12 @@ if(HYBRID_ASTAR_BUILD_BENCHMARKS)
       PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
       PRIVATE hybrid_astar::core)
+    if(HYBRID_ASTAR_ENABLE_OMPL)
+      target_link_libraries(hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
+        PRIVATE hybrid_astar::ompl)
+      target_compile_definitions(hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
+        PRIVATE HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL=1)
+    endif()
     if(HYBRID_ASTAR_BUILD_TESTS AND HYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS)
       add_test(NAME ackermann_refinement_${_variant}_benchmark
         COMMAND hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
