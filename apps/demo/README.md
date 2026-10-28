@@ -60,6 +60,17 @@ It is not a substitute for the complete OMPL-ON CMake package build.
   curvature-bounded CSC shortcuts.
 - Optional Reeds–Shepp analytic connections and combined refinement when
   OMPL support is compiled.
+- Ackermann post-path refinement now uses **160 attempted shortcut windows,
+  8 accepted replacements, and 200000 strict pose checks** by default.
+  Check **Steering-aware smoothness** (under Strict post-path refinement) to
+  enable the optional curvature-variation penalty. The default weight is
+  **1.0 m²**, adjustable from **0.01 to 100 m²**; leaving it unchecked keeps
+  the historical length/clearance objective. The option is disabled for
+  differential drive, mecanum, and when refinement is off. It works with
+  both native CSC and OMPL/Reeds–Shepp refinement. The UI reports
+  **curvature variation and steering-direction reversals before → after**
+  refinement. Exported JSON contains the effective weight and budget so
+  visually compared experiments are reproducible.
 - Visualize exact analytic section trajectories in green for forward and
   amber for reverse. The animation shows the actual **4.6 × 1.8 m filled
   vehicle footprint** at a sampled position along the returned path.
@@ -74,6 +85,52 @@ certification samples. Only success returned by the library's independent
 strict adaptive-sampled validator can be labeled validated. There is **no
 continuous swept guarantee or steering-rate/actuator feasibility** claim.
 A budget-limited response is not proof of a geometric NoPath.
+
+
+## Steering smoothness: web UI and CLI
+
+In Planning Lab, select **Ackermann steering** and enable **Strict post-path
+refinement**. You can leave **Native curved CSC candidates** off or enable it
+to compare candidate sets. Check **Steering-aware smoothness** and start with
+**Steering variation weight = 1.0 m²**. Click **Plan path**; look at
+**Curvature variation** and **Steering reversals** (original → refined) beside
+the existing cost, length, runtime and map overlay. Uncheck the smoothness
+option and replan **with the same start/goal and map** for a meaningful A/B
+comparison.
+
+The checkbox is off by default. No steering-rate constraint is introduced;
+the feature changes candidate ranking by penalizing jumps in section
+curvature, but still uses curvature-discontinuous CSC/Reeds–Shepp arcs.
+The cost displayed after an enabled refinement includes the curvature
+penalty, so compare **path length** and the new steering readouts for
+geometric comparisons across weights rather than treating weighted costs
+with different objectives as directly comparable.
+
+CLI examples:
+
+```bash
+# Existing objective, 160 / 8 / 200000 refinement defaults:
+./build-demo/hybrid_astar_demo --once --scenario warehouse --refine --curved
+
+# Enable the objective with its 1.0 m² default:
+./build-demo/hybrid_astar_demo --once --scenario warehouse --refine --curved \
+  --steering-smoothness
+
+# Explicit steering-variation weight, also enables the objective:
+./build-demo/hybrid_astar_demo --once --scenario warehouse --refine --curved \
+  --steering-weight 2.5
+
+# OMPL-equipped build: same optional objective for Reeds–Shepp refinement:
+./build-demo/hybrid_astar_demo --once --scenario warehouse --ompl --refine \
+  --steering-weight 1.0
+```
+
+The HTTP API uses `steeringSmooth=1` plus
+`steeringWeight=1.0` alongside `model=ackermann&refine=1`.
+A nonpositive, nonfinite or greater-than-100 weight is rejected;
+enabling the objective for other models or without refinement is rejected.
+Exported `refinementOptions` describes the effective budget and applied
+weight, with 0.0 meaning the optional objective was disabled.
 
 ## Continuous metric footprint inflation
 
