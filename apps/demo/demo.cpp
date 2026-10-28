@@ -196,8 +196,9 @@ Outcome run(const Options& opt) {
   if(opt.rsDistanceHeuristic && (!opt.ompl || !opt.performanceHeuristic || opt.model!="ackermann"))
     throw std::invalid_argument("RS distance guidance requires Ackermann, the RS connector and obstacle-grid heuristic");
   if(!std::isfinite(opt.steeringWeightMetersSquared) ||
-     opt.steeringWeightMetersSquared<=0 || opt.steeringWeightMetersSquared>100)
-    throw std::invalid_argument("Steering smoothness weight must be greater than 0 and at most 100 m^2");
+     opt.steeringWeightMetersSquared<0 || opt.steeringWeightMetersSquared>100 ||
+     (opt.steeringSmoothness && opt.steeringWeightMetersSquared==0))
+    throw std::invalid_argument("Enabled steering smoothness weight must be greater than 0 and at most 100 m^2");
   if(opt.steeringSmoothness && (opt.model!="ackermann" || !opt.refine))
     throw std::invalid_argument("Steering smoothness requires Ackermann and strict post-path refinement");
   out.appliedSteeringWeightMetersSquared=
