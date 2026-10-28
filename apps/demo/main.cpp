@@ -282,7 +282,7 @@ void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<
 #endif
 void usage(){std::cout<<"Usage: hybrid_astar_demo [--model ackermann|differential|mecanum] [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
   " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS | --map-yaml FILE.yaml] [--output FILE.json --once]"
-  " [--ompl] [--rs-distance] [--refine] [--curved] [--steering-smoothness] [--steering-weight 0..100] [--performance|--certified] [--inflate METERS] [--improve] [--budget 100..1000000]\n"
+  " [--ompl] [--rs-distance] [--refine] [--curved] [--steering-smoothness] [--steering-weight (0,100]] [--performance|--certified] [--inflate METERS] [--improve] [--budget 100..1000000]\n"
   "Default: obstacle-grid heuristic (weight 1.0); --certified selects Euclidean. --once prints JSON.\n";}
 }
 int main(int argc,char** argv) {
