@@ -316,8 +316,9 @@ Two separate C++ benchmark tests are built with
 `HYBRID_ASTAR_BUILD_BENCHMARKS=ON` (as in the Docker image). They discover
 deterministic viable Ackermann warehouse start/goal pairs with at least a
 configurable number of search expansions, **reuse exactly the same validated
-original route for every variant**, hold inflation and strict-check limits
-constant, and exclude pose discovery/search from the measured optimizer time.
+original route for every variant**, hold inflation constant, apply each profile's actual strict-pose check limit
+(100000 versus 200000), and exclude pose discovery/search from the measured
+optimizer time.
 Each reports CSV with path length, curvature total variation (1/m), sign
 reversals, maximum curvature jump, refinement diagnostics, and p50/p95
 refinement milliseconds. Results are descriptive; no latency or improvement
