@@ -315,35 +315,49 @@ boundaries, so candidates that cannot improve the objective are pruned before
 expensive collision sampling. This is a selection penalty, **not** a
 curvature-continuity, steering-rate or actuator-feasibility guarantee.
 
-### Experiment population and output
+### Random warehouse map coverage and output
 
-The two standalone benchmark tests under `tests/` now **require exactly 100
-distinct original paths, each with >=10000 search expansions** by default.
-Scenario discovery begins from the recorded successful 11,451-expansion
-warehouse route, then deterministically explores/perturbs successfully planned
-start/goal pairs and additional warehouse seeds. Candidates undergo real
-Ackermann search, strict validation, and full-path **quantized geometry**
-deduplication (not merely a distinct pose label). Paths not meeting the
-minimum number of expansions are rejected. All experiments use the same
-0.5 m inflation and warehouse layout.
+Both C++ benchmark executables now use **randomized start and goal poses**
+(including independently randomized orientations) on the **unchanged** 200 x
+160-cell / 0.25 m warehouse map. The Ackermann footprint, 0.5 m inflation,
+search mode and obstacle geometry are not modified.
 
-The defaults are: `repeats=5 minimum_expansions=10000 paths=100
-search_budget=250000 max_candidates=3000 steering_weight_m2=1.0`.
-If fewer than **100** qualify within the bounded candidate count, the
-executables **exit with an error and do not output a partial CSV**. Increase
-the search budget or candidate allowance rather than comparing incomplete
-populations. Discovery and path planning are excluded from the reported
-refinement runtime. The same selected raw path is reused for every optimizer
-variant and benchmark execution; identical discovery parameters reproduce the
-same population. Docker builds use the Planning Lab OMPL/Reeds-Shepp connector
-plus native CSC, while builds without OMPL use native CSC only. CSV identifies
-the connector, start/goal poses, path geometry fingerprint and expansions.
+The sampler is reproducible: a small fixed PRNG with default seed
+`20261028` generates independent poses across a **3 x 3 map grid**. Accepted
+routes must have two different endpoint regions and at least 18 m direct
+start/goal separation. A whole-body exact collision check filters candidate
+poses before planning. **Every accepted route** requires a real successful,
+strictly validated Ackermann plan with at least **10,000 expansions**, and
+a distinct quantized path-geometry signature. The selection actively favors
+underrepresented regions and requires **at least five accepted starts and five
+accepted goals in every one of the nine regions** among the 100 paths.
+Furthermore no region can account for over 20% of starts or goals, and no
+ordered start/goal region pair can account for over 10% of the paths.
+This improves spatial coverage without fabricating any trajectories or
+changing the map. Note: geographic coverage does not guarantee 100
+distinct topological routes.
 
-Both binaries write per-path CSV to stdout. Stderr reports scenario-selection
-counts and **across-path summaries**, including median and p95 of
-per-path median optimizer runtime, mean curvature-total-variation reduction,
-mean length reduction, number of smoother paths, and budget-exhaustion count.
-Do not compare runs from different connectors or discovery parameters.
+Defaults:
+`repeats=5 minimum_expansions=10000 paths=100 search_budget=250000
+max_candidates=0 steering_weight_m2=1.0 seed=20261028`.
+**0 candidates limit means unbounded discovery:** the executable keeps
+trying reproducible new random poses until all 100 qualifying routes
+satisfy the coverage constraints. Depending on map difficulty, this can be
+a long-running CPU-intensive operation. You can interrupt it with Ctrl+C,
+or provide a positive `max_candidates` safety limit (for example 20000).
+If a finite cap is reached without 100 accepted routes, the executable
+fails with a diagnostic instead of presenting an incomplete comparison.
+
+Search and selection are **outside** timed optimization. Each variant sees
+the same independently verified original route; both benchmark executables
+use the same seeded selection. With Docker's OMPL-enabled build they use
+Planning Lab's Reeds–Shepp connector plus native CSC; non-OMPL builds use
+native CSC only. CSV includes start/goal poses, start/goal grid regions,
+random seed, full-path fingerprint, expansions, curvature metrics and
+optimizer p50/p95 runtime. Stderr reports progress, rejected candidate
+counts, **per-region start/goal coverage**, and across-path runtime and
+smoothness summaries. For comparable results use the same seed, budget,
+map configuration and connector.
 
 ### Docker commands (BUILD_JOBS=28 / TEST_JOBS=4)
 
@@ -361,12 +375,12 @@ docker compose --profile test run --rm test \
 # Test 1: legacy 35/3/100k versus expanded 160/8/200k, existing objective.
 docker compose --profile test run --rm test \
   ./build-docker/hybrid_astar_ackermann_refinement_budget_benchmark_test \
-  5 10000 100 250000 3000 > budget-results-100.csv
+  5 10000 100 250000 0 1.0 20261028 > budget-results-100.csv
 
 # Test 2: same budgets crossed with zero versus 1.0 m² steering penalty.
 docker compose --profile test run --rm test \
   ./build-docker/hybrid_astar_ackermann_refinement_smoothness_benchmark_test \
-  5 10000 100 250000 3000 1.0 > smoothness-results-100.csv
+  5 10000 100 250000 0 1.0 20261028 > smoothness-results-100.csv
 
 # Fast contracts, including steering-aware pruning and discovery uniqueness.
 docker compose --profile test run --rm test \
