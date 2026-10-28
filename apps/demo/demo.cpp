@@ -220,7 +220,8 @@ Outcome run(const Options& opt) {
   if(opt.ompl) {
     if(opt.refine) {
       ackermann::RefinementOptions settings;
-      settings.maxAttempts=35;settings.maxAccepted=3;
+      settings.maxAttempts=160;settings.maxAccepted=8;
+       settings.maxTotalPoseChecks=200000;
       settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
       const auto combined=steering::planAndRefineWithReedsShepp(out.request,settings,opt.rsDistanceHeuristic);
       out.original=combined.original;
@@ -244,8 +245,9 @@ Outcome run(const Options& opt) {
         settings.maxAccepted=8;
         settings.maxTotalPoseChecks=240000;
       } else {
-        settings.maxAttempts=35;
-        settings.maxAccepted=3;
+        settings.maxAttempts=160;
+        settings.maxAccepted=8;
+        settings.maxTotalPoseChecks=200000;
       }
       settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
       out.refinement=refinePath(out.request,out.original,{},settings);
