@@ -10,14 +10,21 @@ int main(int argc,char** argv) {
     const auto config=parseArgs(argc,argv);
     const auto selected=discover(config);
     printHeader();
+    const std::array<Variant,2> variants{{
+      {"legacy_35_3",35,3,100000,0.0},
+      {"expanded_160_8",160,8,200000,0.0}
+    }};
+    std::array<Summary,2> summaries{};
+    for(std::size_t i=0;i<variants.size();++i)
+      summaries[i].label=variants[i].name;
     for(const auto& scenario:selected) {
-      for(const Variant variant: {
-          Variant{"legacy_35_3",35,3,100000,0.0},
-          Variant{"expanded_160_8",160,8,200000,0.0}}) {
-        const auto outcome=run(scenario,config,variant);
-        printRow(scenario,config,variant,outcome);
+      for(std::size_t i=0;i<variants.size();++i) {
+        const auto outcome=run(scenario,config,variants[i]);
+        printRow(scenario,config,variants[i],outcome);
+        summaries[i].add(scenario,outcome);
       }
     }
+    for(const auto& summary:summaries)summary.report();
     return 0;
   } catch(const std::exception& e) {
     std::cerr<<"Ackermann budget benchmark failed: "<<e.what()<<'\n';
