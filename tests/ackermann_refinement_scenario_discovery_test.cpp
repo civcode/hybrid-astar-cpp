@@ -36,9 +36,10 @@ TEST_CASE("Refinement A/B benchmark demands 100 distinct paths with 10k expansio
     const auto repeat=candidateAt(i,none);
     REQUIRE(candidate.start.x==repeat.start.x);
     REQUIRE(candidate.goal.y==repeat.goal.y);
-    uniquePairs.insert({quantized(candidate.start.x),quantized(candidate.start.y),
-        quantized(candidate.start.yaw),quantized(candidate.goal.x),
-        quantized(candidate.goal.y),quantized(candidate.goal.yaw)});
+    uniquePairs.insert(std::array<std::int64_t,6>{quantized(candidate.start.x),
+        quantized(candidate.start.y),quantized(candidate.start.yaw),
+        quantized(candidate.goal.x),quantized(candidate.goal.y),
+        quantized(candidate.goal.yaw)});
   }
   REQUIRE(uniquePairs.size()==256);
 }
