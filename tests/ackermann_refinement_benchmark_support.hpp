@@ -213,7 +213,8 @@ inline std::uint64_t signatureHash(const std::vector<std::int64_t>& sig) {
 // Keep the map and Ackermann geometry fixed; use new random poses every
 // attempt. Enforce both endpoint coverage and whole-path uniqueness.
 inline std::size_t minCoveragePerRegion(const Config& config) {
-  return config.maxCases>=3*coverageRegions?3:
+  return config.maxCases>=5*coverageRegions?5:
+         config.maxCases>=3*coverageRegions?3:
          config.maxCases>=coverageRegions?1:0;
 }
 inline bool coverageSatisfied(const CoverageCounts& starts,
@@ -471,7 +472,7 @@ struct Summary {
   }
 };
 inline void printHeader() {
-  std::cout<<"scenario,path_fingerprint,start_x_m,start_y_m,start_yaw_rad,"
+  std::cout<<"scenario,path_fingerprint,random_seed,start_region,goal_region,start_x_m,start_y_m,start_yaw_rad,"
       "goal_x_m,goal_y_m,goal_yaw_rad,connector,variant,search_expanded,raw_sections,raw_length_m,"
       "raw_curvature_tv_inv_m,raw_steering_reversals,max_attempts,max_accepted,max_pose_checks,"
       "curvature_weight_m2,attempted,accepted,rejected,cost_pruned,strict_checks,"
@@ -485,6 +486,7 @@ inline void printRow(const Scenario& scenario,const Config& config,
   const auto originalSmoothness=measure(scenario.original.sections);
   const auto smoothness=measure(out.path.sections);
   std::cout<<scenario.name<<','<<scenario.pathFingerprint<<','
+      <<config.seed<<','<<scenario.startRegion<<','<<scenario.goalRegion<<','
       <<std::fixed<<std::setprecision(6)
       <<scenario.request.start.x<<','<<scenario.request.start.y<<','
       <<scenario.request.start.yaw<<','<<scenario.request.goal.x<<','
