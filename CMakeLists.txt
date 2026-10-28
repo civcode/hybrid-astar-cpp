@@ -143,6 +143,14 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   target_link_libraries(hybrid_astar_steering_objective_test PRIVATE
     hybrid_astar::core Catch2::Catch2WithMain)
   add_test(NAME steering_objective_test COMMAND hybrid_astar_steering_objective_test)
+  add_executable(hybrid_astar_refinement_scenario_discovery_test
+    tests/ackermann_refinement_scenario_discovery_test.cpp)
+  target_include_directories(hybrid_astar_refinement_scenario_discovery_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries(hybrid_astar_refinement_scenario_discovery_test
+    PRIVATE hybrid_astar::core Catch2::Catch2WithMain)
+  add_test(NAME refinement_scenario_discovery_test
+    COMMAND hybrid_astar_refinement_scenario_discovery_test)
   add_executable(hybrid_astar_curved_shortcuts_test tests/curved_shortcuts_test.cpp)
   target_link_libraries(hybrid_astar_curved_shortcuts_test PRIVATE hybrid_astar::core)
   add_test(NAME curved_shortcuts_test COMMAND hybrid_astar_curved_shortcuts_test)
