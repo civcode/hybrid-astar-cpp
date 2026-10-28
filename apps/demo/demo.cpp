@@ -195,6 +195,13 @@ Outcome run(const Options& opt) {
     throw std::invalid_argument("Unknown model (ackermann, differential or mecanum)");
   if(opt.rsDistanceHeuristic && (!opt.ompl || !opt.performanceHeuristic || opt.model!="ackermann"))
     throw std::invalid_argument("RS distance guidance requires Ackermann, the RS connector and obstacle-grid heuristic");
+  if(!std::isfinite(opt.steeringWeightMetersSquared) ||
+     opt.steeringWeightMetersSquared<=0 || opt.steeringWeightMetersSquared>100)
+    throw std::invalid_argument("Steering smoothness weight must be greater than 0 and at most 100 m^2");
+  if(opt.steeringSmoothness && (opt.model!="ackermann" || !opt.refine))
+    throw std::invalid_argument("Steering smoothness requires Ackermann and strict post-path refinement");
+  out.appliedSteeringWeightMetersSquared=
+      opt.steeringSmoothness?opt.steeringWeightMetersSquared:0.0;
   if(!std::isfinite(opt.footprintInflationMeters)||
      opt.footprintInflationMeters<0||opt.footprintInflationMeters>10)
     throw std::invalid_argument("Footprint inflation must be between 0 and 10 m");
@@ -219,10 +226,11 @@ Outcome run(const Options& opt) {
 #ifdef HYBRID_ASTAR_DEMO_WITH_OMPL
   if(opt.ompl) {
     if(opt.refine) {
-      ackermann::RefinementOptions settings;
-      settings.maxAttempts=160;settings.maxAccepted=8;
-       settings.maxTotalPoseChecks=200000;
+      ackermann::RefinementOptions settings; // 160 / 8 / 200000 by default
       settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
+      settings.curvatureVariationWeightMetersSquared=
+          out.appliedSteeringWeightMetersSquared;
+      out.refinementSettings=settings;
       const auto combined=steering::planAndRefineWithReedsShepp(out.request,settings,opt.rsDistanceHeuristic);
       out.original=combined.original;
       out.refinement=combined.refinement;
@@ -244,12 +252,11 @@ Outcome run(const Options& opt) {
         settings.maxAttempts=220;
         settings.maxAccepted=8;
         settings.maxTotalPoseChecks=240000;
-      } else {
-        settings.maxAttempts=160;
-        settings.maxAccepted=8;
-        settings.maxTotalPoseChecks=200000;
-      }
+      } // Ackermann uses the shared 160 / 8 / 200000 defaults.
       settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
+      settings.curvatureVariationWeightMetersSquared=
+          out.appliedSteeringWeightMetersSquared;
+      out.refinementSettings=settings;
       out.refinement=refinePath(out.request,out.original,{},settings);
     }
   }
@@ -266,7 +273,12 @@ std::string toJson(const Outcome& out) {
     <<out.request.options.footprintInflationMeters<<",\"width\":"<<m.width<<",\"height\":"<<m.height<<",\"resolution\":"<<m.resolutionMeters
     <<",\"frameId\":"<<quoted(m.frameId)<<",\"sourceId\":"<<quoted(m.sourceId)<<",\"revision\":"<<m.revision
     <<",\"origin\":";poseJson(os,m.origin);
-  os<<",\"rsDistanceHeuristic\":"<<(out.rsDistanceHeuristicEnabled?"true":"false");
+  os<<",\"rsDistanceHeuristic\":"<<(out.rsDistanceHeuristicEnabled?"true":"false")
+    <<",\"refinementOptions\":{\"maxAttempts\":"<<out.refinementSettings.maxAttempts
+    <<",\"maxAccepted\":"<<out.refinementSettings.maxAccepted
+    <<",\"maxTotalPoseChecks\":"<<out.refinementSettings.maxTotalPoseChecks
+    <<",\"steeringSmoothness\":"<<(out.appliedSteeringWeightMetersSquared>0?"true":"false")
+    <<",\"steeringWeightMetersSquared\":"<<out.appliedSteeringWeightMetersSquared<<"}";
   os<<",\"start\":";poseJson(os,out.request.start);
   os<<",\"goal\":";poseJson(os,out.request.goal);
   os<<",\"milliseconds\":"<<out.elapsedMilliseconds
