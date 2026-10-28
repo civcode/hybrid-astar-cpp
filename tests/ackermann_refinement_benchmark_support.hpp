@@ -297,7 +297,9 @@ inline std::vector<Scenario> discover(const Config& config) {
     const std::array<std::int64_t,6> key{rounded(pair.start.x),
         rounded(pair.start.y),rounded(pair.start.yaw),rounded(pair.goal.x),
         rounded(pair.goal.y),rounded(pair.goal.yaw)};
-    if(!distinctEndpoints.insert(key).second) {++duplicates;continue;}
+    // Only retain keys of ACCEPTED routes. With unlimited candidates,
+    // storing every failed pose pair would grow memory without bound.
+    if(distinctEndpoints.find(key)!=distinctEndpoints.end()) {++duplicates;continue;}
     auto request=common;
     request.start=pair.start;request.goal=pair.goal;
 #ifdef HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL
@@ -317,6 +319,7 @@ inline std::vector<Scenario> discover(const Config& config) {
     const auto [it,inserted]=distinctSignatures.insert(signature);
     if(!inserted) {++duplicates;continue;}
     const auto pathId=signatureHash(*it);
+    distinctEndpoints.insert(key);
     const auto number=selected.size();
     selected.push_back({"warehouse_"+std::to_string(number),
                         std::move(request),std::move(original),pathId,
