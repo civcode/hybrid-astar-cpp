@@ -112,6 +112,7 @@ inline Endpoints candidateAt(std::size_t attempt,
                             const std::vector<Scenario>& successful) {
   const auto& seeds=warehouseSeeds();
   if(attempt==0)return seeds[0];
+  if(attempt==1)return seeds[1]; // test the original exported route as well
   Endpoints base;
   if(successful.empty() || attempt%11==0) {
     base=seeds[(attempt/11)%seeds.size()];
@@ -186,6 +187,9 @@ inline std::vector<Scenario> discover(const Config& config) {
   std::size_t blocked=0,failed=0,tooFew=0,duplicates=0,attempts=0;
   for(;attempts<config.maxCandidateSearches &&
        selected.size()<config.maxCases;++attempts) {
+    if(attempts && attempts%200==0)
+      std::cerr<<"Discovery progress: "<<selected.size()<<"/"<<config.maxCases
+               <<" paths after "<<attempts<<" candidates\n";
     const auto pair=candidateAt(attempts,selected);
     if(checker.check(pair.start)!=PoseCollision::Clear ||
        checker.check(pair.goal)!=PoseCollision::Clear) {++blocked;continue;}
