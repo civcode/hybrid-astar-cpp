@@ -136,7 +136,7 @@ bool mecanumMotionFeasible(const PlanRequest& req,const MotionSection& sec,
 // checker. No EDT, no search cache. Recompute objective from actual arcs.
 Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed,
                const ExactCollisionChecker& checker, const ClearanceScorer* scorer,
-               std::size_t& checks,std::size_t maxChecks,Evaluated& out) {
+               const RefinementOptions& refinementOptions, std::size_t& checks,std::size_t maxChecks,Evaluated& out) {
   const auto& opt=req.options;
   const bool differential=opt.model==PlanOptions::Model::DifferentialDrive;
   const bool mecanumMode=opt.model==PlanOptions::Model::Mecanum;
@@ -213,9 +213,20 @@ Check validate(const PlanRequest& req,const std::vector<MotionSection>& proposed
                 opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,unusedSamples);}
       catch(const std::invalid_argument&) {return Check::Incomplete;}
     }
-    if (!std::isfinite(base+extra)||!std::isfinite(out.weighted+base+extra))
+    // The complete candidate is evaluated so splice-boundary steering
+    // changes are counted along with changes inside the replacement.
+    double steeringPenalty=0.0;
+    if(opt.model==PlanOptions::Model::Ackermann &&
+       refinementOptions.curvatureVariationWeightMetersSquared>0 &&
+       !out.sections.empty() &&
+       out.sections.back().kind==MotionKind::Translate &&
+       sec.kind==MotionKind::Translate)
+      steeringPenalty=refinementOptions.curvatureVariationWeightMetersSquared*
+          std::abs(sec.curvature-out.sections.back().curvature);
+    if (!std::isfinite(base+extra+steeringPenalty)||
+        !std::isfinite(out.weighted+base+extra+steeringPenalty))
       return Check::Invalid;
-    out.weighted+=base+extra;
+    out.weighted+=base+extra+steeringPenalty;
     out.clearance+=extra;
     out.last=sec.end;
     if(!spin)out.gear=sec.gear;
@@ -315,7 +326,10 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
       original.effectiveOccupancy.maxTraversableOccupancy!=req.occupancy.maxTraversableOccupancy||
       original.effectiveOccupancy.unknown!=req.occupancy.unknown||
       options.maxAttempts==0||options.maxAccepted==0||options.maxReplacementSections==0||
-      options.maxTotalPoseChecks==0||!std::isfinite(options.minimumCostReductionMeters)||
+      options.maxTotalPoseChecks==0||
+      !std::isfinite(options.curvatureVariationWeightMetersSquared)||
+      options.curvatureVariationWeightMetersSquared<0||
+      !std::isfinite(options.minimumCostReductionMeters)||
       options.minimumCostReductionMeters<=0||
       !std::isfinite(options.differentialCurveRadiusMeters)||
       options.differentialCurveRadiusMeters<=0||
@@ -350,7 +364,7 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
                    req.options.clearanceWeight,req.options.clearanceInfluenceRadiusMeters);
     Evaluated baseline;
     const auto initial=validate(req,original.sections,checker,clearance.get(),
-                                result.exactPoseChecks,options.maxTotalPoseChecks,baseline);
+                                options,result.exactPoseChecks,options.maxTotalPoseChecks,baseline);
     if(initial!=Check::Valid) {
       result.status=initial==Check::Cancelled?RefinementStatus::Cancelled:
                     RefinementStatus::OriginalNotVerified;
@@ -616,7 +630,7 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
             }
             Evaluated evaluated;
             const auto check=validate(req,candidate,checker,clearance.get(),
-                                     result.exactPoseChecks,options.maxTotalPoseChecks,evaluated);
+                                     options,result.exactPoseChecks,options.maxTotalPoseChecks,evaluated);
             if(check==Check::Cancelled) {result.status=RefinementStatus::Cancelled;return result;}
             if(check==Check::Incomplete) {limit=true;break;}
             if(check!=Check::Valid || evaluated.weighted>=
