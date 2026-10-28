@@ -208,7 +208,7 @@ if(HYBRID_ASTAR_BUILD_BENCHMARKS)
     if(HYBRID_ASTAR_BUILD_TESTS AND HYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS)
       add_test(NAME ackermann_refinement_${_variant}_benchmark
         COMMAND hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
-          5 10000 100 250000 3000)
+          5 10000 100 250000 0)
       set_tests_properties(ackermann_refinement_${_variant}_benchmark
         PROPERTIES LABELS "benchmark;ackermann")
     endif()
