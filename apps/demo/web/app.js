@@ -321,7 +321,7 @@ $('exportButton').addEventListener('click',()=>{
   setTimeout(()=>URL.revokeObjectURL(href),2000);
 });
 $('refine').addEventListener('change',syncModelOptions);
-$('steeringSmooth').addEventListener('change',syncModelOptions);
+$('steeringSmooth').addEventListener('change',()=>{syncModelOptions();invalidateRoute();});
 $('steeringWeight').addEventListener('change',invalidateRoute);
 $('ompl').addEventListener('change',syncModelOptions);
 $('performance').addEventListener('change',syncModelOptions);
