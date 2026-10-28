@@ -261,9 +261,12 @@ async function replan() {
   const params=new URLSearchParams();for(const key of keys)params.set(key,$(key).value);
   params.set('model',$('model').value);
   for(const key of ['ompl','rsDistance','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
-  params.set('steeringSmooth',$('model').value==='ackermann'&&
-    $('refine').checked&&$('steeringSmooth').checked?'1':'0');
-  params.set('steeringWeight',$('steeringWeight').value.trim());
+  const steeringEnabled=$('model').value==='ackermann'&&
+    $('refine').checked&&$('steeringSmooth').checked;
+  params.set('steeringSmooth',steeringEnabled?'1':'0');
+  // Preserve a typed weight when disabled, but don't send a stale or blank
+  // value to the server while the optional objective is switched off.
+  if(steeringEnabled)params.set('steeringWeight',$('steeringWeight').value.trim());
   params.set('inflate',$('inflate').checked?'1':'0');
   params.set('inflationMeters',$('inflationMeters').value.trim());
   const budget=$('budget').value.trim();
