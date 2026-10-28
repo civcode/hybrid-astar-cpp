@@ -302,9 +302,12 @@ BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
 
 ## Ackermann steering-aware refinement: 100-path A/B (manual)
 
-The Planning Lab Ackermann refinement budget is 160 attempts, 8 accepted
-replacements and 200000 independent strict pose checks (including OMPL).
-The old Ackermann profile was 35 / 3 / 100000.
+The **default** `RefinementOptions` budget is now **160 attempts,
+8 accepted replacements and 200000 independent strict pose checks**;
+the Planning Lab uses these values for both native and OMPL-assisted
+Ackermann refinement. The old Ackermann demo profile was 35 / 3 / 100000.
+Model-specific Planning Lab settings for differential-drive and mecanum
+remain independently configured.
 
 The optional `RefinementOptions::curvatureVariationWeightMetersSquared`
 (default **0.0**) adds
@@ -314,6 +317,32 @@ curvature term in the cheap **candidate cost lower bound**, including splice
 boundaries, so candidates that cannot improve the objective are pruned before
 expensive collision sampling. This is a selection penalty, **not** a
 curvature-continuity, steering-rate or actuator-feasibility guarantee.
+
+**Planning Lab UI:** choose Ackermann, enable **Strict post-path refinement**
+then optionally check **Steering-aware smoothness** (unchecked by default).
+Set **Steering variation weight** to `1.0` m² initially; valid enabled
+weights are greater than zero and at most 100. Both native CSC and
+OMPL/Reeds–Shepp paths honor this option. Click **Plan path** and compare
+the existing original-path overlay plus the new **Curvature variation**
+and **Steering reversals** readouts (original → refined).
+The exported JSON contains
+`refinementOptions.maxAttempts`, `maxAccepted`,
+`maxTotalPoseChecks`, `steeringSmoothness`, and
+`steeringWeightMetersSquared`. The weighted path cost changes meaning when
+the objective is enabled; compare geometric length and steering metrics
+rather than directly comparing differently weighted path costs.
+
+```bash
+# Planning Lab's web UI is published to localhost after Docker starts.
+BUILD_JOBS=28 docker compose up --build demo
+
+# Optional CLI A/B with the same map and path options.
+BUILD_JOBS=28 TEST_JOBS=4 docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_demo --once --scenario warehouse --refine --curved
+BUILD_JOBS=28 TEST_JOBS=4 docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_demo --once --scenario warehouse --refine --curved \
+  --steering-weight 1.0
+```
 
 ### Random warehouse map coverage and output
 
