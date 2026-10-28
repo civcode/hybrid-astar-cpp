@@ -209,9 +209,31 @@ inline std::uint64_t signatureHash(const std::vector<std::int64_t>& sig) {
   return hash;
 }
 
-// Search/discovery happens ONCE per benchmark executable, outside ALL
-// optimizer timers. Both A/B matrices use the same deterministic algorithm.
-// Unlike the previous eight-pose fixture, an undersubscribed run is an ERROR.
+// Search/discovery happens ONCE per executable, outside optimizer timing.
+// Keep the map and Ackermann geometry fixed; use new random poses every
+// attempt. Enforce both endpoint coverage and whole-path uniqueness.
+inline std::size_t minCoveragePerRegion(const Config& config) {
+  return config.maxCases>=3*coverageRegions?3:
+         config.maxCases>=coverageRegions?1:0;
+}
+inline bool coverageSatisfied(const CoverageCounts& starts,
+                              const CoverageCounts& goals,std::size_t minCount) {
+  for(std::size_t i=0;i<coverageRegions;++i)
+    if(starts[i]<minCount||goals[i]<minCount)return false;
+  return true;
+}
+inline void printCoverage(const CoverageCounts& starts,
+                          const CoverageCounts& goals) {
+  std::cerr<<"Accepted start/goal coverage by warehouse 3x3 sector "
+           <<"(lower row first):\n";
+  for(std::size_t y=0;y<coverageRows;++y) {
+    for(std::size_t x=0;x<coverageColumns;++x) {
+      const auto k=y*coverageColumns+x;
+      std::cerr<<" ["<<k<<":"<<starts[k]<<"/"<<goals[k]<<"]";
+    }
+    std::cerr<<'\n';
+  }
+}
 inline std::vector<Scenario> discover(const Config& config) {
   auto common=mecanumWarehouseCase(config.searchBudget);
   common.options.model=PlanOptions::Model::Ackermann;
@@ -225,16 +247,49 @@ inline std::vector<Scenario> discover(const Config& config) {
   selected.reserve(config.maxCases);
   std::set<std::vector<std::int64_t>> distinctSignatures;
   std::set<std::array<std::int64_t,6>> distinctEndpoints;
-  std::size_t blocked=0,failed=0,tooFew=0,duplicates=0,attempts=0;
-  for(;attempts<config.maxCandidateSearches &&
-       selected.size()<config.maxCases;++attempts) {
-    if(attempts && attempts%200==0)
+  CoverageCounts startCounts{},goalCounts{};
+  std::array<std::size_t,coverageRegions*coverageRegions> pairs{};
+  const auto coverageMinimum=minCoveragePerRegion(config);
+  // Prevent one successful corridor from dominating the sample while still
+  // allowing a few repeated region pairs with distinct path geometry.
+  const auto maxPerRegion=std::max<std::size_t>(
+      3,(config.maxCases+4)/5);  // <=20% of target, rounded up
+  const auto maxPerPair=std::max<std::size_t>(
+      2,(config.maxCases+9)/10); // <=10% per ordered region pair
+  std::size_t blocked=0,failed=0,tooFew=0,duplicates=0,
+              coverageSkipped=0,unusable=0,attempts=0;
+  std::cerr<<"Randomized warehouse selection: seed="<<config.seed
+           <<", target="<<config.maxCases
+           <<", min_expansions="<<config.minimumExpansions
+           <<", minimum_start_and_goal_per_sector="<<coverageMinimum
+           <<", max_candidates="<<config.maxCandidateSearches
+           <<" (0 means unbounded)\n";
+  while(selected.size()<config.maxCases &&
+        (config.maxCandidateSearches==0||attempts<config.maxCandidateSearches)) {
+    if(attempts==std::numeric_limits<std::size_t>::max())
+      throw std::runtime_error("Candidate counter overflow");
+    const auto index=attempts++;
+    if(index && index%250==0)
       std::cerr<<"Discovery progress: "<<selected.size()<<"/"<<config.maxCases
-               <<" paths after "<<attempts<<" candidates\n";
-    const auto pair=candidateAt(attempts,selected);
+               <<" paths after "<<index<<" candidates; below 10k="
+               <<tooFew<<", failed="<<failed<<"\n";
+    const auto maybe=candidateAt(index,config,startCounts,goalCounts,*common.map);
+    if(!maybe) {++unusable;continue;}
+    const auto pair=*maybe;
     if(checker.check(pair.start)!=PoseCollision::Clear ||
        checker.check(pair.goal)!=PoseCollision::Clear) {++blocked;continue;}
-    // Exact source poses must also be unique, independent of raw path data.
+    if(startCounts[pair.startRegion]>=maxPerRegion ||
+       goalCounts[pair.goalRegion]>=maxPerRegion ||
+       pairs[pair.startRegion*coverageRegions+pair.goalRegion]>=maxPerPair) {
+      ++coverageSkipped;continue;
+    }
+    // Don't fill the 100 slots before all 9 start AND goal sectors have
+    // reached their minimum: spend early slots on missing coverage.
+    if(!coverageSatisfied(startCounts,goalCounts,coverageMinimum) &&
+       startCounts[pair.startRegion]>=coverageMinimum &&
+       goalCounts[pair.goalRegion]>=coverageMinimum) {
+      ++coverageSkipped;continue;
+    }
     const auto rounded=[](double v) {
       return static_cast<std::int64_t>(std::llround(v*1000.0));
     };
@@ -243,8 +298,7 @@ inline std::vector<Scenario> discover(const Config& config) {
         rounded(pair.goal.y),rounded(pair.goal.yaw)};
     if(!distinctEndpoints.insert(key).second) {++duplicates;continue;}
     auto request=common;
-    request.start=pair.start;
-    request.goal=pair.goal;
+    request.start=pair.start;request.goal=pair.goal;
 #ifdef HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL
     auto original=steering::planWithReedsShepp(request);
 #else
@@ -253,23 +307,25 @@ inline std::vector<Scenario> discover(const Config& config) {
     if(original.status!=PlanStatus::Success ||
        !original.modelGeometryValid ||
        original.collisionEvidence!=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled) {
-      ++failed;
-      continue;
+      ++failed;continue;
     }
     if(original.diagnostics.expanded<config.minimumExpansions) {
-      ++tooFew;
-      continue;
+      ++tooFew;continue;
     }
     auto signature=pathSignature(original);
     const auto [it,inserted]=distinctSignatures.insert(signature);
     if(!inserted) {++duplicates;continue;}
     const auto pathId=signatureHash(*it);
-    const auto index=selected.size();
-    selected.push_back({"warehouse_"+std::to_string(index),
-                        std::move(request),std::move(original),pathId});
+    const auto number=selected.size();
+    selected.push_back({"warehouse_"+std::to_string(number),
+                        std::move(request),std::move(original),pathId,
+                        pair.startRegion,pair.goalRegion});
+    ++startCounts[pair.startRegion];
+    ++goalCounts[pair.goalRegion];
+    ++pairs[pair.startRegion*coverageRegions+pair.goalRegion];
     if(selected.size()%10==0||selected.size()==config.maxCases)
       std::cerr<<"Validated distinct paths: "<<selected.size()<<"/"
-               <<config.maxCases<<" (candidate attempts "<<attempts+1<<")\n";
+               <<config.maxCases<<" (candidate attempts "<<attempts<<")\n";
   }
   std::cerr<<"Discovery: selected="<<selected.size()
            <<", target="<<config.maxCases
@@ -277,13 +333,17 @@ inline std::vector<Scenario> discover(const Config& config) {
            <<", blocked="<<blocked
            <<", plan_failed="<<failed
            <<", below_expansion_threshold="<<tooFew
-           <<", duplicate="<<duplicates<<"\n";
-  if(selected.size()!=config.maxCases)
-    throw std::runtime_error("Insufficient DISTINCT validated paths with >= "+
-       std::to_string(config.minimumExpansions)+" search expansions: found "+
-       std::to_string(selected.size())+" of "+std::to_string(config.maxCases)+
-       ". Increase search_budget or max_candidates; this run will NOT produce "
-       "a misleading partial comparison.");
+           <<", duplicate="<<duplicates
+           <<", coverage_skipped="<<coverageSkipped
+           <<", unusable_pose_draws="<<unusable<<"\n";
+  printCoverage(startCounts,goalCounts);
+  if(selected.size()!=config.maxCases ||
+     !coverageSatisfied(startCounts,goalCounts,coverageMinimum))
+    throw std::runtime_error("Only "+std::to_string(selected.size())+" of "+
+       std::to_string(config.maxCases)+" distinct paths met >= "+
+       std::to_string(config.minimumExpansions)+" search expansions AND "
+       "the 3x3 start/goal coverage requirements. No partial CSV is produced. "
+       "Increase search_budget or max_candidates, or use 0 for unlimited candidates.");
   return selected;
 }
 
