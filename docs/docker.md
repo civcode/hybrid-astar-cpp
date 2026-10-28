@@ -382,13 +382,27 @@ weight zero. Do not claim speed or smoothness wins until rerunning the
 experiments on the same platform.
 
 The benchmarks are **manual by default** and are not run by ordinary CTest or
-GitHub Actions. For explicitly opt-in CTest registration, configure CMake with
-`-DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
--DHYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS=ON`. Registered cases
-run with the 100-path/10k-expansion defaults and can be selected using
-`ctest -R ackermann_refinement_.*_benchmark`. All new C++ tests retain the
-normal CMake build checks, but runtime comparisons should use an otherwise
-idle host (do not run benchmark jobs concurrently under `TEST_JOBS=4`).
+GitHub Actions. To register both as **explicitly opted-in, long-running CTest**
+cases with the full 100-path/10k-expansion defaults:
+
+```bash
+REGISTER_REFINEMENT_BENCHMARK_TESTS=ON BUILD_JOBS=28 TEST_JOBS=4 \
+  docker compose build test
+
+# Run the benchmarks serially for fair timing (normal tests can use -j 4).
+REGISTER_REFINEMENT_BENCHMARK_TESTS=ON BUILD_JOBS=28 TEST_JOBS=4 \
+  docker compose --profile test run --rm test \
+  ctest --test-dir build-docker \
+    -R 'ackermann_refinement_(budget|smoothness)_benchmark' \
+    --output-on-failure -j 1
+```
+
+The equivalent native CMake option is
+`-DHYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS=ON` alongside
+`-DHYBRID_ASTAR_BUILD_BENCHMARKS=ON`. With registration disabled (the
+default), ordinary CTest remains fast and the two benchmark executables are
+still available for manual use. Timing comparisons should use an otherwise
+idle host.
 
 The shortcut candidates remain fixed-curvature CSC and Reeds-Shepp arcs;
 genuine curvature-continuous candidate generation should be evaluated only
