@@ -12,8 +12,8 @@ int main(int argc,char** argv) {
     printHeader();
     for(const auto& scenario:selected) {
       for(const Variant variant: {
-          Variant{"legacy_35_3",35,3,0.0},
-          Variant{"expanded_160_8",160,8,0.0}}) {
+          Variant{"legacy_35_3",35,3,100000,0.0},
+          Variant{"expanded_160_8",160,8,200000,0.0}}) {
         const auto outcome=run(scenario,config,variant);
         printRow(scenario,config,variant,outcome);
       }
