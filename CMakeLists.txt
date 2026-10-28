@@ -22,6 +22,8 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   endif()
 endif()
 option(HYBRID_ASTAR_BUILD_BENCHMARKS "Build optional manually run planner benchmark" OFF)
+option(HYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS
+  "Opt in long-running Ackermann A/B benchmarks to CTest (requires benchmarks and tests)" OFF)
 option(HYBRID_ASTAR_PROFILE_HOTPATHS "Collect opt-in timing of planner hot paths (adds clock overhead)" OFF)
 option(HYBRID_ASTAR_BUILD_APP "Build the optional localhost browser planning demo" OFF)
 
@@ -137,6 +139,18 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   add_executable(hybrid_astar_refinement_test tests/refinement_test.cpp)
   target_link_libraries(hybrid_astar_refinement_test PRIVATE hybrid_astar::core)
   add_test(NAME refinement_test COMMAND hybrid_astar_refinement_test)
+  add_executable(hybrid_astar_steering_objective_test tests/steering_objective_test.cpp)
+  target_link_libraries(hybrid_astar_steering_objective_test PRIVATE
+    hybrid_astar::core Catch2::Catch2WithMain)
+  add_test(NAME steering_objective_test COMMAND hybrid_astar_steering_objective_test)
+  add_executable(hybrid_astar_refinement_scenario_discovery_test
+    tests/ackermann_refinement_scenario_discovery_test.cpp)
+  target_include_directories(hybrid_astar_refinement_scenario_discovery_test
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries(hybrid_astar_refinement_scenario_discovery_test
+    PRIVATE hybrid_astar::core Catch2::Catch2WithMain)
+  add_test(NAME refinement_scenario_discovery_test
+    COMMAND hybrid_astar_refinement_scenario_discovery_test)
   add_executable(hybrid_astar_curved_shortcuts_test tests/curved_shortcuts_test.cpp)
   target_link_libraries(hybrid_astar_curved_shortcuts_test PRIVATE hybrid_astar::core)
   add_test(NAME curved_shortcuts_test COMMAND hybrid_astar_curved_shortcuts_test)
@@ -177,6 +191,28 @@ if(HYBRID_ASTAR_BUILD_BENCHMARKS)
   target_link_libraries(hybrid_astar_planner_bench PRIVATE hybrid_astar::core)
   add_executable(hybrid_astar_refinement_bench bench/refinement_bench.cpp)
   target_link_libraries(hybrid_astar_refinement_bench PRIVATE hybrid_astar::core)
+
+  foreach(_variant IN ITEMS budget smoothness)
+    add_executable(hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
+      tests/ackermann_refinement_${_variant}_benchmark_test.cpp)
+    target_include_directories(hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
+      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
+      PRIVATE hybrid_astar::core)
+    if(HYBRID_ASTAR_ENABLE_OMPL)
+      target_link_libraries(hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
+        PRIVATE hybrid_astar::ompl)
+      target_compile_definitions(hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
+        PRIVATE HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL=1)
+    endif()
+    if(HYBRID_ASTAR_BUILD_TESTS AND HYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS)
+      add_test(NAME ackermann_refinement_${_variant}_benchmark
+        COMMAND hybrid_astar_ackermann_refinement_${_variant}_benchmark_test
+          5 10000 100 250000 0)
+      set_tests_properties(ackermann_refinement_${_variant}_benchmark
+        PROPERTIES LABELS "benchmark;ackermann")
+    endif()
+  endforeach()
 endif()
 
 # Developer demo only: standalone browser UI served exclusively on loopback.

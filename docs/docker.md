@@ -298,3 +298,155 @@ BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
 BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
   ./build-docker/hybrid_astar_demo --once --scenario parking --ompl --rs-distance
 ```
+
+
+## Ackermann steering-aware refinement: 100-path A/B (manual)
+
+The **default** `RefinementOptions` budget is now **160 attempts,
+8 accepted replacements and 200000 independent strict pose checks**;
+the Planning Lab uses these values for both native and OMPL-assisted
+Ackermann refinement. The old Ackermann demo profile was 35 / 3 / 100000.
+Model-specific Planning Lab settings for differential-drive and mecanum
+remain independently configured.
+
+The optional `RefinementOptions::curvatureVariationWeightMetersSquared`
+(default **0.0**) adds
+`weight * sum(abs(curvature[i] - curvature[i-1]))` to the evaluated
+whole-path objective. The refiner now computes exactly the same nonnegative
+curvature term in the cheap **candidate cost lower bound**, including splice
+boundaries, so candidates that cannot improve the objective are pruned before
+expensive collision sampling. This is a selection penalty, **not** a
+curvature-continuity, steering-rate or actuator-feasibility guarantee.
+
+**Planning Lab UI:** choose Ackermann, enable **Strict post-path refinement**
+then optionally check **Steering-aware smoothness** (unchecked by default).
+Set **Steering variation weight** to `1.0` m² initially; valid enabled
+weights are greater than zero and at most 100. Both native CSC and
+OMPL/Reeds–Shepp paths honor this option. Click **Plan path** and compare
+the existing original-path overlay plus the new **Curvature variation**
+and **Steering reversals** readouts (original → refined).
+The exported JSON contains
+`refinementOptions.maxAttempts`, `maxAccepted`,
+`maxTotalPoseChecks`, `steeringSmoothness`, and
+`steeringWeightMetersSquared`. The weighted path cost changes meaning when
+the objective is enabled; compare geometric length and steering metrics
+rather than directly comparing differently weighted path costs.
+
+```bash
+# Planning Lab's web UI is published to localhost after Docker starts.
+BUILD_JOBS=28 docker compose up --build demo
+
+# Optional CLI A/B with the same map and path options.
+BUILD_JOBS=28 TEST_JOBS=4 docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_demo --once --scenario warehouse --refine --curved
+BUILD_JOBS=28 TEST_JOBS=4 docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_demo --once --scenario warehouse --refine --curved \
+  --steering-weight 1.0
+```
+
+### Random warehouse map coverage and output
+
+Both C++ benchmark executables now use **randomized start and goal poses**
+(including independently randomized orientations) on the **unchanged** 200 x
+160-cell / 0.25 m warehouse map. The Ackermann footprint, 0.5 m inflation,
+search mode and obstacle geometry are not modified.
+
+The sampler is reproducible: a small fixed PRNG with default seed
+`20261028` generates independent poses across a **3 x 3 map grid**. Accepted
+routes must have two different endpoint regions and at least 18 m direct
+start/goal separation. A whole-body exact collision check filters candidate
+poses before planning. **Every accepted route** requires a real successful,
+strictly validated Ackermann plan with at least **10,000 expansions**, and
+a distinct quantized path-geometry signature. The selection actively favors
+underrepresented regions and requires **at least five accepted starts and five
+accepted goals in every one of the nine regions** among the 100 paths.
+Furthermore no region can account for over 20% of starts or goals, and no
+ordered start/goal region pair can account for over 10% of the paths.
+This improves spatial coverage without fabricating any trajectories or
+changing the map. Note: geographic coverage does not guarantee 100
+distinct topological routes.
+
+Defaults:
+`repeats=5 minimum_expansions=10000 paths=100 search_budget=250000
+max_candidates=0 steering_weight_m2=1.0 seed=20261028`.
+**0 candidates limit means unbounded discovery:** the executable keeps
+trying reproducible new random poses until all 100 qualifying routes
+satisfy the coverage constraints. Depending on map difficulty, this can be
+a long-running CPU-intensive operation. You can interrupt it with Ctrl+C,
+or provide a positive `max_candidates` safety limit (for example 20000).
+If a finite cap is reached without 100 accepted routes, the executable
+fails with a diagnostic instead of presenting an incomplete comparison.
+
+Search and selection are **outside** timed optimization. Each variant sees
+the same independently verified original route; both benchmark executables
+use the same seeded selection. With Docker's OMPL-enabled build they use
+Planning Lab's Reeds–Shepp connector plus native CSC; non-OMPL builds use
+native CSC only. CSV includes start/goal poses, start/goal grid regions,
+random seed, full-path fingerprint, expansions, curvature metrics and
+optimizer p50/p95 runtime. Stderr reports progress, rejected candidate
+counts, **per-region start/goal coverage**, and across-path runtime and
+smoothness summaries. For comparable results use the same seed, budget,
+map configuration and connector.
+
+### Docker commands (BUILD_JOBS=28 / TEST_JOBS=4)
+
+```bash
+git fetch origin feature/ackermann-refinement-smoothness-benchmarks
+git switch feature/ackermann-refinement-smoothness-benchmarks \
+  || git switch --track origin/feature/ackermann-refinement-smoothness-benchmarks
+
+export BUILD_JOBS=28 TEST_JOBS=4
+
+docker compose build test
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure -j "$TEST_JOBS"
+
+# Test 1: legacy 35/3/100k versus expanded 160/8/200k, existing objective.
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_ackermann_refinement_budget_benchmark_test \
+  5 10000 100 250000 0 1.0 20261028 > budget-results-100.csv
+
+# Test 2: same budgets crossed with zero versus 1.0 m² steering penalty.
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_ackermann_refinement_smoothness_benchmark_test \
+  5 10000 100 250000 0 1.0 20261028 > smoothness-results-100.csv
+
+# Fast contracts, including steering-aware pruning and discovery uniqueness.
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker \
+    -R 'steering_objective_test|refinement_scenario_discovery_test' \
+    --output-on-failure
+```
+
+To explore steering-penalty weights *after* the 100-path baseline has been
+measured, change the **last** parameter of the second executable (e.g.
+`0.25`, `0.5`, or `2.0`). The other two objective rows always use
+weight zero. Do not claim speed or smoothness wins until rerunning the
+experiments on the same platform.
+
+The benchmarks are **manual by default** and are not run by ordinary CTest or
+GitHub Actions. To register both as **explicitly opted-in, long-running CTest**
+cases with the full 100-path/10k-expansion defaults:
+
+```bash
+REGISTER_REFINEMENT_BENCHMARK_TESTS=ON BUILD_JOBS=28 TEST_JOBS=4 \
+  docker compose build test
+
+# Run the benchmarks serially for fair timing (normal tests can use -j 4).
+REGISTER_REFINEMENT_BENCHMARK_TESTS=ON BUILD_JOBS=28 TEST_JOBS=4 \
+  docker compose --profile test run --rm test \
+  ctest --test-dir build-docker \
+    -R 'ackermann_refinement_(budget|smoothness)_benchmark' \
+    --output-on-failure -j 1
+```
+
+The equivalent native CMake option is
+`-DHYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS=ON` alongside
+`-DHYBRID_ASTAR_BUILD_BENCHMARKS=ON`. With registration disabled (the
+default), ordinary CTest remains fast and the two benchmark executables are
+still available for manual use. Timing comparisons should use an otherwise
+idle host.
+
+The shortcut candidates remain fixed-curvature CSC and Reeds-Shepp arcs;
+genuine curvature-continuous candidate generation should be evaluated only
+after inspecting the new 100-path steering-weight results.

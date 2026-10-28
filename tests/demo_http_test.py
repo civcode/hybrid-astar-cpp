@@ -64,6 +64,14 @@ def main(exe):
             "footprint margin spinner must step by 0.05 m"
         )
         assert 'id="refine"' in page and "Strict post-path refinement" in page
+        assert 'id="steeringSmooth"' in page and "Steering-aware smoothness" in page
+        assert re.search(r'id="steeringWeight"[^>]*value="1\.0"[^>]*disabled', page)
+        assert "params.set('steeringSmooth'," in script
+        assert "params.set('steeringWeight'," in script
+        assert "$('steeringSmooth').disabled=!canUseSteering" in script
+        assert "$('steeringWeight').disabled=!canUseSteering" in script
+        assert 'id="curvatureVariation"' in page and 'id="steeringReversals"' in page
+        assert 'function steeringMetrics(path)' in script
         assert 'id="rsDistance"' in page and "RS distance heuristic" in page
         assert "['ompl','rsDistance','refine'" in script
         assert "$('ompl').checked=!!caps.ompl" in script
@@ -89,6 +97,39 @@ def main(exe):
         assert result["original"]["validated"] is True
         assert result["original"]["heuristicCertifiedAdmissible"] is False
         assert result["rsDistanceHeuristic"] is False
+        assert result["refinementOptions"]["maxAttempts"] == 160
+        assert result["refinementOptions"]["maxAccepted"] == 8
+        assert result["refinementOptions"]["maxTotalPoseChecks"] == 200000
+        assert result["refinementOptions"]["steeringSmoothness"] is False
+        assert result["refinementOptions"]["steeringWeightMetersSquared"] == 0.0
+        code, _, body = get(
+            base + "/api/plan?scenario=open&refine=1&steeringSmooth=1&steeringWeight=2.5")
+        steering = json.loads(body)
+        assert code == 200 and steering["original"]["status"] == "Success", body
+        assert steering["refinement"]["path"]["status"] == "Success", body
+        assert steering["refinementOptions"]["maxAttempts"] == 160
+        assert steering["refinementOptions"]["maxAccepted"] == 8
+        assert steering["refinementOptions"]["maxTotalPoseChecks"] == 200000
+        assert steering["refinementOptions"]["steeringSmoothness"] is True
+        assert steering["refinementOptions"]["steeringWeightMetersSquared"] == 2.5
+        code, _, disabled_body = get(
+            base + "/api/plan?scenario=open&refine=1&steeringSmooth=0&steeringWeight=2.5")
+        disabled_steering = json.loads(disabled_body)
+        assert code == 200
+        assert disabled_steering["refinementOptions"]["steeringSmoothness"] is False
+        assert disabled_steering["refinementOptions"]["steeringWeightMetersSquared"] == 0.0
+        for invalid_steering in (
+            "scenario=open&steeringSmooth=1",
+            "scenario=open&model=differential&refine=1&steeringSmooth=1",
+            "scenario=open&model=mecanum&refine=1&steeringSmooth=1",
+            "scenario=open&refine=1&steeringSmooth=2",
+            "scenario=open&refine=1&steeringSmooth=1&steeringWeight=0",
+            "scenario=open&refine=1&steeringSmooth=1&steeringWeight=-0.1",
+            "scenario=open&refine=1&steeringSmooth=1&steeringWeight=101",
+            "scenario=open&refine=1&steeringSmooth=1&steeringWeight=nan",
+        ):
+            status, _, invalid_body = get(base + "/api/plan?" + invalid_steering)
+            assert status == 400 and "error" in json.loads(invalid_body), invalid_steering
         for invalid_rs in (
             "scenario=open&rsDistance=1&ompl=0",
             "scenario=open&rsDistance=1&ompl=1&performance=0",
@@ -330,6 +371,13 @@ def main(exe):
                                     capture_output=True, text=True)
         assert funded_cli.returncode == 0
         assert json.loads(funded_cli.stdout)["limits"]["maxExpansions"] == 60000
+        steering_cli = subprocess.run(
+            [exe, "--once", "--scenario", "open", "--refine", "--steering-weight", "2.5"],
+            capture_output=True, text=True, timeout=20)
+        assert steering_cli.returncode == 0, steering_cli.stderr
+        steering_cli_data = json.loads(steering_cli.stdout)
+        assert steering_cli_data["refinementOptions"]["steeringSmoothness"] is True
+        assert steering_cli_data["refinementOptions"]["steeringWeightMetersSquared"] == 2.5
         invalid_budget = subprocess.run([exe, "--once", "--scenario", "warehouse", "--budget", "7"],
                                         capture_output=True, text=True)
         assert invalid_budget.returncode != 0

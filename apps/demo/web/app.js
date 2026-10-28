@@ -142,6 +142,22 @@ function draw() {
   const samples=allPositions(path);
   if(samples.length)drawPose(samples[Math.min(samples.length-1,Math.round(Number($('position').value)/1000*(samples.length-1)))],'#6ce8d3',g,true);
 }
+// Match the benchmark metrics: adjacent translated-section curvature jumps,
+// plus changes in sign across nonzero steering segments.
+function steeringMetrics(path) {
+  let totalVariation=0, reversals=0, prior=null, priorSign=0;
+  for(const sec of path?.sections||[]) {
+    if(sec.kind==='translation') {
+      if(prior?.kind==='translation')
+        totalVariation+=Math.abs(sec.curvature-prior.curvature);
+      const sign=sec.curvature>1e-9?1:sec.curvature< -1e-9?-1:0;
+      if(sign && priorSign && sign!==priorSign)reversals++;
+      if(sign)priorSign=sign;
+    }
+    prior=sec;
+  }
+  return {totalVariation,reversals};
+}
 function stats(result) {
   const path=activePath(),valid=path?.status==='Success';
   $('message').className='readout '+(valid?'good':'bad');
@@ -166,6 +182,13 @@ function stats(result) {
   $('expanded').textContent=result.original.expanded.toLocaleString();
   $('limit').textContent=limit?limit.maxExpansions.toLocaleString():'—';
   $('elapsed').textContent=result.milliseconds.toFixed(1)+' ms';
+  const before=steeringMetrics(result.original),after=steeringMetrics(path);
+  const compare=!!result.refinement?.path;
+  $('curvatureVariation').textContent=valid?
+    (compare?before.totalVariation.toFixed(2)+' → ':'')+
+    after.totalVariation.toFixed(2)+' 1/m':'—';
+  $('steeringReversals').textContent=valid?
+    (compare?before.reversals+' → ':'')+after.reversals:'—';
 }
 let modelCapabilities={ompl:false};
 function syncModelOptions() {
@@ -182,6 +205,11 @@ function syncModelOptions() {
   $('refine').disabled=false;
   if(mecanum)$('curved').checked=false;
   $('curved').disabled=mecanum||!$('refine').checked;
+  // Only Ackermann has the optional steering-variation objective.
+  if(!ackermann)$('steeringSmooth').checked=false;
+  const canUseSteering=ackermann&&$('refine').checked;
+  $('steeringSmooth').disabled=!canUseSteering;
+  $('steeringWeight').disabled=!canUseSteering||!$('steeringSmooth').checked;
 }
 $('model').addEventListener('change',()=>{
   syncModelOptions();invalidateRoute();replan();
@@ -193,7 +221,7 @@ function invalidateRoute() {
   if(pending){pending.abort();pending=null;}
   $('message').className='readout';
   $('message').textContent='Map/pose changed · previous path is stale · replan required';
-  for(const id of ['cost','length','reverseLen','expanded','elapsed'])$(id).textContent='—';
+  for(const id of ['cost','length','reverseLen','expanded','elapsed','curvatureVariation','steeringReversals'])$(id).textContent='—';
   draw();
 }
 function resetEditor() {
@@ -233,6 +261,12 @@ async function replan() {
   const params=new URLSearchParams();for(const key of keys)params.set(key,$(key).value);
   params.set('model',$('model').value);
   for(const key of ['ompl','rsDistance','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
+  const steeringEnabled=$('model').value==='ackermann'&&
+    $('refine').checked&&$('steeringSmooth').checked;
+  params.set('steeringSmooth',steeringEnabled?'1':'0');
+  // Preserve a typed weight when disabled, but don't send a stale or blank
+  // value to the server while the optional objective is switched off.
+  if(steeringEnabled)params.set('steeringWeight',$('steeringWeight').value.trim());
   params.set('inflate',$('inflate').checked?'1':'0');
   params.set('inflationMeters',$('inflationMeters').value.trim());
   const budget=$('budget').value.trim();
@@ -290,6 +324,8 @@ $('exportButton').addEventListener('click',()=>{
   setTimeout(()=>URL.revokeObjectURL(href),2000);
 });
 $('refine').addEventListener('change',syncModelOptions);
+$('steeringSmooth').addEventListener('change',()=>{syncModelOptions();invalidateRoute();});
+$('steeringWeight').addEventListener('change',invalidateRoute);
 $('ompl').addEventListener('change',syncModelOptions);
 $('performance').addEventListener('change',syncModelOptions);
 $('inflate').addEventListener('change',()=>{

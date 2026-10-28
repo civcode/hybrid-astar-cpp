@@ -34,6 +34,8 @@ FROM dependencies AS build
 ARG BUILD_JOBS
 # Profiling is opt-in because per-operation clocks change runtimes.
 ARG PROFILE_HOTPATHS=OFF
+# Opt-in only: normally keep the expensive 100-path benchmarks out of CTest.
+ARG REGISTER_REFINEMENT_BENCHMARK_TESTS=OFF
 WORKDIR /workspace
 COPY . /workspace
 RUN cmake -S . -B build-docker -G Ninja \
@@ -42,6 +44,7 @@ RUN cmake -S . -B build-docker -G Ninja \
       -DHYBRID_ASTAR_BUILD_TESTS=ON \
       -DHYBRID_ASTAR_BUILD_APP=ON \
       -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON \
+      -DHYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS="${REGISTER_REFINEMENT_BENCHMARK_TESTS}" \
       -DHYBRID_ASTAR_PROFILE_HOTPATHS="${PROFILE_HOTPATHS}" \
   && cmake --build build-docker --parallel "${BUILD_JOBS}"
 

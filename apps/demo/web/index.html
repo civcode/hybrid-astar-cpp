@@ -41,6 +41,10 @@
 <label class="check"><input type="checkbox" id="improve"/><span>Bounded incumbent improvement</span></label>
 <label class="check"><input type="checkbox" id="refine"/><span>Strict post-path refinement <small>(all models)</small></span></label>
 <label class="check nested"><input type="checkbox" id="curved"/><span>Native curved CSC candidates <small>(also differential)</small></span></label>
+<label class="check nested"><input type="checkbox" id="steeringSmooth"/><span>Steering-aware smoothness <small>(Ackermann only, optional)</small></span></label>
+<label class="label" for="steeringWeight">Steering variation weight <small>m², higher penalizes sharp curvature changes</small></label>
+<input id="steeringWeight" type="number" min="0.01" max="100" step="0.25" value="1.0" disabled/>
+<div class="hint">Requires strict refinement. Off by default; this penalizes curvature jumps but does not guarantee continuous steering.</div>
 <label class="check"><input type="checkbox" id="inflate"/><span>Geometric footprint safety margin</span></label>
 <label class="label" for="inflationMeters">Inflation distance <small>meters, outward on every side</small></label>
 <input id="inflationMeters" type="number" min="0" max="10" step="0.05" value="0.05" disabled/>
@@ -61,6 +65,8 @@
 <div class="metrics"><div><span>PATH COST</span><strong id="cost">—</strong></div><div><span>PATH LENGTH</span><strong id="length">—</strong></div>
 <div><span>REVERSE</span><strong id="reverseLen">—</strong></div><div><span>EXPANSIONS</span><strong id="expanded">—</strong></div>
 <div><span>EXPANSION LIMIT</span><strong id="limit">—</strong></div>
-<div><span>PLANNING TIME</span><strong id="elapsed">—</strong></div></div>
+<div><span>PLANNING TIME</span><strong id="elapsed">—</strong></div>
+<div><span>CURVATURE VARIATION</span><strong id="curvatureVariation">—</strong></div>
+<div><span>STEERING REVERSALS</span><strong id="steeringReversals">—</strong></div></div>
 </section></div><footer>Hybrid A* Planning Lab · Geometric path planning · No actuator or swept-volume safety claim</footer></main>
 <script src="/map_geometry.js" defer></script><script src="/map_editor.js" defer></script><script src="/app.js" defer></script></body></html>

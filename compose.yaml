@@ -20,6 +20,7 @@ services:
       args:
         BUILD_JOBS: "${BUILD_JOBS:-2}"
         PROFILE_HOTPATHS: "${PROFILE_HOTPATHS:-OFF}"
+        REGISTER_REFINEMENT_BENCHMARK_TESTS: "${REGISTER_REFINEMENT_BENCHMARK_TESTS:-OFF}"
     environment:
       CTEST_PARALLEL_LEVEL: "${TEST_JOBS:-1}"
     init: true

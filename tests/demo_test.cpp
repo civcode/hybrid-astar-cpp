@@ -65,6 +65,13 @@ static void runLegacyAssertions() {
             combined.refinement.has_value() &&
             combined.refinement->path.status==PlanStatus::Success,
             "RS and native CSC can be enabled together in Planning Lab");
+    rs.steeringSmoothness=true;
+    rs.steeringWeightMetersSquared=1.25;
+    const auto steeredRs=run(rs);
+    require(steeredRs.refinement.has_value() &&
+            steeredRs.refinement->path.status==PlanStatus::Success &&
+            steeredRs.refinementSettings.curvatureVariationWeightMetersSquared==1.25,
+            "OMPL-assisted Ackermann refinement receives optional steering penalty");
   }
   Options reverse;reverse.scenario="reverse";
   auto r=run(reverse);
@@ -77,6 +84,52 @@ static void runLegacyAssertions() {
           "refined or original route revalidated");
   require(refined.refinement->path.weightedCostMeters<=refined.original.weightedCostMeters+1e-8,
           "refinement never raises weighted cost");
+  // Ackermann now defaults to 160 attempts, 8 acceptances and 200k
+  // strict checks, but must NOT enable the steering objective implicitly.
+  require(RefinementOptions{}.maxAttempts==160 &&
+          RefinementOptions{}.maxAccepted==8 &&
+          RefinementOptions{}.maxTotalPoseChecks==200000,
+          "shared refinement defaults reflect the expanded benchmark profile");
+  require(RefinementOptions{}.curvatureVariationWeightMetersSquared==0.0 &&
+          !Options{}.steeringSmoothness,
+          "steering penalty is strictly opt-in");
+  require(refined.refinementSettings.maxAttempts==160 &&
+          refined.refinementSettings.maxAccepted==8 &&
+          refined.refinementSettings.maxTotalPoseChecks==200000 &&
+          refined.appliedSteeringWeightMetersSquared==0,
+          "demo applies 160/8/200k budget and zero steering penalty by default");
+  require(toJson(refined).find("\"steeringSmoothness\":false")!=std::string::npos,
+          "effective disabled steering objective is visible in exported JSON");
+  Options withSteering=refine;
+  withSteering.steeringSmoothness=true;
+  withSteering.steeringWeightMetersSquared=2.5;
+  const auto steered=run(withSteering);
+  require(steered.refinement.has_value() &&
+          steered.refinement->path.status==PlanStatus::Success,
+          "opt-in steering objective keeps full-path validation");
+  require(steered.refinementSettings.curvatureVariationWeightMetersSquared==2.5 &&
+          steered.appliedSteeringWeightMetersSquared==2.5,
+          "steering weight reaches the actual refiner");
+  require(toJson(steered).find("\"steeringSmoothness\":true")!=std::string::npos &&
+          toJson(steered).find("\"steeringWeightMetersSquared\":2.5")!=std::string::npos,
+          "effective steering options are exported for comparison");
+  for(const auto model:{std::string("differential"),std::string("mecanum")}) {
+    bool invalid=false;
+    try {auto bad=withSteering;bad.model=model;run(bad);}
+    catch(const std::invalid_argument&) {invalid=true;}
+    require(invalid,"steering-aware refinement is Ackermann-only");
+  }
+  bool disabledRefinementRejected=false;
+  try {auto bad=withSteering;bad.refine=false;run(bad);}
+  catch(const std::invalid_argument&) {disabledRefinementRejected=true;}
+  require(disabledRefinementRejected,
+          "steering objective requires enabled post-path refinement");
+  for(const double badWeight:{0.0,-1.0,101.0}) {
+    bool invalid=false;
+    try {auto bad=withSteering;bad.steeringWeightMetersSquared=badWeight;run(bad);}
+    catch(const std::invalid_argument&) {invalid=true;}
+    require(invalid,"enabled steering weights have a positive bounded range");
+  }
   Options differential;
   differential.model="differential";
   differential.scenario="open";

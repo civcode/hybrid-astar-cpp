@@ -12,13 +12,18 @@ using RefinementConnector =
     std::function<std::vector<MotionSection>(const Pose2D&, const Pose2D&)>;
 
 struct RefinementOptions {
-  std::size_t maxAttempts = 64;           // candidate windows, not map queries
-  std::size_t maxAccepted = 4;            // full-path replacements
+  std::size_t maxAttempts = 160;          // candidate windows, not map queries
+  std::size_t maxAccepted = 8;            // full-path replacements
   std::size_t maxReplacementSections = 32;
   bool useCurvatureBoundedShortcuts = false; // opt-in fixed-gear LSL/LSR/RSL/RSR
   double differentialCurveRadiusMeters = 0.75; // base CSC radius; not car R_min
   std::size_t differentialRadiusVariants = 1; // legacy default; 4=base,.5x,2x,4x
-  std::size_t maxTotalPoseChecks = 100000; // includes original revalidation
+  std::size_t maxTotalPoseChecks = 200000; // includes original revalidation
+  // Optional nonnegative Ackermann steering-variation penalty in metres:
+  // weight [m^2] * sum(abs(kappa[i]-kappa[i-1])) [1/m].
+  // Zero preserves the historical distance/clearance-only objective.
+  // This is not a steering-rate or curvature-continuity constraint.
+  double curvatureVariationWeightMetersSquared = 0.0;
   double minimumCostReductionMeters = 1e-6;
 };
 

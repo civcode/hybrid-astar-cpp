@@ -20,6 +20,8 @@ struct Options {
   std::optional<std::size_t> maxExpansions;
   bool refine = false;
   bool curvedRefinement = false;
+  bool steeringSmoothness = false; // Ackermann-only optional refinement objective
+  double steeringWeightMetersSquared = 1.0; // applied only when checkbox is enabled
   bool footprintInflationEnabled = false;
   double footprintInflationMeters = 0.05; // UI value retained while disabled
   bool performanceHeuristic = true; // grid by default; false = certified Euclidean
@@ -32,6 +34,8 @@ struct Outcome {
   ackermann::PlanResult original;
   std::optional<ackermann::RefinementResult> refinement;
   bool rsDistanceHeuristicEnabled = false; // included in JSON for reproducible experiments
+  double appliedSteeringWeightMetersSquared = 0.0; // effective weight, zero when off
+  ackermann::RefinementOptions refinementSettings; // reported for reproducibility
   double elapsedMilliseconds = 0;
 };
 // Throws invalid_argument for unsupported scenarios and invalid pose requests.
