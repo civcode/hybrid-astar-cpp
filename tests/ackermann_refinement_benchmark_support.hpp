@@ -33,11 +33,13 @@ struct Config {
   std::size_t maxCases=100;
   std::size_t searchBudget=250000;
   std::size_t maxCandidateSearches=3000;
+  double steeringWeightMetersSquared=1.0;
 };
 inline Config parseArgs(int argc,char** argv) {
-  if(argc>6)throw std::invalid_argument(
+  if(argc>7)throw std::invalid_argument(
       "Usage: BENCH [repeats=5] [minimum_expansions=10000] "
-      "[distinct_paths=100] [search_budget=250000] [max_candidates=3000]");
+      "[distinct_paths=100] [search_budget=250000] [max_candidates=3000] "
+      "[steering_weight_m2=1.0]");
   const auto read=[&](int index,std::size_t fallback) {
     if(argc<=index)return fallback;
     const std::string value=argv[index];
@@ -56,7 +58,15 @@ inline Config parseArgs(int argc,char** argv) {
   c.maxCases=read(3,c.maxCases);
   c.searchBudget=read(4,c.searchBudget);
   c.maxCandidateSearches=read(5,c.maxCandidateSearches);
-  if(c.repeats==0||c.repeats>100||
+  if(argc>6) {
+    const std::string value=argv[6];
+    std::size_t consumed=0;
+    c.steeringWeightMetersSquared=std::stod(value,&consumed);
+    if(consumed!=value.size())throw std::invalid_argument("Expected floating steering weight");
+  }
+  if(!std::isfinite(c.steeringWeightMetersSquared)||
+     c.steeringWeightMetersSquared<=0||c.steeringWeightMetersSquared>100||
+     c.repeats==0||c.repeats>100||
      c.minimumExpansions==0||c.minimumExpansions>1000000||
      c.maxCases==0||c.maxCases>1000||
      c.searchBudget<100||c.searchBudget>1000000||
@@ -317,7 +327,8 @@ inline Measurement run(const Scenario& scenario,const Config& config,
   return {std::move(last),percentile(timings,.5),percentile(timings,.95)};
 }
 inline void printHeader() {
-  std::cout<<"scenario,connector,variant,search_expanded,raw_sections,raw_length_m,"
+  std::cout<<"scenario,path_fingerprint,start_x_m,start_y_m,start_yaw_rad,"
+      "goal_x_m,goal_y_m,goal_yaw_rad,connector,variant,search_expanded,raw_sections,raw_length_m,"
       "raw_curvature_tv_inv_m,raw_steering_reversals,max_attempts,max_accepted,max_pose_checks,"
       "curvature_weight_m2,attempted,accepted,rejected,cost_pruned,strict_checks,"
       "refine_status,refined_sections,refined_length_m,refined_curvature_tv_inv_m,"
@@ -329,7 +340,11 @@ inline void printRow(const Scenario& scenario,const Config& config,
   const auto& out=measurement.result;
   const auto originalSmoothness=measure(scenario.original.sections);
   const auto smoothness=measure(out.path.sections);
-  std::cout<<scenario.name<<','
+  std::cout<<scenario.name<<','<<scenario.pathFingerprint<<','
+      <<std::fixed<<std::setprecision(6)
+      <<scenario.request.start.x<<','<<scenario.request.start.y<<','
+      <<scenario.request.start.yaw<<','<<scenario.request.goal.x<<','
+      <<scenario.request.goal.y<<','<<scenario.request.goal.yaw<<','
 #ifdef HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL
       <<"ompl_rs_plus_native_csc,"
 #else
