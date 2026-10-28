@@ -11,6 +11,9 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <set>
 #include <iomanip>
 #include <iostream>
 #include <numbers>
@@ -23,21 +26,28 @@ namespace hybrid_astar::bench::ackermann_refinement {
 using namespace hybrid_astar::ackermann;
 
 struct Config {
+  // The production A/B suite needs 100 DISTINCT strictly validated routes
+  // whose searches EACH required at least ten thousand expansions.
   std::size_t repeats=5;
-  std::size_t minimumExpansions=1000;
-  std::size_t maxCases=3;
-  std::size_t searchBudget=120000;
+  std::size_t minimumExpansions=10000;
+  std::size_t maxCases=100;
+  std::size_t searchBudget=250000;
+  std::size_t maxCandidateSearches=3000;
 };
 inline Config parseArgs(int argc,char** argv) {
-  if(argc>5)throw std::invalid_argument(
-      "Usage: BENCH [repeats=5] [minimum_expansions=1000] [max_cases=3] [search_budget=120000]");
-  auto read=[&](int index,std::size_t fallback) {
+  if(argc>6)throw std::invalid_argument(
+      "Usage: BENCH [repeats=5] [minimum_expansions=10000] "
+      "[distinct_paths=100] [search_budget=250000] [max_candidates=3000]");
+  const auto read=[&](int index,std::size_t fallback) {
     if(argc<=index)return fallback;
-    const std::string text=argv[index];
-    if(text.empty()||text[0]=='-')throw std::invalid_argument("Expected a positive integer");
+    const std::string value=argv[index];
+    if(value.empty()||value[0]=='-')
+      throw std::invalid_argument("Expected a positive integer");
     std::size_t consumed=0;
-    const auto parsed=std::stoull(text,&consumed);
-    if(consumed!=text.size())throw std::invalid_argument("Expected an integer");
+    const auto parsed=std::stoull(value,&consumed);
+    if(consumed!=value.size())throw std::invalid_argument("Expected an integer");
+    if(parsed>std::numeric_limits<std::size_t>::max())
+      throw std::invalid_argument("Value exceeds size_t");
     return static_cast<std::size_t>(parsed);
   };
   Config c;
@@ -45,10 +55,13 @@ inline Config parseArgs(int argc,char** argv) {
   c.minimumExpansions=read(2,c.minimumExpansions);
   c.maxCases=read(3,c.maxCases);
   c.searchBudget=read(4,c.searchBudget);
-  if(c.repeats==0||c.repeats>100||c.maxCases==0||c.maxCases>8||
+  c.maxCandidateSearches=read(5,c.maxCandidateSearches);
+  if(c.repeats==0||c.repeats>100||
      c.minimumExpansions==0||c.minimumExpansions>1000000||
+     c.maxCases==0||c.maxCases>1000||
      c.searchBudget<100||c.searchBudget>1000000||
-     c.minimumExpansions>c.searchBudget)
+     c.minimumExpansions>c.searchBudget||
+     c.maxCandidateSearches<c.maxCases||c.maxCandidateSearches>100000)
     throw std::invalid_argument("Out-of-range benchmark arguments");
   return c;
 }
@@ -56,54 +69,164 @@ struct Scenario {
   std::string name;
   PlanRequest request;
   PlanResult original;
+  std::uint64_t pathFingerprint=0;
 };
-
-// Follow the hard-scenario/warehouse benchmark pattern: search a deterministic
-// list of candidate pose pairs, retain ONLY successful, strictly verified
-// planning problems requiring at least the requested number of expansions.
-// The first pose is the reported Planning Lab 7k-expansion Ackermann case.
-// Search/selection is done ONCE and excluded from timed refinement measurements.
-inline std::vector<Scenario> discover(const Config& config) {
-  const auto pi=std::numbers::pi_v<double>;
-  struct Candidate {const char* name;Pose2D start,goal;};
-  const std::array<Candidate,8> candidates{{
-    {"exported_warehouse",{4.92,6.68,0},{46.75,31.86,.5*pi}},
-    {"warehouse_nearby_start",{4.92,8.68,0},{46.75,31.86,.5*pi}},
-    {"warehouse_nearby_goal",{4.92,6.68,0},{45.5,30.5,.5*pi}},
-    {"warehouse_shifted_start",{5.5,6.68,0},{46.75,31.86,.5*pi}},
-    {"warehouse_nearby_goal_2",{4.92,6.68,0},{44.5,28.5,.5*pi}},
-    {"warehouse_upper_left",{4.77,32.84,0},{44.62,33.53,-.5*pi}},
-    {"warehouse_left_center",{4.77,20,0},{43,20,0}},
-    {"warehouse_middle_left",{5.75,11.75,0},{45.5,31,.5*pi}}
+struct Endpoints {Pose2D start,goal;};
+// Halton samples are deterministic and cover the jitter region without an RNG
+// or relying on implementation-defined std::uniform_* distributions.
+inline double halton(std::size_t n,std::size_t base) {
+  double fraction=1.0,d=0.0;
+  while(n) {
+    fraction/=static_cast<double>(base);
+    d+=fraction*static_cast<double>(n%base);
+    n/=base;
+  }
+  return d;
+}
+inline const std::array<Endpoints,4>& warehouseSeeds() {
+  static const std::array<Endpoints,4> seeds{{
+    // First is the measured 11,451-expansion success from budget-results.csv.
+    {{4.77,32.84,0},{44.62,33.53,-.5*std::numbers::pi_v<double>}},
+    // Additional regions (admitted only after a real successful search).
+    {{4.92,6.68,0},{46.75,31.86,.5*std::numbers::pi_v<double>}},
+    {{4.77,32.84,0},{44.62,33.53,-.5*std::numbers::pi_v<double>}},
+    {{4.77,20,0},{43,20,0}}
   }};
+  return seeds;
+}
+// Progressively explore the neighborhood of successful searches, rather than
+// repeatedly burning the expansion budget on arbitrary inaccessible goals.
+// Every accepted pose pair comes from a new strictly validated plan() call;
+// paths are NOT fabricated by changing a successful path's endpoints.
+inline Endpoints candidateAt(std::size_t attempt,
+                            const std::vector<Scenario>& successful) {
+  const auto& seeds=warehouseSeeds();
+  if(attempt==0)return seeds[0];
+  Endpoints base;
+  if(successful.empty() || attempt%11==0) {
+    base=seeds[(attempt/11)%seeds.size()];
+  } else {
+    const auto& anchor=successful[(attempt*37)%successful.size()];
+    base={anchor.request.start,anchor.request.goal};
+  }
+  const double scale=0.20+1.2*halton(attempt,13);
+  const auto jitter=[&](std::size_t prime) {
+    return 2.0*halton(attempt+1,prime)-1.0;
+  };
+  base.start.x+=scale*jitter(2);
+  base.start.y+=scale*jitter(3);
+  base.start.yaw+=0.15*jitter(5);
+  base.goal.x+=1.5*scale*jitter(7);
+  base.goal.y+=1.5*scale*jitter(11);
+  base.goal.yaw+=0.18*jitter(17);
+  return base;
+}
+// Hash quantized, full section geometry (not the arbitrary scenario name or
+// merely the requested start/goal). The full quantized signature is also kept
+// in a set to prevent hash collisions from affecting the uniqueness check.
+inline std::vector<std::int64_t> pathSignature(const PlanResult& path) {
+  const auto quantize=[](double x,double scale) {
+    return static_cast<std::int64_t>(std::llround(x*scale));
+  };
+  std::vector<std::int64_t> signature;
+  signature.reserve(path.sections.size()*8+1);
+  signature.push_back(static_cast<std::int64_t>(path.sections.size()));
+  for(const auto& s:path.sections) {
+    signature.push_back(static_cast<std::int64_t>(s.kind));
+    signature.push_back(static_cast<std::int64_t>(s.gear));
+    signature.push_back(quantize(s.start.x,20.0)); // 5 cm resolution
+    signature.push_back(quantize(s.start.y,20.0));
+    signature.push_back(quantize(s.end.x,20.0));
+    signature.push_back(quantize(s.end.y,20.0));
+    signature.push_back(quantize(s.curvature,1000.0));
+    signature.push_back(quantize(s.lengthMeters,20.0));
+  }
+  return signature;
+}
+inline std::uint64_t signatureHash(const std::vector<std::int64_t>& sig) {
+  std::uint64_t hash=14695981039346656037ULL;
+  for(const auto value:sig) {
+    const auto u=static_cast<std::uint64_t>(value);
+    for(unsigned shift=0;shift<64;shift+=8) {
+      hash^=(u>>shift)&0xffULL;
+      hash*=1099511628211ULL;
+    }
+  }
+  return hash;
+}
+
+// Search/discovery happens ONCE per benchmark executable, outside ALL
+// optimizer timers. Both A/B matrices use the same deterministic algorithm.
+// Unlike the previous eight-pose fixture, an undersubscribed run is an ERROR.
+inline std::vector<Scenario> discover(const Config& config) {
   auto common=mecanumWarehouseCase(config.searchBudget);
   common.options.model=PlanOptions::Model::Ackermann;
   common.footprint=PlanRequest{}.footprint;
   common.options.footprintInflationMeters=.5;
   common.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
   common.options.maxGeneratedNodes=4*config.searchBudget;
+  ExactCollisionChecker checker(*common.map,common.occupancy,common.footprint,
+                                common.options.footprintInflationMeters);
   std::vector<Scenario> selected;
-  for(const auto& candidate:candidates) {
+  selected.reserve(config.maxCases);
+  std::set<std::vector<std::int64_t>> distinctSignatures;
+  std::set<std::array<std::int64_t,6>> distinctEndpoints;
+  std::size_t blocked=0,failed=0,tooFew=0,duplicates=0,attempts=0;
+  for(;attempts<config.maxCandidateSearches &&
+       selected.size()<config.maxCases;++attempts) {
+    const auto pair=candidateAt(attempts,selected);
+    if(checker.check(pair.start)!=PoseCollision::Clear ||
+       checker.check(pair.goal)!=PoseCollision::Clear) {++blocked;continue;}
+    // Exact source poses must also be unique, independent of raw path data.
+    const auto rounded=[](double v) {
+      return static_cast<std::int64_t>(std::llround(v*1000.0));
+    };
+    const std::array<std::int64_t,6> key{rounded(pair.start.x),
+        rounded(pair.start.y),rounded(pair.start.yaw),rounded(pair.goal.x),
+        rounded(pair.goal.y),rounded(pair.goal.yaw)};
+    if(!distinctEndpoints.insert(key).second) {++duplicates;continue;}
     auto request=common;
-    request.start=candidate.start;request.goal=candidate.goal;
+    request.start=pair.start;
+    request.goal=pair.goal;
 #ifdef HYBRID_ASTAR_REFINEMENT_BENCH_WITH_OMPL
-    auto original=steering::planWithReedsShepp(request); // Planning Lab default
+    auto original=steering::planWithReedsShepp(request);
 #else
     auto original=plan(request);
 #endif
-    if(original.status==PlanStatus::Success &&
-       original.modelGeometryValid &&
-       original.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled &&
-       original.diagnostics.expanded>=config.minimumExpansions) {
-      selected.push_back({candidate.name,std::move(request),std::move(original)});
-      if(selected.size()>=config.maxCases)break;
+    if(original.status!=PlanStatus::Success ||
+       !original.modelGeometryValid ||
+       original.collisionEvidence!=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled) {
+      ++failed;
+      continue;
     }
+    if(original.diagnostics.expanded<config.minimumExpansions) {
+      ++tooFew;
+      continue;
+    }
+    auto signature=pathSignature(original);
+    const auto [it,inserted]=distinctSignatures.insert(signature);
+    if(!inserted) {++duplicates;continue;}
+    const auto pathId=signatureHash(*it);
+    const auto index=selected.size();
+    selected.push_back({"warehouse_"+std::to_string(index),
+                        std::move(request),std::move(original),pathId});
+    if(selected.size()%10==0||selected.size()==config.maxCases)
+      std::cerr<<"Validated distinct paths: "<<selected.size()<<"/"
+               <<config.maxCases<<" (candidate attempts "<<attempts+1<<")\n";
   }
-  if(selected.empty())
-    throw std::runtime_error("No validated warehouse route met minimum_expansions; "
-                             "raise search_budget or lower minimum_expansions");
-  std::cerr<<"Selected "<<selected.size()<<" validated Ackermann routes (min "
-           <<config.minimumExpansions<<" expansions); search excluded from timings\n";
+  std::cerr<<"Discovery: selected="<<selected.size()
+           <<", target="<<config.maxCases
+           <<", attempts="<<attempts
+           <<", blocked="<<blocked
+           <<", plan_failed="<<failed
+           <<", below_expansion_threshold="<<tooFew
+           <<", duplicate="<<duplicates<<"\n";
+  if(selected.size()!=config.maxCases)
+    throw std::runtime_error("Insufficient DISTINCT validated paths with >= "+
+       std::to_string(config.minimumExpansions)+" search expansions: found "+
+       std::to_string(selected.size())+" of "+std::to_string(config.maxCases)+
+       ". Increase search_budget or max_candidates; this run will NOT produce "
+       "a misleading partial comparison.");
   return selected;
 }
 
