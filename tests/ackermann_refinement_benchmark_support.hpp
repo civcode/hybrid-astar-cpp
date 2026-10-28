@@ -326,6 +326,43 @@ inline Measurement run(const Scenario& scenario,const Config& config,
   }
   return {std::move(last),percentile(timings,.5),percentile(timings,.95)};
 }
+// Aggregate over distinct paths, not over repeated timing samples. This keeps
+// a five-repeat 100-route benchmark from hiding route-specific regressions.
+struct Summary {
+  std::string label;
+  std::vector<double> medianRuntimesMillis;
+  std::vector<double> curvatureReductions;
+  std::vector<double> lengthReductionsMeters;
+  std::size_t smoothnessWins=0;
+  std::size_t workBudgetExceeded=0;
+  void add(const Scenario& scenario,const Measurement& m) {
+    const double before=measure(scenario.original.sections).totalVariation;
+    const double after=measure(m.result.path.sections).totalVariation;
+    curvatureReductions.push_back(before-after);
+    lengthReductionsMeters.push_back(
+        scenario.original.geometricLengthMeters-m.result.path.geometricLengthMeters);
+    medianRuntimesMillis.push_back(m.p50Millis);
+    if(after<before-1e-9)++smoothnessWins;
+    if(m.result.status==RefinementStatus::WorkBudgetExceeded)++workBudgetExceeded;
+  }
+  void report() const {
+    if(medianRuntimesMillis.empty())return;
+    const auto average=[](const std::vector<double>& xs) {
+      double total=0;
+      for(const auto v:xs)total+=v;
+      return total/static_cast<double>(xs.size());
+    };
+    std::cerr<<std::fixed<<std::setprecision(3)
+             <<"Summary "<<label
+             <<": paths="<<medianRuntimesMillis.size()
+             <<", median_path_p50_ms="<<percentile(medianRuntimesMillis,.5)
+             <<", p95_path_p50_ms="<<percentile(medianRuntimesMillis,.95)
+             <<", mean_curvature_tv_reduction_inv_m="<<average(curvatureReductions)
+             <<", mean_length_reduction_m="<<average(lengthReductionsMeters)
+             <<", smoother_paths="<<smoothnessWins
+             <<", work_budget_exceeded="<<workBudgetExceeded<<"\n";
+  }
+};
 inline void printHeader() {
   std::cout<<"scenario,path_fingerprint,start_x_m,start_y_m,start_yaw_rad,"
       "goal_x_m,goal_y_m,goal_yaw_rad,connector,variant,search_expanded,raw_sections,raw_length_m,"
