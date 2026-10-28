@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <iostream>
 #include <numbers>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -32,14 +33,15 @@ struct Config {
   std::size_t minimumExpansions=10000;
   std::size_t maxCases=100;
   std::size_t searchBudget=250000;
-  std::size_t maxCandidateSearches=3000;
+  std::size_t maxCandidateSearches=0; // 0: search until target is reached
   double steeringWeightMetersSquared=1.0;
+  std::uint64_t seed=20261028;
 };
 inline Config parseArgs(int argc,char** argv) {
-  if(argc>7)throw std::invalid_argument(
+  if(argc>8)throw std::invalid_argument(
       "Usage: BENCH [repeats=5] [minimum_expansions=10000] "
-      "[distinct_paths=100] [search_budget=250000] [max_candidates=3000] "
-      "[steering_weight_m2=1.0]");
+      "[distinct_paths=100] [search_budget=250000] [max_candidates=0] "
+      "[steering_weight_m2=1.0] [seed=20261028]");
   const auto read=[&](int index,std::size_t fallback) {
     if(argc<=index)return fallback;
     const std::string value=argv[index];
@@ -64,6 +66,13 @@ inline Config parseArgs(int argc,char** argv) {
     c.steeringWeightMetersSquared=std::stod(value,&consumed);
     if(consumed!=value.size())throw std::invalid_argument("Expected floating steering weight");
   }
+  if(argc>7) {
+    const std::string value=argv[7];
+    if(value.empty()||value[0]=='-')throw std::invalid_argument("Invalid random seed");
+    std::size_t consumed=0;
+    c.seed=std::stoull(value,&consumed);
+    if(consumed!=value.size())throw std::invalid_argument("Invalid random seed");
+  }
   if(!std::isfinite(c.steeringWeightMetersSquared)||
      c.steeringWeightMetersSquared<=0||c.steeringWeightMetersSquared>100||
      c.repeats==0||c.repeats>100||
@@ -71,7 +80,7 @@ inline Config parseArgs(int argc,char** argv) {
      c.maxCases==0||c.maxCases>1000||
      c.searchBudget<100||c.searchBudget>1000000||
      c.minimumExpansions>c.searchBudget||
-     c.maxCandidateSearches<c.maxCases||c.maxCandidateSearches>100000)
+     (c.maxCandidateSearches!=0 && c.maxCandidateSearches<c.maxCases))
     throw std::invalid_argument("Out-of-range benchmark arguments");
   return c;
 }
@@ -80,57 +89,89 @@ struct Scenario {
   PlanRequest request;
   PlanResult original;
   std::uint64_t pathFingerprint=0;
+  std::size_t startRegion=0,goalRegion=0;
 };
-struct Endpoints {Pose2D start,goal;};
-// Halton samples are deterministic and cover the jitter region without an RNG
-// or relying on implementation-defined std::uniform_* distributions.
-inline double halton(std::size_t n,std::size_t base) {
-  double fraction=1.0,d=0.0;
-  while(n) {
-    fraction/=static_cast<double>(base);
-    d+=fraction*static_cast<double>(n%base);
-    n/=base;
+// The map remains unchanged: only sample robot poses in its free space.
+// A fixed-seed pseudo-random generator makes both benchmark binaries select
+// the same 100 paths, independent of platform-specific standard distributions.
+inline constexpr std::size_t coverageColumns=3,coverageRows=3;
+inline constexpr std::size_t coverageRegions=coverageColumns*coverageRows;
+using CoverageCounts=std::array<std::size_t,coverageRegions>;
+struct Endpoints {Pose2D start,goal;std::size_t startRegion,goalRegion;};
+struct RandomStream {
+  std::uint64_t state;
+  explicit RandomStream(std::uint64_t seed):state(seed) {}
+  std::uint64_t next() {
+    state+=0x9e3779b97f4a7c15ULL;
+    auto v=state;
+    v=(v^(v>>30))*0xbf58476d1ce4e5b9ULL;
+    v=(v^(v>>27))*0x94d049bb133111ebULL;
+    return v^(v>>31);
   }
-  return d;
-}
-inline const std::array<Endpoints,4>& warehouseSeeds() {
-  static const std::array<Endpoints,4> seeds{{
-    // First is the measured 11,451-expansion success from budget-results.csv.
-    {{4.77,32.84,0},{44.62,33.53,-.5*std::numbers::pi_v<double>}},
-    // Additional regions (admitted only after a real successful search).
-    {{4.92,6.68,0},{46.75,31.86,.5*std::numbers::pi_v<double>}},
-    {{5.40,34.20,0},{44.00,32.50,-.5*std::numbers::pi_v<double>}},
-    {{4.77,20,0},{43,20,0}}
-  }};
-  return seeds;
-}
-// Progressively explore the neighborhood of successful searches, rather than
-// repeatedly burning the expansion budget on arbitrary inaccessible goals.
-// Every accepted pose pair comes from a new strictly validated plan() call;
-// paths are NOT fabricated by changing a successful path's endpoints.
-inline Endpoints candidateAt(std::size_t attempt,
-                            const std::vector<Scenario>& successful) {
-  const auto& seeds=warehouseSeeds();
-  if(attempt==0)return seeds[0];
-  if(attempt==1)return seeds[1]; // test the original exported route as well
-  Endpoints base;
-  if(successful.empty() || attempt%11==0) {
-    base=seeds[(attempt/11)%seeds.size()];
-  } else {
-    const auto& anchor=successful[(attempt*37)%successful.size()];
-    base={anchor.request.start,anchor.request.goal};
+  double unit() {return static_cast<double>(next()>>11)*0x1.0p-53;}
+  std::size_t index(std::size_t n) {
+    return static_cast<std::size_t>(unit()*static_cast<double>(n));
   }
-  const double scale=0.20+1.2*halton(attempt,13);
-  const auto jitter=[&](std::size_t prime) {
-    return 2.0*halton(attempt+1,prime)-1.0;
-  };
-  base.start.x+=scale*jitter(2);
-  base.start.y+=scale*jitter(3);
-  base.start.yaw+=0.15*jitter(5);
-  base.goal.x+=1.5*scale*jitter(7);
-  base.goal.y+=1.5*scale*jitter(11);
-  base.goal.yaw+=0.18*jitter(17);
-  return base;
+};
+inline std::size_t regionOf(const Pose2D& p,const MapSnapshot& map) {
+  const double w=map.width*map.resolutionMeters;
+  const double h=map.height*map.resolutionMeters;
+  const auto x=std::min(coverageColumns-1,
+      static_cast<std::size_t>(std::clamp(p.x/w,0.0,1.0)*coverageColumns));
+  const auto y=std::min(coverageRows-1,
+      static_cast<std::size_t>(std::clamp(p.y/h,0.0,1.0)*coverageRows));
+  return y*coverageColumns+x;
+}
+inline std::size_t chooseRegion(RandomStream& rng,const CoverageCounts& counts) {
+  // 75%: favor regions with the fewest ACCEPTED starts/goals;
+  // 25%: explore freely so a temporarily difficult region cannot monopolize
+  // all the candidates. Balance is based on validated results, not attempts.
+  if(rng.unit()<0.75) {
+    const auto minimum=*std::min_element(counts.begin(),counts.end());
+    std::array<std::size_t,coverageRegions> tied{};
+    std::size_t n=0;
+    for(std::size_t i=0;i<coverageRegions;++i)
+      if(counts[i]==minimum)tied[n++]=i;
+    return tied[rng.index(n)];
+  }
+  return rng.index(coverageRegions);
+}
+inline Pose2D drawPose(std::size_t region,const MapSnapshot& map,
+                       RandomStream& rng) {
+  const double w=map.width*map.resolutionMeters;
+  const double h=map.height*map.resolutionMeters;
+  // Conservative 4.5m interior margin for the inflated full-sized Ackermann
+  // footprint at ANY sampled heading. ExactCollisionChecker still decides.
+  constexpr double border=4.5;
+  const auto col=region%coverageColumns,row=region/coverageColumns;
+  const double left=std::max(border,(w*col)/coverageColumns+0.05);
+  const double right=std::min(w-border,(w*(col+1))/coverageColumns-0.05);
+  const double bottom=std::max(border,(h*row)/coverageRows+0.05);
+  const double top=std::min(h-border,(h*(row+1))/coverageRows-0.05);
+  if(left>=right||bottom>=top)
+    throw std::invalid_argument("Map too small for stratified robot poses");
+  const double pi=std::numbers::pi_v<double>;
+  return {left+(right-left)*rng.unit(),
+          bottom+(top-bottom)*rng.unit(),
+          -pi+2.0*pi*rng.unit()};
+}
+inline std::optional<Endpoints> candidateAt(
+    std::size_t attempt,const Config& config,const CoverageCounts& starts,
+    const CoverageCounts& goals,const MapSnapshot& map) {
+  // An attempt is independently reproducible even if previous candidates
+  // were rejected. Both x/y positions AND BOTH headings are randomized.
+  RandomStream rng(config.seed+
+      static_cast<std::uint64_t>(attempt)*0xd1342543de82ef95ULL);
+  for(std::size_t sample=0;sample<128;++sample) {
+    const auto s=chooseRegion(rng,starts),g=chooseRegion(rng,goals);
+    if(s==g)continue;
+    const auto from=drawPose(s,map,rng),to=drawPose(g,map,rng);
+    // Favor routes that traverse warehouse wall columns/corridors. Do not
+    // select short, trivial routes unlikely to demand 10k expansions.
+    if(std::hypot(from.x-to.x,from.y-to.y)<18.0)continue;
+    return Endpoints{from,to,s,g};
+  }
+  return std::nullopt;
 }
 // Hash quantized, full section geometry (not the arbitrary scenario name or
 // merely the requested start/goal). The full quantized signature is also kept
