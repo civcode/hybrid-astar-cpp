@@ -131,7 +131,7 @@ inline double percentile(std::vector<double> values,double p) {
 }
 struct Variant {
   const char* name;
-  std::size_t maxAttempts, maxAccepted;
+  std::size_t maxAttempts, maxAccepted, maxTotalPoseChecks;
   double curvatureVariationWeightMetersSquared;
 };
 struct Measurement {
@@ -143,7 +143,7 @@ inline Measurement run(const Scenario& scenario,const Config& config,
   RefinementOptions options;
   options.maxAttempts=variant.maxAttempts;
   options.maxAccepted=variant.maxAccepted;
-  options.maxTotalPoseChecks=200000; // held constant in ALL comparisons
+  options.maxTotalPoseChecks=variant.maxTotalPoseChecks; // match actual demo profile
   options.useCurvatureBoundedShortcuts=true; // same native CSC generator
   options.curvatureVariationWeightMetersSquared=
       variant.curvatureVariationWeightMetersSquared;
@@ -172,7 +172,7 @@ inline Measurement run(const Scenario& scenario,const Config& config,
 }
 inline void printHeader() {
   std::cout<<"scenario,variant,search_expanded,raw_sections,raw_length_m,"
-      "raw_curvature_tv_inv_m,raw_steering_reversals,max_attempts,max_accepted,"
+      "raw_curvature_tv_inv_m,raw_steering_reversals,max_attempts,max_accepted,max_pose_checks,"
       "curvature_weight_m2,attempted,accepted,rejected,cost_pruned,strict_checks,"
       "refine_status,refined_sections,refined_length_m,refined_curvature_tv_inv_m,"
       "refined_max_curvature_jump_inv_m,refined_steering_reversals,"
@@ -189,7 +189,7 @@ inline void printRow(const Scenario& scenario,const Config& config,
       <<std::fixed<<std::setprecision(6)<<scenario.original.geometricLengthMeters<<','
       <<originalSmoothness.totalVariation<<','
       <<originalSmoothness.nonzeroDirectionReversals<<','
-      <<variant.maxAttempts<<','<<variant.maxAccepted<<','
+      <<variant.maxAttempts<<','<<variant.maxAccepted<<','<<variant.maxTotalPoseChecks<<','
       <<variant.curvatureVariationWeightMetersSquared<<','
       <<out.attempted<<','<<out.accepted<<','<<out.rejected<<','
       <<out.prunedByCostLowerBound<<','<<out.exactPoseChecks<<','
