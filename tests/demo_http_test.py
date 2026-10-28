@@ -112,6 +112,12 @@ def main(exe):
         assert steering["refinementOptions"]["maxTotalPoseChecks"] == 200000
         assert steering["refinementOptions"]["steeringSmoothness"] is True
         assert steering["refinementOptions"]["steeringWeightMetersSquared"] == 2.5
+        code, _, disabled_body = get(
+            base + "/api/plan?scenario=open&refine=1&steeringSmooth=0&steeringWeight=2.5")
+        disabled_steering = json.loads(disabled_body)
+        assert code == 200
+        assert disabled_steering["refinementOptions"]["steeringSmoothness"] is False
+        assert disabled_steering["refinementOptions"]["steeringWeightMetersSquared"] == 0.0
         for invalid_steering in (
             "scenario=open&steeringSmooth=1",
             "scenario=open&model=differential&refine=1&steeringSmooth=1",
