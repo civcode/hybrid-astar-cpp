@@ -329,7 +329,8 @@ refinement milliseconds. Results are descriptive; no latency or improvement
 threshold is asserted.
 
 ```bash
-git switch feature/ackermann-refinement-smoothness-benchmarks
+git fetch origin feature/ackermann-refinement-smoothness-benchmarks
+git switch --track origin/feature/ackermann-refinement-smoothness-benchmarks
 export BUILD_JOBS=28 TEST_JOBS=4
 docker compose build test
 docker compose --profile test run --rm test \
