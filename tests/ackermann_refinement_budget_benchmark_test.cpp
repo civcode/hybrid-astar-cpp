@@ -1,5 +1,6 @@
 // Manual/opt-in CTest benchmark: keep the objective at its historical default.
-// Both budgets see the identical precomputed original path and strict pose cap.
+// Both budgets refine the same validated raw path with their respective
+// historical strict pose-check caps (100k versus 200k).
 #include "tests/ackermann_refinement_benchmark_support.hpp"
 #include <exception>
 #include <iostream>
