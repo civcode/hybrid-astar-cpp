@@ -65,6 +65,13 @@ static void runLegacyAssertions() {
             combined.refinement.has_value() &&
             combined.refinement->path.status==PlanStatus::Success,
             "RS and native CSC can be enabled together in Planning Lab");
+    rs.steeringSmoothness=true;
+    rs.steeringWeightMetersSquared=1.25;
+    const auto steeredRs=run(rs);
+    require(steeredRs.refinement.has_value() &&
+            steeredRs.refinement->path.status==PlanStatus::Success &&
+            steeredRs.refinementSettings.curvatureVariationWeightMetersSquared==1.25,
+            "OMPL-assisted Ackermann refinement receives optional steering penalty");
   }
   Options reverse;reverse.scenario="reverse";
   auto r=run(reverse);
