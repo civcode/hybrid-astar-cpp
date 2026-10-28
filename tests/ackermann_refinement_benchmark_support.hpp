@@ -150,6 +150,12 @@ inline Measurement run(const Scenario& scenario,const Config& config,
   const auto originalSmoothness=measure(scenario.original.sections);
   const double initialObjective=scenario.original.weightedCostMeters+
       variant.curvatureVariationWeightMetersSquared*originalSmoothness.totalVariation;
+  // Warm up this profile once (unmeasured) to reduce first-use allocator and
+  // instruction-cache bias; timed runs all refine the unchanged raw path.
+  const auto warmup=refinePath(scenario.request,scenario.original,{},options);
+  if(warmup.path.status!=PlanStatus::Success ||
+     warmup.path.weightedCostMeters>initialObjective+1e-6)
+    throw std::runtime_error(std::string("Invalid warmup refinement: ")+variant.name);
   std::vector<double> timings;
   RefinementResult last;
   for(std::size_t i=0;i<config.repeats;++i) {
