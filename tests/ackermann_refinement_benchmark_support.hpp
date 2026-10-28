@@ -272,7 +272,7 @@ inline std::vector<Scenario> discover(const Config& config) {
     const auto index=attempts++;
     if(index && index%250==0)
       std::cerr<<"Discovery progress: "<<selected.size()<<"/"<<config.maxCases
-               <<" paths after "<<index<<" candidates; below 10k="
+               <<" paths after "<<index<<" candidates; below_min_expansions="
                <<tooFew<<", failed="<<failed<<"\n";
     const auto maybe=candidateAt(index,config,startCounts,goalCounts,*common.map);
     if(!maybe) {++unusable;continue;}
