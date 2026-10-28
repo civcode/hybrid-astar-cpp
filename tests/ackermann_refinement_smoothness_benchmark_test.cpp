@@ -13,10 +13,10 @@ int main(int argc,char** argv) {
     printHeader();
     for(const auto& scenario:selected) {
       for(const Variant variant: {
-          Variant{"legacy_budget_length",35,3,0.0},
-          Variant{"expanded_budget_length",160,8,0.0},
-          Variant{"legacy_budget_steering",35,3,1.0},
-          Variant{"expanded_budget_steering",160,8,1.0}}) {
+          Variant{"legacy_budget_length",35,3,100000,0.0},
+          Variant{"expanded_budget_length",160,8,200000,0.0},
+          Variant{"legacy_budget_steering",35,3,100000,1.0},
+          Variant{"expanded_budget_steering",160,8,200000,1.0}}) {
         const auto outcome=run(scenario,config,variant);
         printRow(scenario,config,variant,outcome);
       }
