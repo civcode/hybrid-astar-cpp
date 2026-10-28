@@ -300,63 +300,96 @@ BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
 ```
 
 
-## Ackermann refinement budget and steering-smoothness A/B (manual)
+## Ackermann steering-aware refinement: 100-path A/B (manual)
 
-The Planning Lab Ackermann refinement budgets now match differential drive:
-**160 attempted windows, 8 accepted changes and 200000 full-pose checks**,
-including the OMPL-assisted path. The previous settings were 35 / 3 /
-100000. The optional `RefinementOptions::curvatureVariationWeightMetersSquared`
-defaults to zero; setting it to 1.0 adds the nonnegative penalty
-`1.0 m² * sum(abs(kappa[i]-kappa[i-1]))` to the verified objective. This
-changes the meaning of `weightedCostMeters` only for opted-in refinement.
-It is not a steering-rate constraint and CSC proposals are not curvature
-continuous.
+The Planning Lab Ackermann refinement budget is 160 attempts, 8 accepted
+replacements and 200000 independent strict pose checks (including OMPL).
+The old Ackermann profile was 35 / 3 / 100000.
 
-Two separate C++ benchmark tests are built with
-`HYBRID_ASTAR_BUILD_BENCHMARKS=ON` (as in the Docker image). They discover
-deterministic viable Ackermann warehouse start/goal pairs with at least a
-configurable number of search expansions, **reuse exactly the same validated
-original route for every variant**, hold inflation constant, apply each profile's actual strict-pose check limit
-(100000 versus 200000), and exclude pose discovery/search from the measured
-optimizer time.
-When built with OMPL (the Docker default), scenario discovery and refinement
-use the same Reeds-Shepp connector as the Planning Lab plus native CSC
-proposals; without OMPL, they use primitive search plus native CSC only.
-Both use the same connector within each A/B matrix and identify it in CSV.
-Each reports CSV with path length, curvature total variation (1/m), sign
-reversals, maximum curvature jump, refinement diagnostics, and p50/p95
-refinement milliseconds. Results are descriptive; no latency or improvement
-threshold is asserted.
+The optional `RefinementOptions::curvatureVariationWeightMetersSquared`
+(default **0.0**) adds
+`weight * sum(abs(curvature[i] - curvature[i-1]))` to the evaluated
+whole-path objective. The refiner now computes exactly the same nonnegative
+curvature term in the cheap **candidate cost lower bound**, including splice
+boundaries, so candidates that cannot improve the objective are pruned before
+expensive collision sampling. This is a selection penalty, **not** a
+curvature-continuity, steering-rate or actuator-feasibility guarantee.
+
+### Experiment population and output
+
+The two standalone benchmark tests under `tests/` now **require exactly 100
+distinct original paths, each with >=10000 search expansions** by default.
+Scenario discovery begins from the recorded successful 11,451-expansion
+warehouse route, then deterministically explores/perturbs successfully planned
+start/goal pairs and additional warehouse seeds. Candidates undergo real
+Ackermann search, strict validation, and full-path **quantized geometry**
+deduplication (not merely a distinct pose label). Paths not meeting the
+minimum number of expansions are rejected. All experiments use the same
+0.5 m inflation and warehouse layout.
+
+The defaults are: `repeats=5 minimum_expansions=10000 paths=100
+search_budget=250000 max_candidates=3000 steering_weight_m2=1.0`.
+If fewer than **100** qualify within the bounded candidate count, the
+executables **exit with an error and do not output a partial CSV**. Increase
+the search budget or candidate allowance rather than comparing incomplete
+populations. Discovery and path planning are excluded from the reported
+refinement runtime. The same selected raw path is reused for every optimizer
+variant and benchmark execution; identical discovery parameters reproduce the
+same population. Docker builds use the Planning Lab OMPL/Reeds-Shepp connector
+plus native CSC, while builds without OMPL use native CSC only. CSV identifies
+the connector, start/goal poses, path geometry fingerprint and expansions.
+
+Both binaries write per-path CSV to stdout. Stderr reports scenario-selection
+counts and **across-path summaries**, including median and p95 of
+per-path median optimizer runtime, mean curvature-total-variation reduction,
+mean length reduction, number of smoother paths, and budget-exhaustion count.
+Do not compare runs from different connectors or discovery parameters.
+
+### Docker commands (BUILD_JOBS=28 / TEST_JOBS=4)
 
 ```bash
 git fetch origin feature/ackermann-refinement-smoothness-benchmarks
-git switch --track origin/feature/ackermann-refinement-smoothness-benchmarks
+git switch feature/ackermann-refinement-smoothness-benchmarks \
+  || git switch --track origin/feature/ackermann-refinement-smoothness-benchmarks
+
 export BUILD_JOBS=28 TEST_JOBS=4
+
 docker compose build test
 docker compose --profile test run --rm test \
   ctest --test-dir build-docker --output-on-failure -j "$TEST_JOBS"
 
-# Positional args: repeats minimum_expansions max_cases search_budget.
-# Baseline 35/3 versus increased 160/8, steering weight zero in both.
+# Test 1: legacy 35/3/100k versus expanded 160/8/200k, existing objective.
 docker compose --profile test run --rm test \
   ./build-docker/hybrid_astar_ackermann_refinement_budget_benchmark_test \
-  5 1000 3 120000
+  5 10000 100 250000 3000 > budget-results-100.csv
 
-# Four-way comparison: 35/3 and 160/8, each with steering weights 0 and 1 m².
+# Test 2: same budgets crossed with zero versus 1.0 m² steering penalty.
 docker compose --profile test run --rm test \
   ./build-docker/hybrid_astar_ackermann_refinement_smoothness_benchmark_test \
-  5 1000 3 120000
+  5 10000 100 250000 3000 1.0 > smoothness-results-100.csv
 
-# Focused contract test (fast, included in normal CTest):
+# Fast contracts, including steering-aware pruning and discovery uniqueness.
 docker compose --profile test run --rm test \
-  ctest --test-dir build-docker -R steering_objective_test --output-on-failure
+  ctest --test-dir build-docker \
+    -R 'steering_objective_test|refinement_scenario_discovery_test' \
+    --output-on-failure
 ```
 
-To register the time-consuming A/B cases as named CTest tests, configure
-`-DHYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS=ON` along with
-`-DHYBRID_ASTAR_BUILD_BENCHMARKS=ON` and
-`-DHYBRID_ASTAR_BUILD_TESTS=ON`. These CTest cases are **off by default**
-and are never scheduled as GitHub Actions workflows. Run them on an idle
-machine for meaningful latency comparisons; `BUILD_JOBS=28` needs
-sufficient memory, while `TEST_JOBS=4` does not affect the manual
-sequential benchmark timings.
+To explore steering-penalty weights *after* the 100-path baseline has been
+measured, change the **last** parameter of the second executable (e.g.
+`0.25`, `0.5`, or `2.0`). The other two objective rows always use
+weight zero. Do not claim speed or smoothness wins until rerunning the
+experiments on the same platform.
+
+The benchmarks are **manual by default** and are not run by ordinary CTest or
+GitHub Actions. For explicitly opt-in CTest registration, configure CMake with
+`-DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
+-DHYBRID_ASTAR_REGISTER_REFINEMENT_BENCHMARK_TESTS=ON`. Registered cases
+run with the 100-path/10k-expansion defaults and can be selected using
+`ctest -R ackermann_refinement_.*_benchmark`. All new C++ tests retain the
+normal CMake build checks, but runtime comparisons should use an otherwise
+idle host (do not run benchmark jobs concurrently under `TEST_JOBS=4`).
+
+The shortcut candidates remain fixed-curvature CSC and Reeds-Shepp arcs;
+genuine curvature-continuous candidate generation should be evaluated only
+after inspecting the new 100-path steering-weight results.
