@@ -609,17 +609,30 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
             candidate.insert(candidate.end(),before.begin(),before.begin()+i);
             candidate.insert(candidate.end(),replacement.begin(),replacement.end());
             candidate.insert(candidate.end(),before.begin()+j,before.end());
-            // Clearance penalties are nonnegative. Hence the weighted base
-            // cost of the whole path is a SAFE lower bound on its true cost.
-            // Skip costly exact checking when no strict improvement is possible.
+            // Clearance penalties are nonnegative. Accumulate ALL cheap,
+            // exact objective terms (travel/gear and Ackermann curvature
+            // variation) before strict collision sampling. The omitted
+            // clearance term is nonnegative, so this is still a SAFE lower
+            // bound on the same whole-path objective used in validate().
+            // Counting every adjacent translated pair also includes both
+            // splice boundaries, not just curvature changes in the shortcut.
             Gear priorGear=Gear::None;
+            const MotionSection* previous=nullptr;
             double baseLowerBound=0.0;
             bool competitive=true;
             for (const auto& section:candidate) {
               const double edge=sectionBaseCost(req,section,priorGear);
               if(!std::isfinite(edge)||edge<=0){competitive=false;break;}
-              baseLowerBound+=edge;
+              double steeringPenalty=0.0;
+              if(req.options.model==PlanOptions::Model::Ackermann &&
+                 options.curvatureVariationWeightMetersSquared>0 &&
+                 previous && previous->kind==MotionKind::Translate &&
+                 section.kind==MotionKind::Translate)
+                steeringPenalty=options.curvatureVariationWeightMetersSquared*
+                    std::abs(section.curvature-previous->curvature);
+              baseLowerBound+=edge+steeringPenalty;
               if(section.kind!=MotionKind::RotateInPlace)priorGear=section.gear;
+              previous=&section;
               if(!std::isfinite(baseLowerBound)||
                  baseLowerBound>=(bestAckermann?bestAckermann->weighted:
                     result.path.weightedCostMeters)-
