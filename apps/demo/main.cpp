@@ -96,6 +96,10 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   if(auto it=params.find("model");it!=params.end())o.model=it->second;
   if(auto it=params.find("refine");it!=params.end())o.refine=flag(it->second);
   if(auto it=params.find("curved");it!=params.end())o.curvedRefinement=flag(it->second);
+  if(auto it=params.find("steeringSmooth");it!=params.end())
+    o.steeringSmoothness=flag(it->second);
+  if(auto it=params.find("steeringWeight");it!=params.end())
+    o.steeringWeightMetersSquared=number(it->second);
   if(auto it=params.find("performance");it!=params.end())o.performanceHeuristic=flag(it->second);
   if(auto it=params.find("rsDistance");it!=params.end())o.rsDistanceHeuristic=flag(it->second);
   if(auto it=params.find("improve");it!=params.end())o.improve=flag(it->second);
@@ -118,7 +122,7 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   };
   o.start=coords("start");o.goal=coords("goal");
   for(const auto& [name,_]:params) {
-    if(name!="scenario"&&name!="model"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="curved"&&name!="performance"&&name!="rsDistance"&&
+    if(name!="scenario"&&name!="model"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="curved"&&name!="steeringSmooth"&&name!="steeringWeight"&&name!="performance"&&name!="rsDistance"&&
        name!="improve"&&name!="ompl"&&name!="budget"&&name!="inflate"&&
        name!="inflationMeters"&&name!="startx"&&name!="starty"&&
        name!="startyaw"&&name!="goalx"&&name!="goaly"&&name!="goalyaw")
@@ -278,7 +282,7 @@ void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<
 #endif
 void usage(){std::cout<<"Usage: hybrid_astar_demo [--model ackermann|differential|mecanum] [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
   " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS | --map-yaml FILE.yaml] [--output FILE.json --once]"
-  " [--ompl] [--rs-distance] [--refine] [--curved] [--performance|--certified] [--inflate METERS] [--improve] [--budget 100..1000000]\n"
+  " [--ompl] [--rs-distance] [--refine] [--curved] [--steering-smoothness] [--steering-weight 0..100] [--performance|--certified] [--inflate METERS] [--improve] [--budget 100..1000000]\n"
   "Default: obstacle-grid heuristic (weight 1.0); --certified selects Euclidean. --once prints JSON.\n";}
 }
 int main(int argc,char** argv) {
@@ -329,6 +333,12 @@ int main(int argc,char** argv) {
       else if(arg=="--rs-distance")options.rsDistanceHeuristic=true;
       else if(arg=="--refine")options.refine=true;
       else if(arg=="--curved")options.curvedRefinement=true;
+      else if(arg=="--steering-smoothness")options.steeringSmoothness=true;
+      else if(arg=="--steering-weight"){
+        if(i+1>=argc)throw std::invalid_argument("Missing steering smoothness weight");
+        options.steeringWeightMetersSquared=number(argv[++i]);
+        options.steeringSmoothness=true;
+      }
       else if(arg=="--performance")options.performanceHeuristic=true;
       else if(arg=="--certified")options.performanceHeuristic=false;
       else if(arg=="--improve")options.improve=true;
