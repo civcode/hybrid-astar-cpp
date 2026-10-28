@@ -319,6 +319,10 @@ configurable number of search expansions, **reuse exactly the same validated
 original route for every variant**, hold inflation constant, apply each profile's actual strict-pose check limit
 (100000 versus 200000), and exclude pose discovery/search from the measured
 optimizer time.
+When built with OMPL (the Docker default), scenario discovery and refinement
+use the same Reeds-Shepp connector as the Planning Lab plus native CSC
+proposals; without OMPL, they use primitive search plus native CSC only.
+Both use the same connector within each A/B matrix and identify it in CSV.
 Each reports CSV with path length, curvature total variation (1/m), sign
 reversals, maximum curvature jump, refinement diagnostics, and p50/p95
 refinement milliseconds. Results are descriptive; no latency or improvement
