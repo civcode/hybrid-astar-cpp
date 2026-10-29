@@ -300,6 +300,139 @@ BUILD_JOBS=28 TEST_JOBS=4 docker compose run --rm test \
 ```
 
 
+## Full-resolution Nav2 warehouse: margin and pipeline profiler (manual)
+
+The executable \`hybrid_astar_nav2_warehouse_pipeline_benchmark_test\` loads the
+**original 1006 × 1674 = 1,684,044-cell Nav2 PGM at 0.03 m/cell**, with its
+original map origin and occupancy/unknown semantics. It **refuses** the reduced
+344,128-cell version. Docker prepares both Nav2 maps automatically using
+\`tools/prepare_nav2_warehouse.py\`. It does not change the source map.
+
+### Experiment and selection rules
+
+The benchmark generates **independent seeded random start and goal poses**
+(including both yaw angles), with a 15 m minimum direct displacement and
+different 3×3 map sectors. The actual polygon collision checker pre-filters
+both endpoint footprints using the **more conservative 0.10 m margin** so that
+the same start/goal poses are feasible in both treatments. Discovery plans each
+candidate with **margin OFF** and accepts it only if it returns a strictly
+validated complete path with **at least 30,000 search expansions**. Duplicate
+quantized pose pairs are excluded. The baseline qualification search is never
+included in measured runtimes.
+
+Each accepted pose pair is replanned **from scratch** under BOTH settings:
+\`footprintInflationMeters=0\` and \`0.10\`, with the same seed, map, footprint,
+heading constraints, heuristic, search budget, refinement limits and pose
+endpoints. No variant gets a different route just because its margin increased.
+The inflated plan is **not required to succeed or reach 30,000 expansions**:
+failures are an important result and remain in the CSV. Conditioning selection
+on both variants succeeding would artificially hide margin regressions.
+
+The default model is **differential drive**, matching our long successful
+warehouse routes (0.70 × 0.50 m footprint). Pass \`--model ackermann\` for the
+4.60 × 1.80 m car (4.0 m turning radius) or \`--model mecanum\`.
+The default connector is \`native\`, with \`--connector ompl\` available for
+Ackermann only in OMPL-enabled builds. Refinement uses the Planning Lab's
+native CSC settings by default (toggle \`--no-curved\`), with
+**160 attempts / 16 accepted / 200,000 strict pose checks** for differential
+and Ackermann, and **220 / 16 / 240,000** for mecanum. As in the UI, the
+optional Ackermann steering-variation penalty is *off*.
+
+**Per-route timing** includes the complete **search**, complete
+**post-path refinement** (only when search succeeds), and **combined** pipeline.
+There is a warmup of each margin profile, then independent whole-pipeline
+repetitions; for each case and treatment CSV records p50 and p95 elapsed times.
+Discovery and map loading are outside the timed runs. The one-time map-load
+time is reported separately on stderr; JSON serialization and browser
+rendering are not timed. Order of the two variants alternates between cases.
+The benchmark reports successful and failed searches, exact-footprint
+validation, search expansions/generation/pruning, collision pose checks,
+full-path validation, heuristic grid settlements/fallbacks, label/hash/queue
+activity, and refinement attempts/acceptances/checks.
+
+### Commands
+
+\`\`\`bash
+git fetch origin
+git switch feature/nav2-full-warehouse-margin-pipeline-benchmark \
+  || git switch --track origin/feature/nav2-full-warehouse-margin-pipeline-benchmark
+
+export BUILD_JOBS=28 TEST_JOBS=4
+docker compose build test
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure -j "$TEST_JOBS"
+
+# Default: 10 seeded 30k+ routes, 3 timed runs per treatment, finite
+# 2500-draw discovery cap, differential drive, native CSC refinement.
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_nav2_warehouse_pipeline_benchmark_test \
+  > nav2-full-margin-pipeline.csv
+
+# Larger repeatable sample (may be VERY expensive to discover):
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_nav2_warehouse_pipeline_benchmark_test \
+  --model differential --cases 30 --repeats 5 \
+  --min-expansions 30000 --search-budget 500000 \
+  --max-candidates 10000 --seed 20261029 \
+  > nav2-full-margin-pipeline-30.csv
+
+# Switch to Ackermann with the Reeds-Shepp/OMPL connector:
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_nav2_warehouse_pipeline_benchmark_test \
+  --model ackermann --connector ompl --cases 5 \
+  > nav2-full-ackermann-margin.csv
+
+python3 tools/analyze_nav2_warehouse_pipeline.py nav2-full-margin-pipeline.csv
+\`\`\`
+
+\`--max-candidates 0\` explicitly allows unbounded discovery; the default
+\`2500\` avoids accidentally running an unbounded experiment. If fewer than
+the requested number of valid 30k-expansion routes are discovered, the
+benchmark exits with a clear error and **no CSV is written**, rather than
+misrepresenting a short sample as a completed experiment. Re-run with a
+higher discovery cap, more search expansions, or fewer requested cases.
+Discovered route coordinates, discovery expansions, seed and draw index are
+written in each row for later same-pose comparisons with Nav2.
+
+### Bottleneck profiling: run separately
+
+\`HYBRID_ASTAR_PROFILE_HOTPATHS=ON\` enables the existing internal timers
+for queue operations, label/hash bookkeeping, search-motion sampling,
+exact collision and heuristic-grid queue activity. These timers add
+per-operation clock overhead: **profile-enabled absolute runtimes must not
+be directly compared with low-overhead OFF runs**. Some subphases are nested:
+search-motion time **already includes** exact collision checks. Never add
+nested counters together or interpret their sum as total search time.
+
+\`\`\`bash
+export PROFILE_HOTPATHS=ON
+docker compose build test
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_nav2_warehouse_pipeline_benchmark_test \
+  --model differential --cases 10 --repeats 3 \
+  > nav2-full-margin-profiled.csv
+python3 tools/analyze_nav2_warehouse_pipeline.py nav2-full-margin-profiled.csv
+
+# Restore fast timing for publication:
+export PROFILE_HOTPATHS=OFF
+docker compose build test
+\`\`\`
+
+The analyzer validates exact paired start/goal poses and selection thresholds,
+then reports status/success rate, per-path median/p95 latency, paired
+inflated-minus-off differences, path lengths and candidate bottleneck signals.
+The most actionable investigations are **grid saturation**
+(\`grid_settlements==100000\`, frequent fallback), **collision cost**
+(exact pose checks and search-motion time), **queue/hash overhead**, and
+**refinement budgets** (attempts/accepted/strict pose checks). These are
+hypotheses, not optimization claims, until verified by controlled A/B runs
+on the same cases and same CPU.
+
+This is **our** pipeline on Nav2's published map asset. A direct Nav2 Smac
+benchmark still requires running Nav2 Smac State Lattice/Hybrid A* on
+the exact same map, footprint, motion constraints and endpoints, using
+the same hardware and compatible smoothing/validation behavior.
+
 ## Ackermann steering-aware refinement: 100-path A/B (manual)
 
 The **default** `RefinementOptions` budget is now **160 attempts,
