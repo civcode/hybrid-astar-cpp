@@ -49,7 +49,12 @@ def read_pgm(data: bytes) -> tuple[int, int, bytes]:
             raise ValueError("Truncated PGM header")
         result = data[start:index]
         if index < len(data):
-            index += 1  # consume required P5 raster separator
+            # A CRLF header counts as one separator. Do not consume any
+            # additional whitespace, which may be the first raster byte.
+            if data[index] == 13 and index + 1 < len(data) and data[index + 1] == 10:
+                index += 2
+            else:
+                index += 1
         return result
 
     magic = token()
