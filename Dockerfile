@@ -38,6 +38,8 @@ ARG PROFILE_HOTPATHS=OFF
 ARG REGISTER_REFINEMENT_BENCHMARK_TESTS=OFF
 WORKDIR /workspace
 COPY . /workspace
+# Generate pinned Nav2 warehouse assets: full resolution and exactly 344128 cells.
+RUN python3 tools/prepare_nav2_warehouse.py
 RUN cmake -S . -B build-docker -G Ninja \
       -DCMAKE_BUILD_TYPE=Release \
       -DHYBRID_ASTAR_ENABLE_OMPL=ON \
