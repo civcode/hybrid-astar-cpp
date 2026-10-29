@@ -22,7 +22,7 @@ int main(int argc,char** argv) {
       for(std::size_t i=0;i<variants.size();++i) {
         const auto outcome=run(scenario,config,variants[i]);
         printRow(scenario,config,variants[i],outcome);
-        summaries[i].add(scenario,outcome);
+        summaries[i].add(scenario,outcome,variants[i]);
       }
     }
     for(const auto& summary:summaries)summary.report();
