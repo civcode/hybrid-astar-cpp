@@ -14,7 +14,11 @@
 <label class="label" for="scenario">Environment</label><select id="scenario">
 <option value="open">Open field</option><option value="reverse">Reverse maneuver</option>
 <option value="parking">Parking approach</option><option value="warehouse">Warehouse obstacles</option>
-<option value="blocked">Unreachable wall</option><option value="custom" id="customOption" hidden>Imported map</option></select>
+<option value="blocked">Unreachable wall</option>
+<option value="nav2_warehouse_full" id="nav2FullOption" hidden>Nav2 warehouse · full 0.03 m</option>
+<option value="nav2_warehouse_344128" id="nav2SmallOption" hidden>Nav2 warehouse · 344,128 cells</option>
+<option value="custom" id="customOption" hidden>Imported map</option></select>
+<div class="hint">Nav2 maps appear after running tools/prepare_nav2_warehouse.py (automatic in Docker). The 344,128-cell map has reduced physical coverage at the same 0.03 m/cell.</div>
 <div class="divider"></div><div class="section-label">START POSE <small>Click map to place</small></div>
 <div class="coords"><label>X (m)<input id="startx" type="number" step="0.25"/></label><label>Y (m)<input id="starty" type="number" step="0.25"/></label><label>Yaw (°)<input id="startyaw" type="number" step="5"/></label></div>
 <div class="section-label">GOAL POSE <small>Shift-click map to place</small></div>
