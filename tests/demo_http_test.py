@@ -69,7 +69,8 @@ def main(exe):
         assert re.search(r'<option value="8" selected>', page)
         assert '<option value="12">' in page and '<option value="16">' in page
         assert "params.set('maxAccepted',$('maxAccepted').value)" in script
-        assert "$('maxAccepted').disabled=!ackermann||!$('refine').checked" in script
+        assert "$('maxAccepted').disabled=!$('refine').checked" in script
+        assert "All models · maximum replacements" in page
         assert "$('maxAccepted').addEventListener('change',invalidateRoute)" in script
         assert re.search(r'id="steeringWeight"[^>]*value="1\.0"[^>]*disabled', page)
         assert "params.set('steeringSmooth'," in script
@@ -116,6 +117,24 @@ def main(exe):
             assert trial["refinementOptions"]["maxAccepted"] == accepted
             assert trial["refinementOptions"]["maxTotalPoseChecks"] == 200000
             assert trial["refinement"]["accepted"] <= accepted
+        for model, max_attempts, pose_checks in (
+            ("differential", 160, 200000), ("mecanum", 220, 240000)
+        ):
+            for accepted in (8, 12, 16):
+                code, _, trial_body = get(
+                    base + f"/api/plan?scenario=open&model={model}&refine=1"
+                           f"&maxAccepted={accepted}")
+                trial = json.loads(trial_body)
+                assert code == 200 and trial["original"]["status"] == "Success", trial_body
+                assert trial["refinement"]["path"]["status"] == "Success", trial_body
+                assert trial["refinementOptions"]["maxAttempts"] == max_attempts
+                assert trial["refinementOptions"]["maxAccepted"] == accepted
+                assert trial["refinementOptions"]["maxTotalPoseChecks"] == pose_checks
+                assert trial["refinement"]["accepted"] <= accepted
+            # The selected default remains 8 for each model.
+            code, _, default_body = get(
+                base + f"/api/plan?scenario=open&model={model}&refine=1")
+            assert code == 200 and json.loads(default_body)["refinementOptions"]["maxAccepted"] == 8
         for invalid_accepted in (
             "scenario=open&refine=1&maxAccepted=0",
             "scenario=open&refine=1&maxAccepted=10",
@@ -125,8 +144,6 @@ def main(exe):
             "scenario=open&refine=1&maxAccepted=-1",
             "scenario=open&refine=1&maxAccepted=012",
             "scenario=open&maxAccepted=16",
-            "scenario=open&model=differential&refine=1&maxAccepted=12",
-            "scenario=open&model=mecanum&refine=1&maxAccepted=16",
         ):
             code, _, rejected_body = get(base + "/api/plan?" + invalid_accepted)
             assert code == 400 and "error" in json.loads(rejected_body), invalid_accepted
@@ -416,6 +433,18 @@ def main(exe):
         assert accepted_data["refinementOptions"]["maxAccepted"] == 16
         assert accepted_data["refinementOptions"]["maxAttempts"] == 160
         assert accepted_data["refinementOptions"]["maxTotalPoseChecks"] == 200000
+        for model, attempts, pose_checks in (
+            ("differential", 160, 200000), ("mecanum", 220, 240000)
+        ):
+            chosen = subprocess.run(
+                [exe, "--once", "--scenario", "open", "--model", model,
+                 "--refine", "--max-accepted", "16"],
+                capture_output=True, text=True, timeout=20)
+            assert chosen.returncode == 0, chosen.stderr
+            settings = json.loads(chosen.stdout)["refinementOptions"]
+            assert settings["maxAccepted"] == 16
+            assert settings["maxAttempts"] == attempts
+            assert settings["maxTotalPoseChecks"] == pose_checks
         invalid_accepted_cli = subprocess.run(
             [exe, "--once", "--scenario", "open", "--refine", "--max-accepted", "10"],
             capture_output=True, text=True, timeout=20)
