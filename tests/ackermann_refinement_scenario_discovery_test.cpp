@@ -32,6 +32,36 @@ TEST_CASE("A/B benchmark requires 100 validated 10k-expansion routes",
   REQUIRE_FALSE(coverageSatisfied(startCoverage,goalCoverage,5));
 }
 
+TEST_CASE("Smoothness comparison pairs three accepted limits with identical work budgets",
+          "[benchmark][variants]") {
+  Config config;
+  config.steeringWeightMetersSquared=2.5;
+  const auto variants=smoothnessAcceptanceBudgetVariants(config);
+  REQUIRE(variants.size()==8);
+  constexpr std::array<std::size_t,4> acceptanceLimits{3,8,12,16};
+  std::set<std::string> names;
+  for(std::size_t i=0;i<acceptanceLimits.size();++i) {
+    const auto& lengthOnly=variants[i];
+    const auto& steering=variants[i+4];
+    REQUIRE(names.insert(lengthOnly.name).second);
+    REQUIRE(names.insert(steering.name).second);
+    REQUIRE(lengthOnly.maxAccepted==acceptanceLimits[i]);
+    REQUIRE(steering.maxAccepted==acceptanceLimits[i]);
+    REQUIRE(lengthOnly.maxAttempts==(i==0?35:160));
+    REQUIRE(steering.maxAttempts==lengthOnly.maxAttempts);
+    REQUIRE(lengthOnly.maxTotalPoseChecks==(i==0?100000:200000));
+    REQUIRE(steering.maxTotalPoseChecks==lengthOnly.maxTotalPoseChecks);
+    REQUIRE(lengthOnly.curvatureVariationWeightMetersSquared==0.0);
+    REQUIRE(steering.curvatureVariationWeightMetersSquared==2.5);
+  }
+  REQUIRE(std::string(variants[1].name)=="expanded_budget_length");
+  REQUIRE(std::string(variants[2].name)=="expanded_160_12_length");
+  REQUIRE(std::string(variants[3].name)=="expanded_160_16_length");
+  REQUIRE(std::string(variants[5].name)=="expanded_budget_steering");
+  REQUIRE(std::string(variants[6].name)=="expanded_160_12_steering");
+  REQUIRE(std::string(variants[7].name)=="expanded_160_16_steering");
+}
+
 TEST_CASE("Seeded random poses explore the complete unchanged warehouse map",
           "[benchmark][scenario-discovery]") {
   const auto config=Config{};
