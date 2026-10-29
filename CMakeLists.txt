@@ -229,7 +229,8 @@ if(HYBRID_ASTAR_BUILD_APP)
   add_executable(hybrid_astar_demo apps/demo/main.cpp)
   target_link_libraries(hybrid_astar_demo PRIVATE hybrid_astar_demo_logic)
   target_compile_definitions(hybrid_astar_demo PRIVATE
-    HYBRID_ASTAR_DEMO_WEB_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/web")
+    HYBRID_ASTAR_DEMO_WEB_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/web"
+    HYBRID_ASTAR_DEMO_NAV2_MAP_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/maps")
   if(HYBRID_ASTAR_BUILD_TESTS)
     add_executable(hybrid_astar_demo_test tests/demo_test.cpp)
     target_link_libraries(hybrid_astar_demo_test PRIVATE hybrid_astar_demo_logic)
