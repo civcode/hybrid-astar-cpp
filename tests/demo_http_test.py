@@ -65,6 +65,12 @@ def main(exe):
         )
         assert 'id="refine"' in page and "Strict post-path refinement" in page
         assert 'id="steeringSmooth"' in page and "Steering-aware smoothness" in page
+        assert re.search(r'<select id="maxAccepted" disabled>', page)
+        assert re.search(r'<option value="8" selected>', page)
+        assert '<option value="12">' in page and '<option value="16">' in page
+        assert "params.set('maxAccepted',$('maxAccepted').value)" in script
+        assert "$('maxAccepted').disabled=!ackermann||!$('refine').checked" in script
+        assert "$('maxAccepted').addEventListener('change',invalidateRoute)" in script
         assert re.search(r'id="steeringWeight"[^>]*value="1\.0"[^>]*disabled', page)
         assert "params.set('steeringSmooth'," in script
         assert "params.set('steeringWeight'," in script
@@ -100,6 +106,30 @@ def main(exe):
         assert result["refinementOptions"]["maxAttempts"] == 160
         assert result["refinementOptions"]["maxAccepted"] == 8
         assert result["refinementOptions"]["maxTotalPoseChecks"] == 200000
+        for accepted in (8, 12, 16):
+            code, _, trial_body = get(
+                base + f"/api/plan?scenario=open&refine=1&maxAccepted={accepted}")
+            trial = json.loads(trial_body)
+            assert code == 200 and trial["original"]["status"] == "Success", trial_body
+            assert trial["refinement"]["path"]["status"] == "Success", trial_body
+            assert trial["refinementOptions"]["maxAttempts"] == 160
+            assert trial["refinementOptions"]["maxAccepted"] == accepted
+            assert trial["refinementOptions"]["maxTotalPoseChecks"] == 200000
+            assert trial["refinement"]["accepted"] <= accepted
+        for invalid_accepted in (
+            "scenario=open&refine=1&maxAccepted=0",
+            "scenario=open&refine=1&maxAccepted=10",
+            "scenario=open&refine=1&maxAccepted=17",
+            "scenario=open&refine=1&maxAccepted=abc",
+            "scenario=open&refine=1&maxAccepted=12.0",
+            "scenario=open&refine=1&maxAccepted=-1",
+            "scenario=open&refine=1&maxAccepted=012",
+            "scenario=open&maxAccepted=16",
+            "scenario=open&model=differential&refine=1&maxAccepted=12",
+            "scenario=open&model=mecanum&refine=1&maxAccepted=16",
+        ):
+            code, _, rejected_body = get(base + "/api/plan?" + invalid_accepted)
+            assert code == 400 and "error" in json.loads(rejected_body), invalid_accepted
         assert result["refinementOptions"]["steeringSmoothness"] is False
         assert result["refinementOptions"]["steeringWeightMetersSquared"] == 0.0
         code, _, body = get(
@@ -378,6 +408,19 @@ def main(exe):
         steering_cli_data = json.loads(steering_cli.stdout)
         assert steering_cli_data["refinementOptions"]["steeringSmoothness"] is True
         assert steering_cli_data["refinementOptions"]["steeringWeightMetersSquared"] == 2.5
+        accepted_cli = subprocess.run(
+            [exe, "--once", "--scenario", "open", "--refine", "--max-accepted", "16"],
+            capture_output=True, text=True, timeout=20)
+        assert accepted_cli.returncode == 0, accepted_cli.stderr
+        accepted_data = json.loads(accepted_cli.stdout)
+        assert accepted_data["refinementOptions"]["maxAccepted"] == 16
+        assert accepted_data["refinementOptions"]["maxAttempts"] == 160
+        assert accepted_data["refinementOptions"]["maxTotalPoseChecks"] == 200000
+        invalid_accepted_cli = subprocess.run(
+            [exe, "--once", "--scenario", "open", "--refine", "--max-accepted", "10"],
+            capture_output=True, text=True, timeout=20)
+        assert invalid_accepted_cli.returncode != 0
+        assert "Accepted replacements must be 8, 12 or 16" in invalid_accepted_cli.stderr
         invalid_budget = subprocess.run([exe, "--once", "--scenario", "warehouse", "--budget", "7"],
                                         capture_output=True, text=True)
         assert invalid_budget.returncode != 0
