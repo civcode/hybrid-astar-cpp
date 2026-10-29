@@ -12,6 +12,10 @@ struct Options {
   std::string scenario = "open";
   std::string model = "ackermann";
   std::shared_ptr<const ackermann::MapSnapshot> customMap;
+  // Prepared, fixed Nav2 warehouse snapshots. Only supplied by CLI/server
+  // startup; HTTP clients cannot provide arbitrary map filenames.
+  std::shared_ptr<const ackermann::MapSnapshot> nav2WarehouseFullMap;
+  std::shared_ptr<const ackermann::MapSnapshot> nav2Warehouse344128Map;
   std::vector<CellEdit> edits;
   std::uint64_t editGeneration = 0;
   std::optional<Pose2D> start, goal;
@@ -46,5 +50,7 @@ struct Outcome {
 ackermann::PlanRequest makeRequest(std::string_view scenario);
 Outcome run(const Options& options);
 std::string toJson(const Outcome& result);
-std::string capabilitiesJson(const ackermann::MapSnapshot* customMap=nullptr);
+std::string capabilitiesJson(const ackermann::MapSnapshot* customMap=nullptr,
+                             bool nav2WarehouseFull=false,
+                             bool nav2Warehouse344128=false);
 } // namespace hybrid_astar::demo
