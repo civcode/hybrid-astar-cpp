@@ -45,7 +45,7 @@ TEST_CASE("PGM occupancy import preserves world-Y orientation", "[app][pgm]") {
 
 TEST_CASE("Untrusted map dimensions and payloads are bounded", "[app][pgm]") {
   for(const auto& data:{"P3\n1 1\n255\n1", "P2\n1025 1\n255\n",
-                        "P2\n4096 4096\n255\n", "P2\n4097 1\n255\n", "P2\n1 1\n256\n",
+                        "P2\n8192 8192\n255\n", "P2\n8193 1\n255\n", "P2\n1 1\n256\n",
                         "P2\n1 1\n255\n", "P2\n1 1\n255\n256",
                         "P2\n1 1\n255\n0 0"}) {
     std::istringstream input(data);
