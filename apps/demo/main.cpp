@@ -81,6 +81,17 @@ std::size_t budgetValue(const std::string& value) {
     throw std::invalid_argument("Budget must be an integer between 100 and 1000000 expansions");
   return budget;
 }
+// Keep the demo's acceptance-budget experiment deliberately small and
+// reproducible: 160 attempts / 200k checks with 8, 12 or 16 acceptances.
+std::size_t acceptedReplacementLimit(const std::string& value) {
+  std::size_t selected=0;
+  const auto [end,error]=std::from_chars(
+      value.data(),value.data()+value.size(),selected);
+  if(value.empty()||error!=std::errc{}||end!=value.data()+value.size()||
+     (selected!=8 && selected!=12 && selected!=16))
+    throw std::invalid_argument("Accepted replacements must be 8, 12 or 16");
+  return selected;
+}
 Options requestOptions(const std::map<std::string,std::string>& params) {
   Options o;
   if(auto it=params.find("edits");it!=params.end())o.edits=hybrid_astar::demo::parseCellEdits(it->second);
@@ -95,6 +106,8 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   if(auto it=params.find("scenario");it!=params.end())o.scenario=it->second;
   if(auto it=params.find("model");it!=params.end())o.model=it->second;
   if(auto it=params.find("refine");it!=params.end())o.refine=flag(it->second);
+  if(auto it=params.find("maxAccepted");it!=params.end())
+    o.maxAcceptedReplacements=acceptedReplacementLimit(it->second);
   if(auto it=params.find("curved");it!=params.end())o.curvedRefinement=flag(it->second);
   if(auto it=params.find("steeringSmooth");it!=params.end())
     o.steeringSmoothness=flag(it->second);
@@ -122,7 +135,7 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   };
   o.start=coords("start");o.goal=coords("goal");
   for(const auto& [name,_]:params) {
-    if(name!="scenario"&&name!="model"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="curved"&&name!="steeringSmooth"&&name!="steeringWeight"&&name!="performance"&&name!="rsDistance"&&
+    if(name!="scenario"&&name!="model"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="maxAccepted"&&name!="curved"&&name!="steeringSmooth"&&name!="steeringWeight"&&name!="performance"&&name!="rsDistance"&&
        name!="improve"&&name!="ompl"&&name!="budget"&&name!="inflate"&&
        name!="inflationMeters"&&name!="startx"&&name!="starty"&&
        name!="startyaw"&&name!="goalx"&&name!="goaly"&&name!="goalyaw")
@@ -282,7 +295,7 @@ void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<
 #endif
 void usage(){std::cout<<"Usage: hybrid_astar_demo [--model ackermann|differential|mecanum] [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
   " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS | --map-yaml FILE.yaml] [--output FILE.json --once]"
-  " [--ompl] [--rs-distance] [--refine] [--curved] [--steering-smoothness] [--steering-weight (0,100]] [--performance|--certified] [--inflate METERS] [--improve] [--budget 100..1000000]\n"
+  " [--ompl] [--rs-distance] [--refine] [--curved] [--steering-smoothness] [--steering-weight (0,100]] [--max-accepted 8|12|16] [--performance|--certified] [--inflate METERS] [--improve] [--budget 100..1000000]\n"
   "Default: obstacle-grid heuristic (weight 1.0); --certified selects Euclidean. --once prints JSON.\n";}
 }
 int main(int argc,char** argv) {
@@ -332,6 +345,10 @@ int main(int argc,char** argv) {
       } else if(arg=="--ompl")options.ompl=true;
       else if(arg=="--rs-distance")options.rsDistanceHeuristic=true;
       else if(arg=="--refine")options.refine=true;
+      else if(arg=="--max-accepted"){
+        if(i+1>=argc)throw std::invalid_argument("Missing accepted-replacement limit");
+        options.maxAcceptedReplacements=acceptedReplacementLimit(argv[++i]);
+      }
       else if(arg=="--curved")options.curvedRefinement=true;
       else if(arg=="--steering-smoothness")options.steeringSmoothness=true;
       else if(arg=="--steering-weight"){
