@@ -9,6 +9,72 @@ executable handles planning, collision validation, optional refinement and
 JSON serialization; the bundled HTML/CSS/JavaScript renders the map, route,
 reverse motion, orientation and animated rectangular vehicle footprint.
 
+## Nav2 warehouse benchmark maps (0.03 m/cell)
+
+The `tools/prepare_nav2_warehouse.py` script downloads the official
+`ros-navigation/navigation2` warehouse raster from a **pinned upstream
+revision** and verifies its Git blob digest. It requires only Python 3
+(standard library): no ImageMagick, Pillow or ROS.
+
+```bash
+python3 tools/prepare_nav2_warehouse.py
+python3 tools/test_prepare_nav2_warehouse.py
+```
+
+It generates both ROS-compatible `.pgm` / `.yaml` pairs under
+`apps/demo/maps/` plus `nav2_warehouse_manifest.json`. The binaries
+are generated, not committed to Git:
+
+| Planning Lab environment | Raster | Resolution | Meaning |
+|---|---|---|---|
+| **Nav2 warehouse · full 0.03 m** | Original width × original height, source PGM bytes unchanged | 0.03 m/cell | Full upstream map |
+| **Nav2 warehouse · 344,128 cells** | **608 × 566 = 344,128** | 0.03 m/cell | Conservative occupancy downsample, aspect-preserving fit with unknown letterbox margins |
+
+Both retain the Nav2 YAML origin `[-15.1, -25.0, 0]`, `negate: 0`,
+`occupied_thresh: 0.65`, `free_thresh: 0.1` and `mode: trinary`.
+The downsample marks a target cell occupied if **any** contributing source
+cell is occupied; unknown likewise propagates over free. This avoids
+discarding obstacle cells just to reduce resolution. The original PGM
+is never modified.
+
+**Physical scale caveat:** holding the resolution at **0.03 m/cell**
+while reducing the number of pixels shrinks the physical map footprint.
+The downsample preserves aspect ratio but does **not** preserve original
+world dimensions or obstacle coordinates. It is suitable for comparing
+algorithms on the *same transformed map*, not directly comparing path
+length or metric obstacle size with the full Nav2 warehouse. It is **not**
+proven to be the map used for Nav2's published 344,128-cell timing numbers.
+For a same-world-extent comparison, instead increase the reduced map's
+metres-per-cell resolution and adjust its origin accordingly.
+
+Once generated, run the demo as usual and choose either named map in the
+**Environment** dropdown. They appear only when the files exist at app
+startup. The server loads immutable snapshots once; UI map editing remains
+request-local. Start/goal defaults are approximate 20% and 80% across the
+map midpoint and can land in obstacles: **click the map to choose clear poses**
+before benchmarking. The full 0.03 m/cell map may take significantly longer
+to search than the built-in 0.25 m/cell demonstration maps.
+
+```bash
+# Run without Docker after preparing the maps
+cmake -S . -B build-demo -DCMAKE_BUILD_TYPE=Release -DHYBRID_ASTAR_BUILD_APP=ON
+cmake --build build-demo --parallel --target hybrid_astar_demo
+./build-demo/hybrid_astar_demo
+
+# Noninteractive scenarios, with optional explicit start/goal:
+./build-demo/hybrid_astar_demo --once --scenario nav2_warehouse_full \
+  --model differential --budget 250000
+./build-demo/hybrid_astar_demo --once --scenario nav2_warehouse_344128 \
+  --model differential --budget 250000
+```
+
+**Docker:** `docker compose up --build demo` automatically runs the
+preparation script in the build stage, so both map options are available
+without running Python manually on the host. The Docker build requires
+network access to the pinned GitHub raw asset. The map loader now safely
+accepts up to **5,000,000 cells** with each dimension at most 4096; it
+still rejects oversized or malformed maps.
+
 ## Build and run (OMPL optional)
 
 From the repository root:
@@ -40,7 +106,8 @@ It is not a substitute for the complete OMPL-ON CMake package build.
 
 ## Features
 
-- Five reproducible static 50 × 40 m occupancy-map scenarios: open field,
+- Five reproducible static 50 × 40 m occupancy-map scenarios plus two
+  optional prepared Nav2 warehouse maps at 0.03 m/cell: open field,
   straight reverse, parking approach, warehouse obstacles, and a fully
   separated **blocked** map.
 - Set start/goal world x, y (metres) and yaw (degrees); click on the map for
@@ -338,7 +405,7 @@ common ROS map files. By default unknown cells are treated as occupied by
 the planner. The first PGM row is at the **top** of the image; the loader
 flips it to the map's bottom-left positive-Y convention. Resolution defaults
 to 0.25 metres/pixel and is set with `--resolution`. Bare PGM imports use an origin of `(0,0,0)`; use `--map-yaml` for
-translated or rotated map origins. Files are limited to 1024×1024 dimensions, at most **262,144 pixels**
+translated or rotated map origins. Files are limited to 4096×4096 dimensions, at most **5,000,000 pixels**
 and finite 0–2 metres/pixel resolution. The loader rejects malformed headers,
 truncated data, excess pixels, and unsupported formats.
 
