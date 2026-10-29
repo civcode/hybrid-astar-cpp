@@ -67,11 +67,15 @@ static void runLegacyAssertions() {
             "RS and native CSC can be enabled together in Planning Lab");
     rs.steeringSmoothness=true;
     rs.steeringWeightMetersSquared=1.25;
+    rs.maxAcceptedReplacements=16;
     const auto steeredRs=run(rs);
     require(steeredRs.refinement.has_value() &&
             steeredRs.refinement->path.status==PlanStatus::Success &&
-            steeredRs.refinementSettings.curvatureVariationWeightMetersSquared==1.25,
-            "OMPL-assisted Ackermann refinement receives optional steering penalty");
+            steeredRs.refinementSettings.curvatureVariationWeightMetersSquared==1.25 &&
+            steeredRs.refinementSettings.maxAccepted==16 &&
+            steeredRs.refinementSettings.maxAttempts==160 &&
+            steeredRs.refinementSettings.maxTotalPoseChecks==200000,
+            "OMPL-assisted refinement receives 160/16 budget and steering penalty");
   }
   Options reverse;reverse.scenario="reverse";
   auto r=run(reverse);
@@ -100,6 +104,42 @@ static void runLegacyAssertions() {
           "demo applies 160/8/200k budget and zero steering penalty by default");
   require(toJson(refined).find("\"steeringSmoothness\":false")!=std::string::npos,
           "effective disabled steering objective is visible in exported JSON");
+  // The accepted-replacement selector applies only to Ackermann, and must
+  // never change the 160 attempt / 200k pose-check ceilings.
+  for(const std::size_t accepted:{8U,12U,16U}) {
+    Options selected=refine;
+    selected.maxAcceptedReplacements=accepted;
+    const auto result=run(selected);
+    require(result.original.status==PlanStatus::Success &&
+            result.refinement.has_value() &&
+            result.refinement->path.status==PlanStatus::Success &&
+            result.refinementSettings.maxAccepted==accepted &&
+            result.refinementSettings.maxAttempts==160 &&
+            result.refinementSettings.maxTotalPoseChecks==200000 &&
+            result.refinement->accepted<=accepted,
+            "selected Ackermann accepted-replacement limit reaches native refiner");
+    const auto encoded=std::string("\"maxAccepted\":")+std::to_string(accepted);
+    require(toJson(result).find(encoded)!=std::string::npos,
+            "selected accepted-replacement cap is exported in JSON");
+  }
+  for(const std::size_t invalidAccepted:{0U,7U,9U,13U,17U}) {
+    bool rejected=false;
+    try {auto bad=refine;bad.maxAcceptedReplacements=invalidAccepted;run(bad);}
+    catch(const std::invalid_argument&) {rejected=true;}
+    require(rejected,"only accepted-replacement limits 8,12,16 are allowed");
+  }
+  for(const auto model:{std::string("differential"),std::string("mecanum")}) {
+    bool rejected=false;
+    try {auto bad=refine;bad.model=model;bad.maxAcceptedReplacements=16;run(bad);}
+    catch(const std::invalid_argument&) {rejected=true;}
+    require(rejected,"accepted-replacement override is Ackermann-only");
+  }
+  {
+    bool rejected=false;
+    try {auto bad=refine;bad.refine=false;bad.maxAcceptedReplacements=12;run(bad);}
+    catch(const std::invalid_argument&) {rejected=true;}
+    require(rejected,"accepted-replacement override requires refinement enabled");
+  }
   Options withSteering=refine;
   withSteering.steeringSmoothness=true;
   withSteering.steeringWeightMetersSquared=2.5;
