@@ -146,7 +146,7 @@ def main() -> None:
         if len(data) > 20_000_000:
             raise ValueError("Downloaded Nav2 PGM exceeds 20 MB limit")
         blob_sha = hashlib.sha1(
-            f"blob {len(data)}\\0".encode("ascii") + data
+            f"blob {len(data)}".encode("ascii") + bytes([0]) + data
         ).hexdigest()
         if blob_sha != NAV2_BLOB:
             raise ValueError(
