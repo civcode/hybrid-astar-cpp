@@ -318,6 +318,34 @@ boundaries, so candidates that cannot improve the objective are pruned before
 expensive collision sampling. This is a selection penalty, **not** a
 curvature-continuity, steering-rate or actuator-feasibility guarantee.
 
+### Official Nav2 warehouse map choices
+
+The Docker demo build runs `python3 tools/prepare_nav2_warehouse.py`
+automatically after copying the source tree. The script downloads a
+**pinned** official Nav2 warehouse raster, verifies its Git blob digest,
+and writes ROS-compatible raster/YAML pairs in `apps/demo/maps/`:
+
+- `nav2_warehouse_full`: original raster dimensions and bytes, 0.03 m/cell
+- `nav2_warehouse_344128`: **608 × 566 = 344,128 cells**,
+  aspect-preserving conservative occupancy resample, also 0.03 m/cell
+
+Both appear under the Planning Lab **Environment** selector once assets
+are available. If running without Docker, execute
+`python3 tools/prepare_nav2_warehouse.py` before starting the demo.
+The full PGM is loaded at startup, with bounded importer support up to
+5 million cells. The smaller map's **physical world footprint shrinks**
+at the retained 0.03 m/cell; it does not reproduce Nav2's published
+344,128-cell benchmark map or preserve the original world obstacle positions.
+Details and CLI examples: [Planning Lab map preparation](../apps/demo/README.md#nav2-warehouse-benchmark-maps-003-mcell).
+
+```bash
+git fetch origin
+git switch feature/nav2-warehouse-benchmark-maps
+export BUILD_JOBS=28
+docker compose up --build --force-recreate demo
+# Open http://127.0.0.1:8765 and select a Nav2 warehouse environment.
+```
+
 **Planning Lab UI:** choose **Ackermann, differential drive or mecanum**,
 enable **Strict post-path refinement**, and select **Accepted refinements**:
 **8 (default), 12 or 16**. This changes only the acceptance cap:
