@@ -319,7 +319,16 @@ expensive collision sampling. This is a selection penalty, **not** a
 curvature-continuity, steering-rate or actuator-feasibility guarantee.
 
 **Planning Lab UI:** choose Ackermann, enable **Strict post-path refinement**
-then optionally check **Steering-aware smoothness** (unchecked by default).
+and select the **Accepted refinements** cap: **8 (default), 12 or 16**.
+This adjusts the number of accepted replacements only; the **160 attempts**
+and **200000 strict pose checks** remain unchanged. The selector is disabled
+for other models and when refinement is disabled. Click **Plan path** after
+each selection to compare the same start/goal and map, using the reported
+accepted-count, curvature-variation, steering-reversal, length and timing
+metrics. The exported `refinementOptions.maxAccepted` records the selected
+limit even if the search does not return a path.
+
+Optionally check **Steering-aware smoothness** (unchecked by default).
 Set **Steering variation weight** to `1.0` m² initially; valid enabled
 weights are greater than zero and at most 100. Both native CSC and
 OMPL/Reeds–Shepp paths honor this option. Click **Plan path** and compare
@@ -342,6 +351,11 @@ BUILD_JOBS=28 TEST_JOBS=4 docker compose --profile test run --rm test \
 BUILD_JOBS=28 TEST_JOBS=4 docker compose --profile test run --rm test \
   ./build-docker/hybrid_astar_demo --once --scenario warehouse --refine --curved \
   --steering-weight 1.0
+
+# Compare the accepted-replacement limits without changing other budgets:
+BUILD_JOBS=28 TEST_JOBS=4 docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_demo --once --scenario warehouse --refine --curved \
+  --max-accepted 16
 ```
 
 ### Random warehouse map coverage and output
