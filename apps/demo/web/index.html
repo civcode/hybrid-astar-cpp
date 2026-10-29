@@ -40,6 +40,9 @@
 <label class="check"><input type="checkbox" id="performance" checked/><span>Obstacle-grid heuristic <small>(noncertified)</small></span></label>
 <label class="check"><input type="checkbox" id="improve"/><span>Bounded incumbent improvement</span></label>
 <label class="check"><input type="checkbox" id="refine"/><span>Strict post-path refinement <small>(all models)</small></span></label>
+<label class="label" for="maxAccepted">Accepted refinements <small>Ackermann only · maximum replacements</small></label>
+<select id="maxAccepted" disabled><option value="8" selected>8 (default)</option><option value="12">12</option><option value="16">16</option></select>
+<div class="hint">Compare 160/8, 160/12 and 160/16; all keep 160 attempts and 200,000 strict checks.</div>
 <label class="check nested"><input type="checkbox" id="curved"/><span>Native curved CSC candidates <small>(also differential)</small></span></label>
 <label class="check nested"><input type="checkbox" id="steeringSmooth"/><span>Steering-aware smoothness <small>(Ackermann only, optional)</small></span></label>
 <label class="label" for="steeringWeight">Steering variation weight <small>m², higher penalizes sharp curvature changes</small></label>
