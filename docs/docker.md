@@ -318,15 +318,16 @@ boundaries, so candidates that cannot improve the objective are pruned before
 expensive collision sampling. This is a selection penalty, **not** a
 curvature-continuity, steering-rate or actuator-feasibility guarantee.
 
-**Planning Lab UI:** choose Ackermann, enable **Strict post-path refinement**
-and select the **Accepted refinements** cap: **8 (default), 12 or 16**.
-This adjusts the number of accepted replacements only; the **160 attempts**
-and **200000 strict pose checks** remain unchanged. The selector is disabled
-for other models and when refinement is disabled. Click **Plan path** after
-each selection to compare the same start/goal and map, using the reported
+**Planning Lab UI:** choose **Ackermann, differential drive or mecanum**,
+enable **Strict post-path refinement**, and select **Accepted refinements**:
+**8 (default), 12 or 16**. This changes only the acceptance cap:
+Ackermann and differential drive keep **160 attempts / 200000 strict pose
+checks**; mecanum keeps **220 attempts / 240000 strict checks**.
+The selector is disabled only when refinement is off. Click **Plan path**
+after each change to compare the same poses and map, using the reported
 accepted-count, curvature-variation, steering-reversal, length and timing
 metrics. The exported `refinementOptions.maxAccepted` records the selected
-limit even if the search does not return a path.
+limit even if search does not return a path.
 
 Optionally check **Steering-aware smoothness** (unchecked by default).
 Set **Steering variation weight** to `1.0` m² initially; valid enabled
