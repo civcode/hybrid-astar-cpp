@@ -84,13 +84,10 @@ std::size_t budgetValue(const std::string& value) {
 // Keep the demo's acceptance-budget experiment deliberately small and
 // reproducible: 160 attempts / 200k checks with 8, 12 or 16 acceptances.
 std::size_t acceptedReplacementLimit(const std::string& value) {
-  std::size_t selected=0;
-  const auto [end,error]=std::from_chars(
-      value.data(),value.data()+value.size(),selected);
-  if(value.empty()||error!=std::errc{}||end!=value.data()+value.size()||
-     (selected!=8 && selected!=12 && selected!=16))
-    throw std::invalid_argument("Accepted replacements must be 8, 12 or 16");
-  return selected;
+  if(value=="8")return 8;
+  if(value=="12")return 12;
+  if(value=="16")return 16;
+  throw std::invalid_argument("Accepted replacements must be 8, 12 or 16");
 }
 Options requestOptions(const std::map<std::string,std::string>& params) {
   Options o;
