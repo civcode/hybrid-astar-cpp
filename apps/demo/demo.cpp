@@ -160,10 +160,14 @@ ackermann::PlanRequest makeRequest(std::string_view name) {
 
 Outcome run(const Options& opt) {
   Outcome out;
-  if(opt.scenario=="custom") {
-    if(!opt.customMap)throw std::invalid_argument("No custom PGM map has been loaded");
-    const auto& m=*opt.customMap;
-    out.request.map=opt.customMap;
+  if(opt.scenario=="custom" || opt.scenario=="nav2_warehouse_full" ||
+     opt.scenario=="nav2_warehouse_344128") {
+    const auto selected=opt.scenario=="custom"?opt.customMap:
+        opt.scenario=="nav2_warehouse_full"?opt.nav2WarehouseFullMap:
+        opt.nav2Warehouse344128Map;
+    if(!selected)throw std::invalid_argument("Selected PGM map is unavailable; run tools/prepare_nav2_warehouse.py");
+    const auto& m=*selected;
+    out.request.map=selected;
     const auto toWorld=[&](double x,double y) {
       const double c=std::cos(m.origin.yaw),sn=std::sin(m.origin.yaw);
       return Pose2D{m.origin.x+c*x-sn*y,m.origin.y+sn*x+c*y,m.origin.yaw};
@@ -320,14 +324,17 @@ std::string toJson(const Outcome& out) {
   }
   os<<'}';return os.str();
 }
-std::string capabilitiesJson(const ackermann::MapSnapshot* customMap) {
+std::string capabilitiesJson(const ackermann::MapSnapshot* customMap,
+                             bool nav2WarehouseFull, bool nav2Warehouse344128) {
 #ifdef HYBRID_ASTAR_DEMO_WITH_OMPL
   const char* ompl="true";
 #else
   const char* ompl="false";
 #endif
   std::ostringstream os;os<<std::setprecision(15);
-  os<<"{\"ompl\":"<<ompl<<",\"differential\":true,\"mecanum\":true,\"customMap\":"<<(customMap?"true":"false");
+  os<<"{\"ompl\":"<<ompl<<",\"differential\":true,\"mecanum\":true,\"customMap\":"<<(customMap?"true":"false")
+    <<",\"nav2WarehouseFull\":"<<(nav2WarehouseFull?"true":"false")
+    <<",\"nav2Warehouse344128\":"<<(nav2Warehouse344128?"true":"false");
   if(customMap) os<<",\"mapWidthMeters\":"<<customMap->width*customMap->resolutionMeters
                   <<",\"mapHeightMeters\":"<<customMap->height*customMap->resolutionMeters
                   <<",\"origin\":["<<customMap->origin.x<<','<<customMap->origin.y<<','<<customMap->origin.yaw<<']';
