@@ -128,11 +128,36 @@ static void runLegacyAssertions() {
     catch(const std::invalid_argument&) {rejected=true;}
     require(rejected,"only accepted-replacement limits 8,12,16 are allowed");
   }
+  // Differential drive and mecanum must use the SAME 8/12/16 control,
+  // while retaining their distinct attempt and strict-check ceilings.
   for(const auto model:{std::string("differential"),std::string("mecanum")}) {
-    bool rejected=false;
-    try {auto bad=refine;bad.model=model;bad.maxAcceptedReplacements=16;run(bad);}
-    catch(const std::invalid_argument&) {rejected=true;}
-    require(rejected,"accepted-replacement override is Ackermann-only");
+    const bool mecanum=model=="mecanum";
+    for(const std::size_t accepted:{8U,12U,16U}) {
+      Options selected;
+      selected.model=model;
+      selected.scenario="open";
+      selected.refine=true;
+      selected.maxAcceptedReplacements=accepted;
+      const auto result=run(selected);
+      require(result.original.status==PlanStatus::Success &&
+              result.refinement.has_value() &&
+              result.refinement->path.status==PlanStatus::Success &&
+              result.refinementSettings.maxAccepted==accepted &&
+              result.refinementSettings.maxAttempts==(mecanum?220:160) &&
+              result.refinementSettings.maxTotalPoseChecks==(mecanum?240000:200000) &&
+              result.refinement->accepted<=accepted,
+              "selected accepted-replacement cap reaches each model's refiner");
+      const auto encoded=std::string("\"maxAccepted\":")+std::to_string(accepted);
+      require(toJson(result).find(encoded)!=std::string::npos,
+              "each model exports its effective accepted-replacement limit");
+    }
+    Options defaultLimit;
+    defaultLimit.model=model;
+    defaultLimit.refine=true;
+    const auto defaultRun=run(defaultLimit);
+    require(defaultRun.refinement.has_value() &&
+            defaultRun.refinementSettings.maxAccepted==8,
+            "differential and mecanum default to eight accepted replacements");
   }
   {
     bool rejected=false;
