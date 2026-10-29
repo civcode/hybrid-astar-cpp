@@ -47,8 +47,10 @@ std::shared_ptr<ackermann::MapSnapshot> parsePgm(std::istream& in,double resolut
   const auto magic=token(in);
   if(magic!="P2"&&magic!="P5")throw std::invalid_argument("Only P2/P5 PGM is supported");
   const unsigned width=parseUInt(token(in)),height=parseUInt(token(in)),maxValue=parseUInt(token(in));
-  if(width<1||height<1||width>1024||height>1024||
-     std::size_t(width)*height>262144||maxValue<1||maxValue>255)
+  // Accept a full-size Nav2 warehouse while limiting memory for untrusted maps.
+  constexpr std::size_t maxPixels=5000000;
+  if(width<1||height<1||width>4096||height>4096||
+     std::size_t(width)*height>maxPixels||maxValue<1||maxValue>255)
     throw std::invalid_argument("PGM dimensions or maxval out of supported bounds");
   auto map=std::make_shared<ackermann::MapSnapshot>();
   map->width=width;map->height=height;map->resolutionMeters=resolution;
