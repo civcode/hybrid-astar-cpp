@@ -158,8 +158,8 @@ def main() -> None:
                 f"Upstream map blob changed: expected {NAV2_BLOB}, got {blob_sha}"
             )
     width, height, pixels = read_pgm(data)
-    if width < TARGET_WIDTH or height < TARGET_HEIGHT:
-        raise ValueError("Source raster too small for 608x566 downsample")
+    if width * height <= TARGET_WIDTH * TARGET_HEIGHT:
+        raise ValueError("Source raster must be larger than the 344128-cell target")
     output = args.output_dir
     output.mkdir(parents=True, exist_ok=True)
 
