@@ -385,8 +385,10 @@ native CSC only. CSV includes start/goal poses, start/goal grid regions,
 random seed, full-path fingerprint, expansions, curvature metrics and
 optimizer p50/p95 runtime. Stderr reports progress, rejected candidate
 counts, **per-region start/goal coverage**, and across-path runtime and
-smoothness summaries. For comparable results use the same seed, budget,
-map configuration and connector.
+smoothness summaries. The summaries also report mean accepted replacements,
+**paths hitting the accepted-replacement limit**, and mean steering reversals
+removed. For comparable results use the same seed, budget, map configuration
+and connector.
 
 ### Docker commands (BUILD_JOBS=28 / TEST_JOBS=4)
 
@@ -406,10 +408,11 @@ docker compose --profile test run --rm test \
   ./build-docker/hybrid_astar_ackermann_refinement_budget_benchmark_test \
   5 10000 100 250000 0 1.0 20261028 > budget-results-100.csv
 
-# Test 2: same budgets crossed with zero versus 1.0 m² steering penalty.
+# Test 2: compare 160/8, 160/12 and 160/16, with steering off/on.
+# Also includes the original 35/3 reference pair (8 variants total).
 docker compose --profile test run --rm test \
   ./build-docker/hybrid_astar_ackermann_refinement_smoothness_benchmark_test \
-  5 10000 100 250000 0 1.0 20261028 > smoothness-results-100.csv
+  5 10000 100 250000 0 1.0 20261028 > smoothness-budget-comparison.csv
 
 # Fast contracts, including steering-aware pruning and discovery uniqueness.
 docker compose --profile test run --rm test \
@@ -418,11 +421,42 @@ docker compose --profile test run --rm test \
     --output-on-failure
 ```
 
-To explore steering-penalty weights *after* the 100-path baseline has been
-measured, change the **last** parameter of the second executable (e.g.
-`0.25`, `0.5`, or `2.0`). The other two objective rows always use
-weight zero. Do not claim speed or smoothness wins until rerunning the
-experiments on the same platform.
+### Accepted-replacement limit: 8 versus 12 versus 16
+
+The steering/smoothness benchmark now runs **eight variants** on each of the
+same 100 strictly validated original warehouse paths:
+
+| Objective | Legacy reference | Expanded acceptance-budget comparison |
+|---|---|---|
+| Distance/clearance only | 35 attempts / 3 accepted / 100k checks | **160/8**, **160/12**, **160/16** (200k strict checks for all three) |
+| Steering-aware penalty | 35 attempts / 3 accepted / 100k checks | **160/8**, **160/12**, **160/16** (200k strict checks for all three) |
+
+The **normal application default stays 160/8**; the 160/12 and 160/16
+settings are *benchmark-only*. The original four CSV variant names remain
+unchanged for compatibility; the four additional rows per path are named
+`expanded_160_12_length`, `expanded_160_16_length`,
+`expanded_160_12_steering` and `expanded_160_16_steering`.
+The output contains **800 CSV rows** (8 profiles x 100 distinct paths).
+Each profile runs five timed repetitions per path, plus one untimed warmup;
+scenario discovery is performed once per executable and is excluded from
+refinement timing.
+
+Compare `accepted` with `max_accepted` (including
+`paths_hitting_accepted_limit` in the stderr summaries) to determine whether
+larger acceptance limits are actually exercised. Then compare
+`refined_curvature_tv_inv_m`, `refined_steering_reversals`,
+`refined_length_m`, `strict_checks` and `refine_p50_ms`
+**per matching `path_fingerprint`**. If runs regularly stop at the 160
+attempt cap before accepting 16 improvements, a *separate* experiment can
+increase the attempt budget; this test deliberately changes *only* the
+acceptance limit.
+
+To explore other steering penalties, change the **sixth** numeric argument
+of the smoothness executable (for example `0.25`, `0.5` or `2.0`);
+the seventh is the random seed. All four length-only profiles always use
+weight zero. Run with the same seed/connector and an idle host for comparable
+timings; do not assume larger accepted budgets always improve curvature
+variation.
 
 The benchmarks are **manual by default** and are not run by ordinary CTest or
 GitHub Actions. To register both as **explicitly opted-in, long-running CTest**
