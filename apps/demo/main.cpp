@@ -81,8 +81,8 @@ std::size_t budgetValue(const std::string& value) {
     throw std::invalid_argument("Budget must be an integer between 100 and 1000000 expansions");
   return budget;
 }
-// Keep the demo's acceptance-budget experiment deliberately small and
-// reproducible: 160 attempts / 200k checks with 8, 12 or 16 acceptances.
+// Limit this UI experiment to 8, 12 or 16 acceptances for all models.
+// The attempt and collision-check ceilings remain specific to each model.
 std::size_t acceptedReplacementLimit(const std::string& value) {
   if(value=="8")return 8;
   if(value=="12")return 12;
