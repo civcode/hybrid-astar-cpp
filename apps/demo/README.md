@@ -405,7 +405,7 @@ common ROS map files. By default unknown cells are treated as occupied by
 the planner. The first PGM row is at the **top** of the image; the loader
 flips it to the map's bottom-left positive-Y convention. Resolution defaults
 to 0.25 metres/pixel and is set with `--resolution`. Bare PGM imports use an origin of `(0,0,0)`; use `--map-yaml` for
-translated or rotated map origins. Files are limited to 4096×4096 dimensions, at most **5,000,000 pixels**
+translated or rotated map origins. Files are limited to 8192×8192 dimensions, at most **5,000,000 pixels**
 and finite 0–2 metres/pixel resolution. The loader rejects malformed headers,
 truncated data, excess pixels, and unsupported formats.
 
