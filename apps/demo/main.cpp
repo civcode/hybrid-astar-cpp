@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -23,6 +24,9 @@
 #endif
 #ifndef HYBRID_ASTAR_DEMO_WEB_ROOT
 #define HYBRID_ASTAR_DEMO_WEB_ROOT "apps/demo/web"
+#endif
+#ifndef HYBRID_ASTAR_DEMO_NAV2_MAP_ROOT
+#define HYBRID_ASTAR_DEMO_NAV2_MAP_ROOT "apps/demo/maps"
 #endif
 
 namespace {
@@ -168,7 +172,7 @@ void sendReply(int fd,int code,std::string_view type,const std::string& body) {
     offset+=static_cast<std::size_t>(sent);
   }
 }
-void handle(int client,const std::shared_ptr<const hybrid_astar::ackermann::MapSnapshot>& customMap) {
+void handle(int client,const Options& availableMaps) {
   // Bound both headers and form data. A timeout prevents a half-open local
   // connection from blocking this deliberately single-threaded demo server.
   timeval timeout{5,0};
@@ -262,17 +266,21 @@ void handle(int client,const std::shared_ptr<const hybrid_astar::ackermann::MapS
     else if(route=="/map_editor.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("map_editor.js"));
     else if(route=="/app.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("app.js"));
     else if(route=="/style.css")sendReply(client,200,"text/css; charset=utf-8",loadAsset("style.css"));
-    else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson(customMap.get()));
+    else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson(
+         availableMaps.customMap.get(), !!availableMaps.nav2WarehouseFullMap,
+         !!availableMaps.nav2Warehouse344128Map));
     else if(route=="/api/plan") {
       auto options=requestOptions(queryParameters(params));
-      options.customMap=customMap;
+      options.customMap=availableMaps.customMap;
+      options.nav2WarehouseFullMap=availableMaps.nav2WarehouseFullMap;
+      options.nav2Warehouse344128Map=availableMaps.nav2Warehouse344128Map;
       sendReply(client,200,"application/json",hybrid_astar::demo::toJson(hybrid_astar::demo::run(options)));
     } else sendReply(client,404,"application/json",jsonError("Not found"));
   }catch(const std::exception& e) {
     sendReply(client,400,"application/json",jsonError(e.what()));
   }
 }
-void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<const hybrid_astar::ackermann::MapSnapshot>& customMap) {
+void serve(unsigned int port,bool allowContainerInterface,const Options& availableMaps) {
   const int server=::socket(AF_INET,SOCK_STREAM,0);
   if(server<0)throw std::runtime_error("Failed to create socket");
   const int reuse=1;::setsockopt(server,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
@@ -286,11 +294,11 @@ void serve(unsigned int port,bool allowContainerInterface,const std::shared_ptr<
   std::cout<<std::flush;
   for(;;) {
     const int client=::accept(server,nullptr,nullptr);
-    if(client>=0){handle(client,customMap);::close(client);}
+    if(client>=0){handle(client,availableMaps);::close(client);}
   }
 }
 #endif
-void usage(){std::cout<<"Usage: hybrid_astar_demo [--model ackermann|differential|mecanum] [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked]"
+void usage(){std::cout<<"Usage: hybrid_astar_demo [--model ackermann|differential|mecanum] [--port 8765] [--bind 127.0.0.1|0.0.0.0] [--once --scenario open|reverse|parking|warehouse|blocked|nav2_warehouse_full|nav2_warehouse_344128]"
   " [--start x y yawDeg] [--goal x y yawDeg] [--map FILE.pgm --resolution METERS | --map-yaml FILE.yaml] [--output FILE.json --once]"
   " [--ompl] [--rs-distance] [--refine] [--curved] [--steering-smoothness] [--steering-weight (0,100]] [--max-accepted 8|12|16] [--performance|--certified] [--inflate METERS] [--improve] [--budget 100..1000000]\n"
   "Default: obstacle-grid heuristic (weight 1.0); --certified selects Euclidean. --once prints JSON.\n";}
@@ -379,6 +387,16 @@ int main(int argc,char** argv) {
       options.customMap=hybrid_astar::demo::loadRosMapYaml(mapYamlFilename);
     } else if(!mapFilename.empty())
       options.customMap=hybrid_astar::demo::loadPgm(mapFilename,mapResolution);
+    // Prepared maps are loaded once at startup (not per HTTP request).
+    const auto mapRoot=std::filesystem::path(HYBRID_ASTAR_DEMO_NAV2_MAP_ROOT);
+    const auto loadPrepared=[&](const char* filename)
+        ->std::shared_ptr<const hybrid_astar::ackermann::MapSnapshot> {
+      const auto file=mapRoot/filename;
+      if(!std::filesystem::exists(file))return {};
+      return hybrid_astar::demo::loadRosMapYaml(file.string());
+    };
+    options.nav2WarehouseFullMap=loadPrepared("nav2_warehouse_full.yaml");
+    options.nav2Warehouse344128Map=loadPrepared("nav2_warehouse_344128.yaml");
     if(!outputFilename.empty()&&!once)throw std::invalid_argument("--output requires --once");
     if(!once && options.model!="ackermann")
       throw std::invalid_argument("--model is a --once option; select the model in the browser for server mode");
@@ -392,7 +410,7 @@ int main(int argc,char** argv) {
       return 0;
     }
 #ifdef __unix__
-    serve(port,allowContainerInterface,options.customMap);
+    serve(port,allowContainerInterface,options);
 #else
     throw std::runtime_error("Local demo HTTP server requires POSIX sockets; use --once on this platform");
 #endif
