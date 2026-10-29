@@ -384,6 +384,19 @@ new ResizeObserver(draw).observe(canvas);
     $('ompl').checked=!!caps.ompl&&$('model').value==='ackermann';
     syncModelOptions();
     $('omplInfo').textContent=caps.ompl?'(available for Ackermann)':'(build without OMPL)';
+    for(const [key,option,name] of [
+      ['nav2_warehouse_full','nav2FullOption','Nav2 warehouse · full resolution'],
+      ['nav2_warehouse_344128','nav2SmallOption','Nav2 warehouse · 344,128 cells']
+    ]) {
+      const map=caps.nav2Maps?.[key];
+      if(!map)continue;
+      $(option).hidden=false;
+      const width=map.width*map.resolution,height=map.height*map.resolution;
+      const start=MapGeometry.toWorld(width*.2,height*.5,map.origin);
+      const goal=MapGeometry.toWorld(width*.8,height*.5,map.origin);
+      defaults[key]={name,start:[...start,map.origin[2]*180/Math.PI],
+        goal:[...goal,map.origin[2]*180/Math.PI]};
+    }
     if(caps.customMap) {
       $('customOption').hidden=false;
       customOrigin=caps.origin||[0,0,0];
