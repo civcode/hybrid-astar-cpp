@@ -44,7 +44,7 @@ TEST_CASE("PGM occupancy import preserves world-Y orientation", "[app][pgm]") {
 
 TEST_CASE("Untrusted map dimensions and payloads are bounded", "[app][pgm]") {
   for(const auto& data:{"P3\n1 1\n255\n1", "P2\n1025 1\n255\n",
-                        "P2\n1024 1024\n255\n", "P2\n1 1\n256\n",
+                        "P2\n4096 4096\n255\n", "P2\n4097 1\n255\n", "P2\n1 1\n256\n",
                         "P2\n1 1\n255\n", "P2\n1 1\n255\n256",
                         "P2\n1 1\n255\n0 0"}) {
     std::istringstream input(data);
@@ -77,4 +77,51 @@ TEST_CASE("Imported occupancy map uses real planner and provenance", "[app][pgm]
   REQUIRE(json.find("\"collisionEvidence\":\"FullFootprintBodyMotionAdaptiveSampled\"")!=std::string::npos);
   REQUIRE(json.find("\"actuatorFeasible\":false")!=std::string::npos);
   REQUIRE(capabilitiesJson(o.customMap.get()).find("\"customMap\":true")!=std::string::npos);
+}
+
+TEST_CASE("Large PGM raster remains bounded but accepts Nav2 warehouse sizes", "[app][pgm][nav2]") {
+  for(const auto [width,height]:{
+      std::pair<std::size_t,std::size_t>{608,566},
+      {1700,1000}}) {
+    const std::string header="P5\n"+std::to_string(width)+" "+
+        std::to_string(height)+"\n255\n";
+    std::string data=header+std::string(width*height,static_cast<char>(255));
+    std::istringstream stream(data);
+    const auto map=parsePgm(stream,0.03);
+    REQUIRE(map->width==width);
+    REQUIRE(map->height==height);
+    REQUIRE(map->cells.size()==width*height);
+    REQUIRE(map->resolutionMeters==0.03);
+    REQUIRE(map->cells.front()==0);
+  }
+  // Reject headers that exceed max pixels before allocating/reading any data.
+  std::istringstream huge("P5\n4096 2000\n255\n");
+  REQUIRE_THROWS_AS(parsePgm(huge,0.03),std::invalid_argument);
+}
+
+TEST_CASE("Prepared Nav2 scenarios use pinned world origin and fixed snapshots", "[app][pgm][nav2]") {
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=160;map->height=120;map->resolutionMeters=0.03;
+  map->origin={-15.1,-25.0,0.0};
+  map->frameId="demo/map";map->sourceId="ros-map-yaml";map->revision=1;
+  map->cells.assign(map->width*map->height,0);
+  for(const auto scenario:{"nav2_warehouse_full","nav2_warehouse_344128"}) {
+    Options options;
+    options.scenario=scenario;
+    if(options.scenario=="nav2_warehouse_full")
+      options.nav2WarehouseFullMap=map;
+    else options.nav2Warehouse344128Map=map;
+    const auto result=run(options);
+    REQUIRE(result.original.status==PlanStatus::Success);
+    REQUIRE(result.request.map.get()==map.get());
+    REQUIRE(result.request.start.x==-15.1+160*0.03*0.2);
+    REQUIRE(result.request.goal.x==-15.1+160*0.03*0.8);
+    REQUIRE(result.request.start.y==-25+120*0.03*0.5);
+  }
+  Options unavailable;
+  unavailable.scenario="nav2_warehouse_full";
+  REQUIRE_THROWS_AS(run(unavailable),std::invalid_argument);
+  const auto caps=capabilitiesJson(nullptr,map.get(),map.get());
+  REQUIRE(caps.find("\"nav2WarehouseFull\":true")!=std::string::npos);
+  REQUIRE(caps.find("\"nav2_warehouse_344128\":")!=std::string::npos);
 }
