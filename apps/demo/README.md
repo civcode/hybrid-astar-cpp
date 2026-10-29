@@ -60,8 +60,11 @@ It is not a substitute for the complete OMPL-ON CMake package build.
   curvature-bounded CSC shortcuts.
 - Optional Reeds–Shepp analytic connections and combined refinement when
   OMPL support is compiled.
-- Ackermann post-path refinement now uses **160 attempted shortcut windows,
+- Ackermann post-path refinement uses **160 attempted shortcut windows,
   8 accepted replacements, and 200000 strict pose checks** by default.
+  The **Accepted refinements** selector allows **8, 12 or 16** accepted
+  replacements without changing the attempt or strict-check limit. It is
+  only enabled for Ackermann with Strict post-path refinement switched on.
   Check **Steering-aware smoothness** (under Strict post-path refinement) to
   enable the optional curvature-variation penalty. The default weight is
   **1.0 m²**, adjustable from **0.01 to 100 m²**; leaving it unchecked keeps
@@ -86,6 +89,42 @@ strict adaptive-sampled validator can be labeled validated. There is **no
 continuous swept guarantee or steering-rate/actuator feasibility** claim.
 A budget-limited response is not proof of a geometric NoPath.
 
+
+## Compare 160/8, 160/12 and 160/16 in the UI
+
+Choose **Ackermann steering** and enable **Strict post-path refinement**.
+Under **Accepted refinements**, select **8 (default)**, **12**, or **16**.
+Keep the same map, start pose, goal pose, connector, curved CSC setting,
+and steering objective while comparing the budgets; click **Plan path** after
+each selection. The result banner reports the actual number of accepted
+replacements (for example, `accepted 12/16`). Read the original → refined
+curvature-variation and steering-reversal metrics, path length and runtime.
+A larger cap does not guarantee that many replacements will be accepted.
+
+The selector changes **only the maximum accepted replacements**. For
+Ackermann, `maxAttempts=160` and `maxTotalPoseChecks=200000` remain fixed.
+Other kinematic models retain their own existing refinement settings.
+The selected budget is exported in
+`refinementOptions.maxAccepted` even if the search fails; JSON also records
+the 160-attempt and 200k-check caps. The **Steering-aware smoothness**
+checkbox remains independent and **off by default**.
+
+Native CLI examples (requires `--refine` and Ackermann):
+
+```bash
+./build-demo/hybrid_astar_demo --once --scenario warehouse --refine --curved --max-accepted 8
+./build-demo/hybrid_astar_demo --once --scenario warehouse --refine --curved --max-accepted 12
+./build-demo/hybrid_astar_demo --once --scenario warehouse --refine --curved --max-accepted 16
+
+# Same 160/16 budget with the optional steering objective:
+./build-demo/hybrid_astar_demo --once --scenario warehouse --refine --curved \
+  --max-accepted 16 --steering-weight 1.0
+```
+
+HTTP requests use `maxAccepted=8`, `12` or `16` alongside
+`model=ackermann&refine=1`. Other values, or use with refinement disabled
+or with another model, return an error. The UI sends the parameter only
+when the Ackermann refinement selector is applicable.
 
 ## Steering smoothness: web UI and CLI
 
