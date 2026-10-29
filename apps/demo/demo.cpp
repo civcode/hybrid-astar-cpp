@@ -201,6 +201,15 @@ Outcome run(const Options& opt) {
     throw std::invalid_argument("Enabled steering smoothness weight must be greater than 0 and at most 100 m^2");
   if(opt.steeringSmoothness && (opt.model!="ackermann" || !opt.refine))
     throw std::invalid_argument("Steering smoothness requires Ackermann and strict post-path refinement");
+  if(opt.maxAcceptedReplacements) {
+    const auto count=*opt.maxAcceptedReplacements;
+    if(count!=8 && count!=12 && count!=16)
+      throw std::invalid_argument("Accepted replacements must be 8, 12 or 16");
+    if(!opt.refine || opt.model!="ackermann")
+      throw std::invalid_argument("Accepted-replacement override requires Ackermann and strict post-path refinement");
+    // Record the selected cap even if search finds no valid path to refine.
+    out.refinementSettings.maxAccepted=count;
+  }
   out.appliedSteeringWeightMetersSquared=
       opt.steeringSmoothness?opt.steeringWeightMetersSquared:0.0;
   if(!std::isfinite(opt.footprintInflationMeters)||
@@ -227,7 +236,7 @@ Outcome run(const Options& opt) {
 #ifdef HYBRID_ASTAR_DEMO_WITH_OMPL
   if(opt.ompl) {
     if(opt.refine) {
-      ackermann::RefinementOptions settings; // 160 / 8 / 200000 by default
+      ackermann::RefinementOptions settings=out.refinementSettings; // 160 / 8|12|16 / 200000
       settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
       settings.curvatureVariationWeightMetersSquared=
           out.appliedSteeringWeightMetersSquared;
@@ -242,7 +251,7 @@ Outcome run(const Options& opt) {
     if(opt.ompl)throw std::invalid_argument("OMPL adapter is not enabled in this demo build");
     out.original=ackermann::plan(out.request);
     if(opt.refine&&out.original.status==PlanStatus::Success) {
-      RefinementOptions settings;
+      RefinementOptions settings=out.refinementSettings;
       if(out.request.options.model==PlanOptions::Model::DifferentialDrive) {
         settings.maxAttempts=160;
         settings.maxAccepted=8;
@@ -253,7 +262,7 @@ Outcome run(const Options& opt) {
         settings.maxAttempts=220;
         settings.maxAccepted=8;
         settings.maxTotalPoseChecks=240000;
-      } // Ackermann uses the shared 160 / 8 / 200000 defaults.
+      } // Ackermann uses 160 attempts, selected 8/12/16 acceptances, 200k checks.
       settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
       settings.curvatureVariationWeightMetersSquared=
           out.appliedSteeringWeightMetersSquared;
