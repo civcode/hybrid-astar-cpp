@@ -196,6 +196,9 @@ inline bool strictSuccess(const PlanResult& p) {
   return p.status==PlanStatus::Success && p.modelGeometryValid &&
          p.collisionEvidence==CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
 }
+inline bool qualifiesBaseline(const PlanResult& p,std::size_t minimumExpansions) {
+  return strictSuccess(p)&&p.diagnostics.expanded>=minimumExpansions;
+}
 // Qualify ONLY on the zero-margin discovery search, never on inflated success.
 // This avoids censoring safety-margin failures and preserves paired inputs.
 // Both endpoint footprints must nevertheless be initially collision-free at 0.1 m.
@@ -229,7 +232,7 @@ inline std::vector<Scenario> discover(const Config& config,const PlanRequest& ba
     trial.options.footprintInflationMeters=0.0;
     const auto p=planOnce(trial,config);
     if(!strictSuccess(p)){++unsolved;continue;}
-    if(p.diagnostics.expanded<config.minimumExpansions){++tooEasy;continue;}
+    if(!qualifiesBaseline(p,config.minimumExpansions)){++tooEasy;continue;}
     endpointKeys.insert(key);
     cases.push_back({cases.size(),i,*endpoints,p.diagnostics.expanded});
     std::cerr<<"Accepted "<<cases.size()<<'/'<<config.cases
@@ -266,6 +269,7 @@ inline Measurement measure(const Config& c,const PlanRequest& request) {
     if(strictSuccess(raw)) {
       refinement=refineOnce(request,raw,c);
       if(!strictSuccess(refinement->path)||
+         refinement->path.weightedCostMeters>raw.weightedCostMeters+1e-6 ||
          refinement->accepted>c.acceptedLimit ||
          refinement->attempted>refinementOptions(c).maxAttempts ||
          refinement->exactPoseChecks>refinementOptions(c).maxTotalPoseChecks)
