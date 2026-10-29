@@ -205,10 +205,16 @@ Outcome run(const Options& opt) {
     const auto count=*opt.maxAcceptedReplacements;
     if(count!=8 && count!=12 && count!=16)
       throw std::invalid_argument("Accepted replacements must be 8, 12 or 16");
-    if(!opt.refine || opt.model!="ackermann")
-      throw std::invalid_argument("Accepted-replacement override requires Ackermann and strict post-path refinement");
+    if(!opt.refine)
+      throw std::invalid_argument("Accepted-replacement override requires strict post-path refinement");
     // Record the selected cap even if search finds no valid path to refine.
     out.refinementSettings.maxAccepted=count;
+  }
+  // Every model can use the selected acceptance cap. Its search-attempt and
+  // exact collision-check limits remain model-specific and unchanged.
+  if(out.request.options.model==PlanOptions::Model::Mecanum) {
+    out.refinementSettings.maxAttempts=220;
+    out.refinementSettings.maxTotalPoseChecks=240000;
   }
   out.appliedSteeringWeightMetersSquared=
       opt.steeringSmoothness?opt.steeringWeightMetersSquared:0.0;
@@ -236,7 +242,7 @@ Outcome run(const Options& opt) {
 #ifdef HYBRID_ASTAR_DEMO_WITH_OMPL
   if(opt.ompl) {
     if(opt.refine) {
-      ackermann::RefinementOptions settings=out.refinementSettings; // 160 / 8|12|16 / 200000
+      ackermann::RefinementOptions settings=out.refinementSettings; // Ackermann: 160 / 8|12|16 / 200k
       settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
       settings.curvatureVariationWeightMetersSquared=
           out.appliedSteeringWeightMetersSquared;
@@ -253,16 +259,11 @@ Outcome run(const Options& opt) {
     if(opt.refine&&out.original.status==PlanStatus::Success) {
       RefinementOptions settings=out.refinementSettings;
       if(out.request.options.model==PlanOptions::Model::DifferentialDrive) {
-        settings.maxAttempts=160;
-        settings.maxAccepted=8;
-        settings.maxTotalPoseChecks=200000;
         settings.differentialCurveRadiusMeters=.75;
         settings.differentialRadiusVariants=4; // opt-in Planning Lab multi-radius
-      } else if(out.request.options.model==PlanOptions::Model::Mecanum) {
-        settings.maxAttempts=220;
-        settings.maxAccepted=8;
-        settings.maxTotalPoseChecks=240000;
-      } // Ackermann uses 160 attempts, selected 8/12/16 acceptances, 200k checks.
+      }
+      // Accepted cap: 8, 12 or 16 for every model. Ackermann and differential
+      // retain 160 / 200k; mecanum retains 220 / 240k (attempts / checks).
       settings.useCurvatureBoundedShortcuts=opt.curvedRefinement;
       settings.curvatureVariationWeightMetersSquared=
           out.appliedSteeringWeightMetersSquared;
