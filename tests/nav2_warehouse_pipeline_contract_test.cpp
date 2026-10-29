@@ -82,6 +82,25 @@ TEST_CASE("Random Nav2 poses are seeded, map-origin aware and region diverse",
   REQUIRE(rotated->startRegion==regionOf(rotated->start,m));
 }
 
+TEST_CASE("Baseline paths must succeed and meet 30k expansions before selection",
+          "[benchmark][nav2][qualify]") {
+  PlanResult p;
+  p.status=PlanStatus::Success;
+  p.modelGeometryValid=true;
+  p.collisionEvidence=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled;
+  p.diagnostics.expanded=29999;
+  REQUIRE_FALSE(qualifiesBaseline(p,30000));
+  ++p.diagnostics.expanded;
+  REQUIRE(qualifiesBaseline(p,30000));
+  p.modelGeometryValid=false;
+  REQUIRE_FALSE(qualifiesBaseline(p,30000));
+  p.modelGeometryValid=true;
+  p.status=PlanStatus::NoPath;
+  REQUIRE_FALSE(qualifiesBaseline(p,30000));
+  // An inflated plan is never used for acceptance filtering in discovery.
+  // It is replayed on the selected baseline cases, including failures.
+}
+
 TEST_CASE("Benchmark CLI rejects invalid model, caps and connectors",
           "[benchmark][nav2][args]") {
   char cmd[]="nav2_pipeline_benchmark";
