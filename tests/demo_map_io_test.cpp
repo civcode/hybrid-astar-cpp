@@ -4,6 +4,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 using namespace hybrid_astar::demo;
 using namespace hybrid_astar::ackermann;
 
@@ -107,6 +108,7 @@ TEST_CASE("Prepared Nav2 scenarios use pinned world origin and fixed snapshots",
   map->cells.assign(map->width*map->height,0);
   for(const auto scenario:{"nav2_warehouse_full","nav2_warehouse_344128"}) {
     Options options;
+    options.model="differential"; // fixture is narrower than the Ackermann body
     options.scenario=scenario;
     if(options.scenario=="nav2_warehouse_full")
       options.nav2WarehouseFullMap=map;
