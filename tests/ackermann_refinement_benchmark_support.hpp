@@ -385,6 +385,23 @@ struct Variant {
   std::size_t maxAttempts, maxAccepted, maxTotalPoseChecks;
   double curvatureVariationWeightMetersSquared;
 };
+// All variants refine exactly the same original paths. Keep the old four
+// labels intact for CSV compatibility with the earlier 100-path benchmark.
+// Only maxAccepted changes among 160/8, 160/12 and 160/16; each shares
+// 160 attempts and the same 200k strict-check ceiling.
+inline std::array<Variant,8> smoothnessAcceptanceBudgetVariants(
+    const Config& config) {
+  return {{
+    {"legacy_budget_length",35,3,100000,0.0},
+    {"expanded_budget_length",160,8,200000,0.0},
+    {"expanded_160_12_length",160,12,200000,0.0},
+    {"expanded_160_16_length",160,16,200000,0.0},
+    {"legacy_budget_steering",35,3,100000,config.steeringWeightMetersSquared},
+    {"expanded_budget_steering",160,8,200000,config.steeringWeightMetersSquared},
+    {"expanded_160_12_steering",160,12,200000,config.steeringWeightMetersSquared},
+    {"expanded_160_16_steering",160,16,200000,config.steeringWeightMetersSquared}
+  }};
+}
 struct Measurement {
   RefinementResult result;
   double p50Millis=0,p95Millis=0;
@@ -428,8 +445,11 @@ inline Measurement run(const Scenario& scenario,const Config& config,
        result.path.collisionEvidence!=CollisionEvidence::FullFootprintBodyMotionAdaptiveSampled ||
        !result.path.modelGeometryValid ||
        result.path.mapRevision!=scenario.request.map->revision ||
-       result.path.weightedCostMeters>initialObjective+1e-6)
-      throw std::runtime_error(std::string("Invalid or cost-regressing refinement: ")+variant.name);
+       result.path.weightedCostMeters>initialObjective+1e-6 ||
+       result.attempted>variant.maxAttempts ||
+       result.accepted>variant.maxAccepted ||
+       result.exactPoseChecks>variant.maxTotalPoseChecks)
+      throw std::runtime_error(std::string("Invalid, over-budget or cost-regressing refinement: ")+variant.name);
     if(i>0&&(result.path.sections.size()!=last.path.sections.size()||
              std::abs(result.path.weightedCostMeters-last.path.weightedCostMeters)>1e-8))
       throw std::runtime_error("Non-deterministic refinement output across repeats");
@@ -444,16 +464,24 @@ struct Summary {
   std::vector<double> medianRuntimesMillis;
   std::vector<double> curvatureReductions;
   std::vector<double> lengthReductionsMeters;
+  std::vector<double> reversalReductions;
+  std::vector<double> acceptedImprovements;
   std::size_t smoothnessWins=0;
+  std::size_t hitAcceptedLimit=0;
   std::size_t workBudgetExceeded=0;
-  void add(const Scenario& scenario,const Measurement& m) {
-    const double before=measure(scenario.original.sections).totalVariation;
-    const double after=measure(m.result.path.sections).totalVariation;
-    curvatureReductions.push_back(before-after);
+  void add(const Scenario& scenario,const Measurement& m,
+           const Variant& variant) {
+    const auto before=measure(scenario.original.sections);
+    const auto after=measure(m.result.path.sections);
+    curvatureReductions.push_back(before.totalVariation-after.totalVariation);
+    reversalReductions.push_back(static_cast<double>(before.nonzeroDirectionReversals)-
+                                 static_cast<double>(after.nonzeroDirectionReversals));
     lengthReductionsMeters.push_back(
         scenario.original.geometricLengthMeters-m.result.path.geometricLengthMeters);
     medianRuntimesMillis.push_back(m.p50Millis);
-    if(after<before-1e-9)++smoothnessWins;
+    acceptedImprovements.push_back(static_cast<double>(m.result.accepted));
+    if(after.totalVariation<before.totalVariation-1e-9)++smoothnessWins;
+    if(m.result.accepted==variant.maxAccepted)++hitAcceptedLimit;
     if(m.result.status==RefinementStatus::WorkBudgetExceeded)++workBudgetExceeded;
   }
   void report() const {
@@ -470,6 +498,9 @@ struct Summary {
              <<", p95_path_p50_ms="<<percentile(medianRuntimesMillis,.95)
              <<", mean_curvature_tv_reduction_inv_m="<<average(curvatureReductions)
              <<", mean_length_reduction_m="<<average(lengthReductionsMeters)
+             <<", mean_steering_reversals_removed="<<average(reversalReductions)
+             <<", mean_accepted="<<average(acceptedImprovements)
+             <<", paths_hitting_accepted_limit="<<hitAcceptedLimit
              <<", smoother_paths="<<smoothnessWins
              <<", work_budget_exceeded="<<workBudgetExceeded<<"\n";
   }
