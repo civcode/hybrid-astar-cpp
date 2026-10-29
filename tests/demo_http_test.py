@@ -42,6 +42,22 @@ def main(exe):
         assert code == 200 and isinstance(json.loads(payload)["ompl"], bool)
         assert json.loads(payload)["differential"] is True
         assert json.loads(payload)["mecanum"] is True
+        caps = json.loads(payload)
+        assert isinstance(caps["nav2WarehouseFull"], bool)
+        assert isinstance(caps["nav2Warehouse344128"], bool)
+        assert isinstance(caps["nav2Maps"], dict)
+        for key, present in (
+            ("nav2_warehouse_full", caps["nav2WarehouseFull"]),
+            ("nav2_warehouse_344128", caps["nav2Warehouse344128"]),
+        ):
+            assert (key in caps["nav2Maps"]) is present
+            if present:
+                m = caps["nav2Maps"][key]
+                assert m["resolution"] == 0.03
+                assert m["origin"] == [-15.1, -25, 0]
+                if key == "nav2_warehouse_344128":
+                    assert m["width"] == 608 and m["height"] == 566
+
         assert headers.get("X-Content-Type-Options") == "nosniff"
         for resource, content in [("/", "Planning Lab"),
                                   ("/style.css", "map-wrap"),
@@ -63,6 +79,9 @@ def main(exe):
         assert re.search(r'id="inflationMeters"[^>]*step="0\.05"', page), (
             "footprint margin spinner must step by 0.05 m"
         )
+        assert 'id="nav2FullOption" hidden' in page
+        assert 'id="nav2SmallOption" hidden' in page
+        assert "caps.nav2Maps?.[key]" in script
         assert 'id="refine"' in page and "Strict post-path refinement" in page
         assert 'id="steeringSmooth"' in page and "Steering-aware smoothness" in page
         assert re.search(r'<select id="maxAccepted" disabled>', page)
