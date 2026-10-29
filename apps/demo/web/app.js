@@ -205,7 +205,7 @@ function syncModelOptions() {
   if(!canUseRsDistance)$('rsDistance').checked=false;
   $('rsDistance').disabled=!canUseRsDistance;
   $('refine').disabled=false;
-  $('maxAccepted').disabled=!ackermann||!$('refine').checked;
+  $('maxAccepted').disabled=!$('refine').checked;
   if(mecanum)$('curved').checked=false;
   $('curved').disabled=mecanum||!$('refine').checked;
   // Only Ackermann has the optional steering-variation objective.
@@ -263,7 +263,7 @@ async function replan() {
   const keys=['scenario','startx','starty','startyaw','goalx','goaly','goalyaw'];
   const params=new URLSearchParams();for(const key of keys)params.set(key,$(key).value);
   params.set('model',$('model').value);
-  if($('model').value==='ackermann'&&$('refine').checked)
+  if($('refine').checked)
     params.set('maxAccepted',$('maxAccepted').value);
   for(const key of ['ompl','rsDistance','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
   const steeringEnabled=$('model').value==='ackermann'&&
