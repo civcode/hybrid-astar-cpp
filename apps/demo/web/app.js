@@ -163,6 +163,8 @@ function stats(result) {
   $('message').className='readout '+(valid?'good':'bad');
   const status=result.original.status;
   const refinement=result.refinement?.status;
+  const acceptedLabel=result.refinement
+    ?' · accepted '+result.refinement.accepted+'/'+result.refinementOptions.maxAccepted:'';
   const limit=result.limits;
   const exhausted=result.original.terminationReason==='WorkBudgetExceeded'||
     status==='BudgetExceeded'||result.original.terminationReason==='ValidationBudgetExhausted';
@@ -173,7 +175,7 @@ function stats(result) {
        +', goal '+(result.original.strictRejectedGoalMismatch||0)+')')
     :(exhausted?' · search work budget exhausted'
        :' · search exhaustion is not a proof of continuous-space infeasibility');
-  $('message').textContent=valid?('Validated geometric path · '+status+(refinement?' · refinement: '+refinement:'')+' · sampled footprint checking'):
+  $('message').textContent=valid?('Validated geometric path · '+status+(refinement?' · refinement: '+refinement+acceptedLabel:'')+' · sampled footprint checking'):
     ('No validated path · '+status+failureDetail+
      (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions':''));
   $('cost').textContent=valid?path.cost.toFixed(2)+' m':'—';
@@ -203,6 +205,7 @@ function syncModelOptions() {
   if(!canUseRsDistance)$('rsDistance').checked=false;
   $('rsDistance').disabled=!canUseRsDistance;
   $('refine').disabled=false;
+  $('maxAccepted').disabled=!ackermann||!$('refine').checked;
   if(mecanum)$('curved').checked=false;
   $('curved').disabled=mecanum||!$('refine').checked;
   // Only Ackermann has the optional steering-variation objective.
@@ -260,6 +263,8 @@ async function replan() {
   const keys=['scenario','startx','starty','startyaw','goalx','goaly','goalyaw'];
   const params=new URLSearchParams();for(const key of keys)params.set(key,$(key).value);
   params.set('model',$('model').value);
+  if($('model').value==='ackermann'&&$('refine').checked)
+    params.set('maxAccepted',$('maxAccepted').value);
   for(const key of ['ompl','rsDistance','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
   const steeringEnabled=$('model').value==='ackermann'&&
     $('refine').checked&&$('steeringSmooth').checked;
@@ -323,7 +328,8 @@ $('exportButton').addEventListener('click',()=>{
   document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(href),2000);
 });
-$('refine').addEventListener('change',syncModelOptions);
+$('refine').addEventListener('change',()=>{syncModelOptions();invalidateRoute();});
+$('maxAccepted').addEventListener('change',invalidateRoute);
 $('steeringSmooth').addEventListener('change',()=>{syncModelOptions();invalidateRoute();});
 $('steeringWeight').addEventListener('change',invalidateRoute);
 $('ompl').addEventListener('change',syncModelOptions);
