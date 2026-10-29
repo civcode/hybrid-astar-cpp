@@ -51,6 +51,6 @@ ackermann::PlanRequest makeRequest(std::string_view scenario);
 Outcome run(const Options& options);
 std::string toJson(const Outcome& result);
 std::string capabilitiesJson(const ackermann::MapSnapshot* customMap=nullptr,
-                             bool nav2WarehouseFull=false,
-                             bool nav2Warehouse344128=false);
+                             const ackermann::MapSnapshot* nav2WarehouseFull=nullptr,
+                             const ackermann::MapSnapshot* nav2Warehouse344128=nullptr);
 } // namespace hybrid_astar::demo
