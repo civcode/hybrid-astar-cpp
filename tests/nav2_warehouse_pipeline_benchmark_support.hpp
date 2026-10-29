@@ -284,8 +284,13 @@ inline Measurement measure(const Config& c,const PlanRequest& request) {
     if(rep>0&&(raw.status!=m.raw.status ||
        raw.diagnostics.expanded!=m.raw.diagnostics.expanded ||
        (strictSuccess(raw)&&std::abs(raw.geometricLengthMeters-
-                                   m.raw.geometricLengthMeters)>1e-7)))
-      throw std::runtime_error("Non-deterministic search across timed repeats");
+                                   m.raw.geometricLengthMeters)>1e-7) ||
+       r.has_value()!=m.refinement.has_value() ||
+       (r&&m.refinement &&
+         (r->accepted!=m.refinement->accepted ||
+          std::abs(r->path.weightedCostMeters-
+                   m.refinement->path.weightedCostMeters)>1e-7))))
+      throw std::runtime_error("Non-deterministic pipeline output across timed repeats");
     m.raw=std::move(raw);
     m.refinement=std::move(r);
     search.push_back(searchMs);refine.push_back(refineMs);total.push_back(totalMs);
@@ -299,7 +304,6 @@ inline const char* statusName(PlanStatus status) {
   switch(status) {
     case PlanStatus::Success:return "Success";
     case PlanStatus::StartInCollision:return "StartInCollision";
-    case PlanStatus::GoalInCollision:return "GoalInCollision";
     case PlanStatus::BudgetExceeded:return "BudgetExceeded";
     case PlanStatus::Cancelled:return "Cancelled";
     case PlanStatus::ValidationIncomplete:return "ValidationIncomplete";
