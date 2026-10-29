@@ -308,6 +308,8 @@ if(HYBRID_ASTAR_BUILD_APP)
     if(Python3_Interpreter_FOUND)
       add_test(NAME nav2_warehouse_map_generator_test COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_prepare_nav2_warehouse.py)
+      add_test(NAME nav2_warehouse_pipeline_analysis_test COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analyze_nav2_warehouse_pipeline.py)
     endif()
     if(Python3_Interpreter_FOUND AND UNIX)
       add_test(NAME demo_http_test COMMAND ${Python3_EXECUTABLE}
