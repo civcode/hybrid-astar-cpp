@@ -19,6 +19,9 @@ struct Options {
   // scenario default. Clamped by the callers to a demo-safe range.
   std::optional<std::size_t> maxExpansions;
   bool refine = false;
+  // Ackermann-only opt-in accepted-replacement limit: 8 (default), 12 or 16.
+  // Does not alter the 160 attempt / 200000 strict pose-check ceilings.
+  std::optional<std::size_t> maxAcceptedReplacements;
   bool curvedRefinement = false;
   bool steeringSmoothness = false; // Ackermann-only optional refinement objective
   double steeringWeightMetersSquared = 1.0; // applied only when checkbox is enabled
