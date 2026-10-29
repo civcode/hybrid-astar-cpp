@@ -7,3 +7,10 @@
 *.a
 *.so
 /tmp/
+
+# Generated from pinned Nav2 upstream by tools/prepare_nav2_warehouse.py
+/apps/demo/maps/nav2_warehouse_full.pgm
+/apps/demo/maps/nav2_warehouse_full.yaml
+/apps/demo/maps/nav2_warehouse_344128.pgm
+/apps/demo/maps/nav2_warehouse_344128.yaml
+/apps/demo/maps/nav2_warehouse_manifest.json
