@@ -267,8 +267,8 @@ void handle(int client,const Options& availableMaps) {
     else if(route=="/app.js")sendReply(client,200,"text/javascript; charset=utf-8",loadAsset("app.js"));
     else if(route=="/style.css")sendReply(client,200,"text/css; charset=utf-8",loadAsset("style.css"));
     else if(route=="/api/capabilities")sendReply(client,200,"application/json",hybrid_astar::demo::capabilitiesJson(
-         availableMaps.customMap.get(), !!availableMaps.nav2WarehouseFullMap,
-         !!availableMaps.nav2Warehouse344128Map));
+         availableMaps.customMap.get(), availableMaps.nav2WarehouseFullMap.get(),
+         availableMaps.nav2Warehouse344128Map.get()));
     else if(route=="/api/plan") {
       auto options=requestOptions(queryParameters(params));
       options.customMap=availableMaps.customMap;
