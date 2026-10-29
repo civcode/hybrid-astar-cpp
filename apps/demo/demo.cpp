@@ -325,7 +325,8 @@ std::string toJson(const Outcome& out) {
   os<<'}';return os.str();
 }
 std::string capabilitiesJson(const ackermann::MapSnapshot* customMap,
-                             bool nav2WarehouseFull, bool nav2Warehouse344128) {
+                             const ackermann::MapSnapshot* nav2WarehouseFull,
+                             const ackermann::MapSnapshot* nav2Warehouse344128) {
 #ifdef HYBRID_ASTAR_DEMO_WITH_OMPL
   const char* ompl="true";
 #else
@@ -335,6 +336,20 @@ std::string capabilitiesJson(const ackermann::MapSnapshot* customMap,
   os<<"{\"ompl\":"<<ompl<<",\"differential\":true,\"mecanum\":true,\"customMap\":"<<(customMap?"true":"false")
     <<",\"nav2WarehouseFull\":"<<(nav2WarehouseFull?"true":"false")
     <<",\"nav2Warehouse344128\":"<<(nav2Warehouse344128?"true":"false");
+  os<<",\"nav2Maps\":{";
+  bool first=true;
+  const auto add=[&](const char* key,const ackermann::MapSnapshot* map) {
+    if(!map)return;
+    if(!first)os<<',';
+    first=false;
+    os<<quoted(key)<<":{\"width\":"<<map->width
+      <<",\"height\":"<<map->height
+      <<",\"resolution\":"<<map->resolutionMeters
+      <<",\"origin\":["<<map->origin.x<<','<<map->origin.y<<','<<map->origin.yaw<<"]}";
+  };
+  add("nav2_warehouse_full",nav2WarehouseFull);
+  add("nav2_warehouse_344128",nav2Warehouse344128);
+  os<<'}';
   if(customMap) os<<",\"mapWidthMeters\":"<<customMap->width*customMap->resolutionMeters
                   <<",\"mapHeightMeters\":"<<customMap->height*customMap->resolutionMeters
                   <<",\"origin\":["<<customMap->origin.x<<','<<customMap->origin.y<<','<<customMap->origin.yaw<<']';
