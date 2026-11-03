@@ -266,6 +266,10 @@ if(HYBRID_ASTAR_BUILD_APP)
       PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(hybrid_astar_nav2_prefix_sum_benchmark_test
       PRIVATE hybrid_astar_demo_logic)
+    if(HYBRID_ASTAR_PROFILE_HOTPATHS)
+      target_compile_definitions(hybrid_astar_nav2_prefix_sum_benchmark_test
+        PRIVATE HYBRID_ASTAR_NAV2_PIPELINE_PROFILE_ENABLED=1)
+    endif()
   endif()
   if(HYBRID_ASTAR_BUILD_TESTS)
     add_executable(hybrid_astar_nav2_footprint_envelope_contract_test
