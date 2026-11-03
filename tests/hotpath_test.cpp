@@ -402,3 +402,38 @@ TEST_CASE("Differential and mecanum prefix modes preserve inflated exact search"
     }
   }
 }
+
+TEST_CASE("Collision outcome profiling separates empty bypass, fallback and boundary",
+          "[w6][prefix][hotpath][profile]") {
+  MapSnapshot map;
+  map.width=map.height=32;
+  map.resolutionMeters=.1;
+  map.cells.assign(map.width*map.height,0);
+  map.cells[15*map.width+15]=100;
+  const Footprint footprint{-.2,.2,.15};
+  const ExactCollisionChecker checker(map,{},footprint,.1,true,true);
+  CollisionWorkCounters work;
+  CollisionTimingCounters timings;
+  REQUIRE(checker.check({.8,.8,.3},&work,&timings)==PoseCollision::Clear);
+  REQUIRE(checker.check({1.5,1.5,0.},&work,&timings)==PoseCollision::Colliding);
+  REQUIRE(checker.check({.05,.05,0.},&work,&timings)==PoseCollision::Colliding);
+  REQUIRE(work.emptyRegionQueries==2);
+  REQUIRE(work.emptyRegionBypasses==1);
+  REQUIRE(work.boundaryRejections==1);
+  REQUIRE(work.occupiedCells>0);
+  const auto calls=timings.emptyBypassCalls+
+                   timings.nonemptyFallbackCalls+timings.boundaryCalls;
+  if(calls!=0) { // Profiling build only: default Release must have zero clocks.
+    REQUIRE(calls==3);
+    REQUIRE(timings.emptyBypassCalls==1);
+    REQUIRE(timings.nonemptyFallbackCalls==1);
+    REQUIRE(timings.boundaryCalls==1);
+    REQUIRE(timings.emptyBypassNanoseconds>0);
+    REQUIRE(timings.nonemptyFallbackNanoseconds>0);
+    REQUIRE(timings.boundaryNanoseconds>0);
+  } else {
+    REQUIRE(timings.emptyBypassNanoseconds==0);
+    REQUIRE(timings.nonemptyFallbackNanoseconds==0);
+    REQUIRE(timings.boundaryNanoseconds==0);
+  }
+}
