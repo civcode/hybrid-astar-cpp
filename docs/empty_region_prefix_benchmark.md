@@ -222,3 +222,118 @@ only; it is not registered in CTest and no GitHub Actions are involved.
 Mecanum may also be tested, but **omit** `--replay-csv` when selecting
 `--model mecanum`: the 10-route fixture was discovered for differential
 drive, not mecanum.
+
+
+## Label-table profiling and pre-reservation A/B
+
+The next potential bottleneck is the **A* state-label hash table**, not the
+collision prefix query itself. On the original 10-route warehouse sample,
+a typical route performs ~1.15 million label finds and inserts ~130,000
+unique labels; the largest observed routes approach 180,000 inserts.
+The planner already has `PlanOptions.searchLabelReserve` (default **0**),
+so this experiment compares the existing behavior with a pre-reserve of
+262,144 slots, without replacing the data structure or changing search
+decisions.
+
+In a `PROFILE_HOTPATHS=ON` build, `labelLookupNanoseconds` is now
+partitioned **without overlap** into:
+
+- `labelPopHitNanoseconds` / `labelPopMissNanoseconds`: open-queue
+  candidate's state-label lookup
+- `labelSuccessorHitNanoseconds` / `labelSuccessorMissNanoseconds`:
+  each newly generated successor's state-label lookup
+
+Each category also records its call count. The sum of the four category
+times equals the existing `labelLookupNanoseconds`, and the sum of call
+counts equals `labelFinds`. `hashNanoseconds` is **nested within** label
+lookups and some insertions, so do not add it to the label lookup total.
+
+The manually invoked
+`hybrid_astar_nav2_label_lookup_benchmark_test` replays the same 10
+start/goal pairs with both warehouse footprint geometries. Each variant
+keeps the occupancy prefix-sum ON, and can optionally enable the
+previously measured pre-polygon AABB optimization **identically** in both
+variants. The benchmark rejects any difference in status, route geometry,
+refinement, search effort, label decisions or queue work.
+
+### Profiled build: diagnose hits, misses and rehashes
+
+```bash
+git switch feature/nav2-equivalent-envelope-footprint-benchmark
+git pull --ff-only
+export BUILD_JOBS=28 TEST_JOBS=4 PROFILE_HOTPATHS=ON
+docker compose build test
+
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure -j 4 \
+  -R '^(hotpath_test|footprint_inflation_test|w10_differential_search_test|w12_mecanum_test)$'
+
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_nav2_label_lookup_benchmark_test \
+  --model differential --connector native --fast-empty-aabb \
+  --label-reserve 262144 \
+  --map apps/demo/maps/nav2_warehouse_full.yaml \
+  --replay-csv bench/fixtures/nav2_full_10_seed20261029.csv \
+  --cases 10 --repeats 3 --grid-settlements 100000 \
+  > nav2-label-lookup-profile.csv
+```
+
+This produces 40 rows: 10 routes × 2 footprints × 2 reservation settings.
+The CSV includes overall search/refinement timings, per-lookup hit/miss
+counts and times, table rehashes, peak labels, peak hash buckets,
+approximate bucket-array bytes, and nested hash timing.
+`label_bucket_bytes_estimate` excludes per-label node allocations and
+other unordered_map overhead.
+
+### Production-speed A/B: measure whether reserve actually helps
+
+After collecting profile diagnostics, **rebuild** with clock instrumentation
+disabled; do not use the profiled build's search medians to judge speed.
+
+```bash
+export BUILD_JOBS=28 TEST_JOBS=4 PROFILE_HOTPATHS=OFF
+docker compose build test
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_nav2_label_lookup_benchmark_test \
+  --model differential --connector native --fast-empty-aabb \
+  --label-reserve 262144 \
+  --map apps/demo/maps/nav2_warehouse_full.yaml \
+  --replay-csv bench/fixtures/nav2_full_10_seed20261029.csv \
+  --cases 10 --repeats 5 --grid-settlements 100000 \
+  > nav2-label-reserve-ab.csv
+```
+
+Keep the faster pre-reserve only if it improves the 10 paired routes
+consistently and the additional table-memory cost is acceptable. It
+remains **opt-in**, and the manual benchmark is not registered in CTest or
+scheduled with GitHub Actions. For mecanum, omit the differential-drive
+`--replay-csv` fixture and discover its own cases.
+
+### Summarize the baseline-vs-reserved CSV on the host
+
+```bash
+python3 - <<'PY'
+import csv
+from statistics import median
+with open("nav2-label-reserve-ab.csv", newline="") as f:
+    rows = list(csv.DictReader(f))
+assert len(rows) == 40
+for geometry in sorted({r["geometry"] for r in rows}):
+    matches = {}
+    for r in rows:
+        if r["geometry"] == geometry:
+            matches.setdefault(r["case_id"], {})[r["variant"]] = r
+    savings, extra_bucket_bytes = [], []
+    for pair in matches.values():
+        off, on = pair["baseline"], pair["pre_reserved"]
+        before, after = float(off["search_p50_ms"]), float(on["search_p50_ms"])
+        savings.append(100*(before-after)/before)
+        extra_bucket_bytes.append(int(on["label_bucket_bytes_estimate"]) -
+                                  int(off["label_bucket_bytes_estimate"]))
+    print(geometry, "routes:", len(savings),
+          "median paired saving:", f"{median(savings):.2f}%",
+          "wins:", sum(s > 0 for s in savings),
+          "median extra bucket memory:",
+          f"{median(extra_bucket_bytes)/1024/1024:.2f} MiB")
+PY
+```
