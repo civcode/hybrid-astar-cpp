@@ -357,7 +357,8 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
   try {
     validate(req.options.search);
     ExactCollisionChecker checker(*req.map,req.occupancy,req.footprint,
-                                  req.options.footprintInflationMeters);
+                                  req.options.footprintInflationMeters,false,
+                                  req.options.useInflatedFootprintBroadPhase);
     std::unique_ptr<ClearanceScorer> clearance;
     if(req.options.clearanceWeight>0)
       clearance=std::make_unique<ClearanceScorer>(*req.map,req.occupancy,req.footprint,
