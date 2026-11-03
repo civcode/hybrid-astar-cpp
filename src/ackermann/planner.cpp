@@ -453,8 +453,10 @@ void removeAvoidableMecanumSpins(const PlanRequest& request,
 
 ExactCollisionChecker::ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy,
                                              Footprint footprint,double inflationMeters,
-                                             bool useEmptyRegionPrefixSum)
+                                             bool useEmptyRegionPrefixSum,
+                                             bool useInflatedFootprintBroadPhase)
   : map_(map), policy_(policy), footprint_(footprint), inflationMeters_(inflationMeters),
+    useInflatedFootprintBroadPhase_(useInflatedFootprintBroadPhase),
     originCos_(std::cos(map.origin.yaw)),originSin_(std::sin(map.origin.yaw)) {
   validateMap(map_,policy_); validateFootprint(footprint_);
   if(!std::isfinite(inflationMeters_)||inflationMeters_<0)
@@ -535,12 +537,49 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCount
       return PoseCollision::Clear;
     }
   }
+  // Broad-phase for POSITIVE metric inflation only. The closed geometric
+  // footprint and exact SAT/distance decision below remain authoritative.
+  // AABB Euclidean gap and body-axis projection gaps are LOWER BOUNDS on
+  // polygon-to-square distance, so only cells provably beyond the margin
+  // are omitted. A conservative roundoff guard preserves near-contact
+  // behavior (including occupied cells touching the inflated boundary).
+  const bool broadphase=inflationMeters_>0&&useInflatedFootprintBroadPhase_;
+  const double safetyGuard=64*std::numeric_limits<double>::epsilon()*
+      (1.0+std::max(boundX,boundY)+
+       std::max(std::abs(footprint_.rearX),std::abs(footprint_.frontX)));
+  const double skipThreshold=inflationMeters_+epsilon+safetyGuard;
+  const double skipThresholdSquared=skipThreshold*skipThreshold;
+  const double halfProjectedCell=.5*map_.resolutionMeters*
+      (std::abs(c)+std::abs(s));
   for (std::size_t y=firstY;y<=lastY;++y) {
     for (std::size_t x=firstX;x<=lastX;++x) {
       if(work)++work->candidateCells;
       if (!blocked(map_.cells[y*map_.width+x],policy_))continue;
-      if(work) {++work->occupiedCells;++work->satTests;}
+      if(work)++work->occupiedCells;
       const double sx=x*map_.resolutionMeters,sy=y*map_.resolutionMeters;
+      if(broadphase) {
+        // Distance between axis-aligned bounding boxes is no greater than
+        // actual polygon-to-cell distance; it is cheap and orientation-free.
+        const double gapX=std::max({0.0,minx-(sx+map_.resolutionMeters),sx-maxx});
+        const double gapY=std::max({0.0,miny-(sy+map_.resolutionMeters),sy-maxy});
+        if(gapX*gapX+gapY*gapY>skipThresholdSquared) {
+          if(work)++work->inflatedAabbRejections;
+          continue;
+        }
+        // Project the cell's center/half extent onto the orthonormal body
+        // axes. A gap on EITHER axis bounds true Euclidean distance below.
+        const double dx=sx+.5*map_.resolutionMeters-x0;
+        const double dy=sy+.5*map_.resolutionMeters-y0;
+        const double along=c*dx+s*dy;
+        const double across=-s*dx+c*dy;
+        if(along+halfProjectedCell<footprint_.rearX-skipThreshold ||
+           along-halfProjectedCell>footprint_.frontX+skipThreshold ||
+           std::abs(across)>footprint_.halfWidth+halfProjectedCell+skipThreshold) {
+          if(work)++work->inflatedAxisRejections;
+          continue;
+        }
+      }
+      if(work)++work->satTests;
       if(overlapsSquare(poly,sx,sy,map_.resolutionMeters))
         return PoseCollision::Colliding;
       // Zero-margin fast path: preserve the previous SAT-only behavior.
@@ -667,7 +706,8 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     const bool ackermann=r.options.model==PlanOptions::Model::Ackermann;
     const ExactCollisionChecker checker(*r.map,r.occupancy,model.footprint(),
         r.options.footprintInflationMeters,
-        ackermann&&r.options.useEmptyRegionPrefixSum);
+        ackermann&&r.options.useEmptyRegionPrefixSum,
+        r.options.useInflatedFootprintBroadPhase);
     const std::size_t discCount=
         r.options.discPrefilterCount==PlanOptions::AutomaticDiscPrefilter?
         (ackermann?4U:0U):r.options.discPrefilterCount;
