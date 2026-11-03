@@ -114,7 +114,8 @@ void printRow(const pipe::Config& cfg,const pipe::Scenario& scenario,
       <<t.boundaryCalls<<','
       <<pipe::nsMs(t.emptyBypassNanoseconds)<<','
       <<pipe::nsMs(t.nonemptyFallbackNanoseconds)<<','
-      <<pipe::nsMs(t.boundaryNanoseconds)<<'\n';
+      <<pipe::nsMs(t.boundaryNanoseconds)<<','
+      <<pipe::nsMs(d.exactCollisionNanoseconds)<<'\n';
 }
 }
 int main(int argc,char** argv) {
@@ -153,7 +154,7 @@ int main(int argc,char** argv) {
                 "profile_enabled,collision_empty_bypass_calls,"
                 "collision_nonempty_fallback_calls,collision_boundary_calls,"
                 "collision_empty_bypass_ms,collision_nonempty_fallback_ms,"
-                "collision_boundary_ms\n";
+                "collision_boundary_ms,collision_outer_total_ms\n";
     for(const auto& scenario:cases) {
       const auto poses=fe::fixedPoseBank(cfg,scenario,*map,microPoses);
       const std::array<fe::Variant,2> geometries=scenario.id%2?
