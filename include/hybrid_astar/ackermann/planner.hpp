@@ -54,6 +54,8 @@ struct CollisionWorkCounters {
   std::uint64_t boundaryRejections = 0; // poses rejected at map boundary
   std::uint64_t emptyRegionQueries = 0; // occupancy-prefix-sum AABB tests
   std::uint64_t emptyRegionBypasses = 0; // AABBs proven fully traversable
+  std::uint64_t fastEmptyAabbQueries = 0; // fast conservative AABB prefix probes
+  std::uint64_t fastEmptyAabbBypasses = 0; // fast probes proving no obstacles
 };
 // Enabled only by HYBRID_ASTAR_PROFILE_HOTPATHS. A collision check belongs
 // to exactly one category: empty prefix bypass, nonempty fallback, or map edge.
@@ -71,7 +73,8 @@ public:
   ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy,
                         Footprint footprint, double inflationMeters = 0.0,
                         bool useEmptyRegionPrefixSum = false,
-                        bool useInflatedFootprintBroadPhase = true);
+                        bool useInflatedFootprintBroadPhase = true,
+                        bool useFastEmptyAabb = false);
   PoseCollision check(const Pose2D& pose,CollisionWorkCounters* work=nullptr,
                       CollisionTimingCounters* timing=nullptr) const;
   double maxBodyRadius() const noexcept;
@@ -81,6 +84,7 @@ private:
   Footprint footprint_;
   double inflationMeters_ = 0.0;
   bool useInflatedFootprintBroadPhase_ = true;
+  bool useFastEmptyAabb_ = false;
   // (w+1)*(h+1) summed occupancy. Empty for the legacy SAT-only scanner.
   std::vector<std::size_t> blockedPrefix_;
   std::size_t prefixPitch_ = 0;
@@ -157,6 +161,9 @@ struct PlanOptions {
       std::numeric_limits<std::size_t>::max();
   std::size_t discPrefilterCount = AutomaticDiscPrefilter;
   bool useEmptyRegionPrefixSum = true; // All models; exact empty-AABB bypass
+  // Experimental opt-in: conservative AABB/prefix proof BEFORE constructing
+  // the full rotated footprint. Nonempty/uncertain boxes use original checker.
+  bool useFastEmptyAabb = false;
   bool collectCollisionWork = false; // opt-in broad-phase counters; adds overhead
   // Default-on exact-equivalent AABB / body-axis early rejection for positive
   // geometric inflation. Disable ONLY for controlled old-vs-new benchmarks.
@@ -209,6 +216,7 @@ struct PlanDiagnostics {
   std::size_t exactCollisionPoseCalls = 0;
   CollisionWorkCounters collisionWork{}; // zero unless collectCollisionWork enabled
   CollisionTimingCounters collisionTiming{}; // only populated in profiling builds
+  bool fastEmptyAabbUsed = false;
   bool collectCollisionWork = false;
   // Timing counters are nonzero only with HYBRID_ASTAR_PROFILE_HOTPATHS=ON.
   // Motion timings INCLUDE nested exact-collision timings: do not sum.
