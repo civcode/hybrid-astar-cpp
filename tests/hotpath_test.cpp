@@ -457,6 +457,26 @@ TEST_CASE("Fast empty AABB matches original checker across rotated, occupied and
   }
 }
 
+TEST_CASE("Fast AABB requires prefix sums and cannot change non-prefix checking",
+          "[w6][prefix][fast-aabb]") {
+  MapSnapshot map;
+  map.width=map.height=40;map.resolutionMeters=.1;
+  map.cells.assign(map.width*map.height,0);
+  map.cells[20*map.width+20]=100;
+  const Footprint footprint{-.35,.35,.25};
+  const ExactCollisionChecker original(map,{},footprint,.1,false,true,false);
+  const ExactCollisionChecker disabled(map,{},footprint,.1,false,true,true);
+  for(const auto pose:{Pose2D{1.,1.,0.},Pose2D{2.,2.,.5},
+                       Pose2D{.1,2.,0.},Pose2D{2.,2.7,1.2}}) {
+    CollisionWorkCounters a,b;
+    REQUIRE(original.check(pose,&a)==disabled.check(pose,&b));
+    REQUIRE(b.fastEmptyAabbQueries==0);
+    REQUIRE(b.fastEmptyAabbBypasses==0);
+    REQUIRE(b.candidateCells==a.candidateCells);
+    REQUIRE(b.satTests==a.satTests);
+  }
+}
+
 TEST_CASE("Fast AABB opt-in preserves differential and mecanum route geometry",
           "[w6][prefix][fast-aabb][models]") {
   auto map=std::make_shared<MapSnapshot>();
