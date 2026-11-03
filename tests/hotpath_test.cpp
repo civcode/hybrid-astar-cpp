@@ -567,3 +567,57 @@ TEST_CASE("Collision outcome profiling separates empty bypass, fallback and boun
     REQUIRE(timings.boundaryNanoseconds==0);
   }
 }
+
+TEST_CASE("Label lookup profiling partitions pop and successor hit/miss work",
+          "[w6][hotpath][labels][profile]") {
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=96;map->height=96;map->resolutionMeters=.2;
+  map->cells.assign(map->width*map->height,0);
+  for(std::size_t y=22;y<72;++y)map->cells[y*map->width+65]=100;
+  PlanRequest req;
+  req.map=map;
+  req.start={5.,5.,0.};
+  req.goal={8.,5.,0.};
+  req.footprint={-.35,.35,.25};
+  req.options.model=PlanOptions::Model::DifferentialDrive;
+  req.options.maxExpansions=15000;
+  req.options.maxGeneratedNodes=60000;
+  req.options.useFastEmptyAabb=true;
+  const auto original=plan(req);
+  REQUIRE(original.status==PlanStatus::Success);
+  req.options.searchLabelReserve=4096;
+  const auto reserved=plan(req);
+  REQUIRE(reserved.status==original.status);
+  REQUIRE(reserved.diagnostics.expanded==original.diagnostics.expanded);
+  REQUIRE(reserved.diagnostics.generated==original.diagnostics.generated);
+  REQUIRE(reserved.diagnostics.labelFinds==original.diagnostics.labelFinds);
+  REQUIRE(reserved.diagnostics.labelFindHits==original.diagnostics.labelFindHits);
+  REQUIRE(reserved.diagnostics.labelInsertions==original.diagnostics.labelInsertions);
+  REQUIRE(reserved.diagnostics.labelUpdates==original.diagnostics.labelUpdates);
+  REQUIRE(reserved.sections.size()==original.sections.size());
+  REQUIRE(std::abs(reserved.weightedCostMeters-original.weightedCostMeters)<1e-9);
+  for(std::size_t i=0;i<reserved.sections.size();++i) {
+    REQUIRE(reserved.sections[i].kind==original.sections[i].kind);
+    REQUIRE(reserved.sections[i].gear==original.sections[i].gear);
+    REQUIRE(std::abs(reserved.sections[i].end.x-original.sections[i].end.x)<1e-9);
+    REQUIRE(std::abs(reserved.sections[i].end.y-original.sections[i].end.y)<1e-9);
+    REQUIRE(std::abs(reserved.sections[i].end.yaw-original.sections[i].end.yaw)<1e-9);
+  }
+  for(const auto* d:{&original.diagnostics,&reserved.diagnostics}) {
+    REQUIRE(d->labelFinds>0);
+    if(d->labelLookupNanoseconds!=0) { // PROFILE_HOTPATHS=ON only.
+      REQUIRE(d->labelPopHits+d->labelPopMisses+
+              d->labelSuccessorHits+d->labelSuccessorMisses==d->labelFinds);
+      REQUIRE(d->labelPopHitNanoseconds+d->labelPopMissNanoseconds+
+              d->labelSuccessorHitNanoseconds+d->labelSuccessorMissNanoseconds==
+              d->labelLookupNanoseconds);
+      REQUIRE(d->labelPopHits>0);
+      REQUIRE(d->labelSuccessorHits+d->labelSuccessorMisses>0);
+    } else {
+      REQUIRE(d->labelPopHits==0);
+      REQUIRE(d->labelPopMisses==0);
+      REQUIRE(d->labelSuccessorHits==0);
+      REQUIRE(d->labelSuccessorMisses==0);
+    }
+  }
+}
