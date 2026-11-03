@@ -254,3 +254,106 @@ TEST_CASE("Planning start validation and strict post-refinement enforce inflatio
   REQUIRE(invalid.status==RefinementStatus::OriginalNotVerified);
   REQUIRE(invalid.path.sections.empty());
 }
+
+
+TEST_CASE("Conservative inflation broad phase exactly matches legacy on seeded geometry",
+          "[inflation][geometry][broadphase][equivalence]") {
+  // Compare against the OLD SAT+exact-distance code, not merely against
+  // another approximate inflated hull. Include unknown occupancy, rotated
+  // map origins, both car and compact-robot footprints and all near-edge cases.
+  auto base=emptyMap();
+  std::uint64_t seed=0x12347fedbae091cdULL;
+  const auto random=[&]() {
+    seed+=0x9e3779b97f4a7c15ULL;
+    auto v=seed;
+    v=(v^(v>>30))*0xbf58476d1ce4e5b9ULL;
+    v=(v^(v>>27))*0x94d049bb133111ebULL;
+    return v^(v>>31);
+  };
+  const auto uniform=[&]() {return static_cast<double>(random()>>11)*0x1.0p-53;};
+  for(auto& cell:base->cells) {
+    const auto r=random()%100;
+    cell=r<15?100:r<22?-1:0;
+  }
+  auto rotated=std::make_shared<MapSnapshot>(*base);
+  rotated->origin={12.,-7.,.73};
+  std::size_t total=0;
+  std::uint64_t broadphaseRejects=0,avoidedExact=0;
+  for(const auto& map:{base,rotated})
+    for(const auto body:{Footprint{-.35,.35,.25},Footprint{-1.,3.6,.9}})
+      for(const auto policy:{OccupancyPolicy{0,UnknownPolicy::Occupied},
+                             OccupancyPolicy{0,UnknownPolicy::Free}})
+        for(const double margin:{0.,.03,.10,.50}) {
+          const ExactCollisionChecker old(*map,policy,body,margin,false,false);
+          const ExactCollisionChecker fast(*map,policy,body,margin,false,true);
+          const ExactCollisionChecker prefix(*map,policy,body,margin,true,true);
+          for(int j=0;j<350;++j) {
+            const Pose2D local{.05+9.9*uniform(),.05+9.9*uniform(),
+                               -pi+2*pi*uniform()};
+            const auto pose=toWorld(local,map->origin);
+            CollisionWorkCounters a,b;
+            const auto expected=old.check(pose,&a);
+            const auto actual=fast.check(pose,&b);
+            const auto prefixed=prefix.check(pose);
+            INFO("margin="<<margin<<" x="<<pose.x<<" y="<<pose.y
+                 <<" yaw="<<pose.yaw<<" width="<<body.halfWidth
+                 <<" rotated map="<<map->origin.yaw);
+            REQUIRE(actual==expected);
+            REQUIRE(prefixed==expected);
+            REQUIRE(b.distanceTests<=a.distanceTests);
+            REQUIRE(b.satTests<=a.satTests);
+            REQUIRE(b.inflatedAabbRejections+b.inflatedAxisRejections<=b.occupiedCells);
+            if(margin==0.) {
+              REQUIRE(b.inflatedAabbRejections==0);
+              REQUIRE(b.inflatedAxisRejections==0);
+            }
+            broadphaseRejects+=b.inflatedAabbRejections+b.inflatedAxisRejections;
+            avoidedExact+=a.distanceTests-b.distanceTests;
+            ++total;
+          }
+        }
+  REQUIRE(total==11200);
+  REQUIRE(broadphaseRejects>0);
+  REQUIRE(avoidedExact>0);
+}
+
+TEST_CASE("Near-contact inflated checker preserves rounded-corner and boundary semantics",
+          "[inflation][geometry][broadphase][contact]") {
+  const auto map=emptyMap();
+  block(*map,50,50);
+  const Footprint rectangle{-.2,.2,.1};
+  for(const double margin:{0.0,.05,.0599999999,.06,.0600000001,.10,.23}) {
+    const ExactCollisionChecker old(*map,{},rectangle,margin,false,false);
+    const ExactCollisionChecker fast(*map,{},rectangle,margin,false,true);
+    for(double offset:{-1e-9,-1e-12,0.,1e-12,1e-9}) {
+      const Pose2D pose{4.74+offset,5.05,0.};
+      REQUIRE(fast.check(pose)==old.check(pose));
+    }
+    // Contacts near a map edge remain rejected before inspecting occupancy.
+    for(double offset:{-1e-12,0.,1e-12})
+      REQUIRE(fast.check({.2+margin+offset,5.,0.})==
+              old.check({.2+margin+offset,5.,0.}));
+  }
+}
+
+TEST_CASE("Refinement honors optimized vs legacy checker without changing path",
+          "[inflation][geometry][broadphase][refinement]") {
+  auto map=emptyMap();
+  PlanRequest request;
+  request.map=map;
+  request.options.model=PlanOptions::Model::DifferentialDrive;
+  request.options.footprintInflationMeters=.10;
+  request.footprint={-.2,.2,.1};
+  request.start={3.,3.,0.};request.goal={5.,3.,0.};
+  const auto motion=makeSection(request.start,Gear::Forward,0,2.);
+  request.options.useInflatedFootprintBroadPhase=false;
+  const auto legacy=refinePath(request,raw(request,motion));
+  request.options.useInflatedFootprintBroadPhase=true;
+  const auto optimized=refinePath(request,raw(request,motion));
+  REQUIRE(legacy.status==optimized.status);
+  REQUIRE(legacy.path.status==PlanStatus::Success);
+  REQUIRE(legacy.path.sections.size()==optimized.path.sections.size());
+  REQUIRE(legacy.path.geometricLengthMeters==optimized.path.geometricLengthMeters);
+  REQUIRE(legacy.accepted==optimized.accepted);
+  REQUIRE(legacy.exactPoseChecks==optimized.exactPoseChecks);
+}
