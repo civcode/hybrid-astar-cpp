@@ -501,10 +501,29 @@ contacts. A speedup is acceptable only if strict collision decisions
 remain identical.
 
 For the **next** heuristic experiment, repeat the benchmark on the same
-replay CSV with --grid-settlements 250000 and then 500000; keep
---collision-mode fastpath and all other inputs fixed. A larger grid budget
-may reduce A* expansions, but its computation cost must be included in
-the reported search time. This benchmark does not run Nav2 Smac itself.
+replay CSV at all three grid budgets; keep --collision-mode fastpath
+and all other inputs fixed:
+
+~~~bash
+export PROFILE_HOTPATHS=OFF
+for cap in 100000 250000 500000; do
+  docker compose --profile test run --rm \
+    -v "$PWD/nav2-full-margin-pipeline.csv:/tmp/baseline.csv:ro" \
+    test ./build-docker/hybrid_astar_nav2_warehouse_pipeline_benchmark_test \
+    --model differential --cases 10 --repeats 5 \
+    --collision-mode fastpath --replay-csv /tmp/baseline.csv \
+    --grid-settlements "$cap" > "nav2-grid-${cap}.csv"
+done
+
+python3 tools/analyze_nav2_grid_caps.py \
+  nav2-grid-100000.csv nav2-grid-250000.csv nav2-grid-500000.csv
+~~~
+
+The grid-budget report verifies identical routes and compares median search
+and total time, grid fallbacks, expansions, collisions and failure rates.
+A larger grid budget may reduce A* expansions, but its computation cost
+must be included in the reported search time. This benchmark does not
+run Nav2 Smac itself.
 
 ## Ackermann steering-aware refinement: 100-path A/B (manual)
 
