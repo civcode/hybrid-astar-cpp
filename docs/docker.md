@@ -450,8 +450,10 @@ identical heading, map, start/goal, search budget, 100k obstacle-grid
 settlement cap and post-path refinement settings. The reference pose is
 at the **center of both rectangles**. Both use the new conservative exact
 collision-check broad phase. Run on the **same 10 route pairs** as the
-previous benchmark via `--replay-csv` (the 30,000+ expansion qualification
-comes from the prior original 70 × 50 cm baseline). Every replayed case
+previous benchmark using the checked-in
+`bench/fixtures/nav2_full_10_seed20261029.csv` file, generated from
+your original 10-route benchmark (the 30,000+ expansion qualification
+comes from the original 70 × 50 cm baseline). Every replayed case
 is included even if one geometry fails or expands fewer than 30,000 nodes;
 we do not cherry-pick successful outcomes.
 
@@ -488,14 +490,13 @@ docker compose build test
 docker compose --profile test run --rm test \
   ctest --test-dir build-docker --output-on-failure -j "$TEST_JOBS"
 
-# Reuse the original full-map benchmark's exact ten start/goal pairs.
-# Mount the CSV since Docker doesn't automatically see the host file.
+# The exact 10 previously qualified random routes are already in Git.
 docker compose --profile test run --rm \
-  -v "$PWD/nav2-full-margin-pipeline.csv:/tmp/baseline.csv:ro" \
   test ./build-docker/hybrid_astar_nav2_footprint_envelope_benchmark_test \
   --model differential --cases 10 --repeats 5 \
   --min-expansions 30000 --search-budget 500000 \
-  --grid-settlements 100000 --replay-csv /tmp/baseline.csv \
+  --grid-settlements 100000 \
+  --replay-csv bench/fixtures/nav2_full_10_seed20261029.csv \
   --micro-poses 20000 --micro-repeats 5 \
   > nav2-footprint-envelope.csv
 
