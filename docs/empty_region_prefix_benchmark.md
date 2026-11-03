@@ -15,18 +15,51 @@ table for a short refinement might outweigh the savings.
 
 ## Manually benchmark identical routes with the prefix ON versus OFF
 
-The full-resolution Nav2 map is generated locally and is not committed. If it
-is absent, first run `python3 tools/prepare_nav2_warehouse.py` (downloads the
-pinned upstream PGM; alternatively provide `--source /path/to/warehouse.pgm`).
+The pinned full-resolution Nav2 map is generated **inside Docker** by the
+repository's Dockerfile. The test image also builds the manual benchmark
+executable; no host-side CMake build or map preparation is required.
 
-    cmake -S . -B build -DHYBRID_ASTAR_BUILD_TESTS=OFF -DHYBRID_ASTAR_BUILD_APP=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
-    cmake --build build --target hybrid_astar_nav2_prefix_sum_benchmark_test -j 4
-    ./build/hybrid_astar_nav2_prefix_sum_benchmark_test \
-      --model differential --connector native \
-      --map apps/demo/maps/nav2_warehouse_full.yaml \
-      --replay-csv bench/fixtures/nav2_full_10_seed20261029.csv \
-      --cases 10 --repeats 5 --micro-poses 20000 --micro-repeats 5 \
-      --grid-settlements 100000 > nav2-prefix-sum.csv
+From the repository root:
+
+```bash
+git switch feature/nav2-equivalent-envelope-footprint-benchmark
+git pull --ff-only
+
+# Limit BOTH OMPL and Hybrid A* compilation to 28 parallel jobs.
+export BUILD_JOBS=28
+export TEST_JOBS=4
+export PROFILE_HOTPATHS=OFF
+
+docker compose build test
+
+# Manually run the A/B benchmark; CSV lands on the host.
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_nav2_prefix_sum_benchmark_test \
+  --model differential \
+  --connector native \
+  --map apps/demo/maps/nav2_warehouse_full.yaml \
+  --replay-csv bench/fixtures/nav2_full_10_seed20261029.csv \
+  --cases 10 \
+  --repeats 5 \
+  --micro-poses 20000 \
+  --micro-repeats 5 \
+  --grid-settlements 100000 \
+  > nav2-prefix-sum.csv
+```
+
+`BUILD_JOBS=28` affects Docker **build-time** parallelism, not the number of
+concurrent benchmark runs. Run timed measurements serially for stable results.
+`TEST_JOBS=4` would apply only to an explicit CTest invocation; the manual
+benchmark above does not use it. Building with 28 concurrent compiler jobs can
+require substantial RAM, especially while compiling OMPL.
+
+Optional CTest verification before timing (not run automatically):
+
+```bash
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure -j 4 \
+  -R '^(hotpath_test|footprint_inflation_test|w10_differential_search_test|w12_mecanum_test)$'
+```
 
 The 10 matched warehouse cases are tested for both the 70x50 cm rectangle
 and the 50x30 cm rectangle with 10 cm metric inflation. For each geometry,
