@@ -999,8 +999,24 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
                     typename Policy::Mode gear; double g,h,clearanceCost;} current{
         candidate.pose,candidate.key,candidate.gear,candidate.g,candidate.h,candidate.clearanceCost};
       const auto label=[&] {
-        HotPathTimer lookupTimer(result.diagnostics.labelLookupNanoseconds);
+#if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
+        const auto started=std::chrono::steady_clock::now();
+        const auto it=active.find(current.key);
+        const auto ns=static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now()-started).count());
+        result.diagnostics.labelLookupNanoseconds+=ns;
+        if(it==active.end()) {
+          ++result.diagnostics.labelPopMisses;
+          result.diagnostics.labelPopMissNanoseconds+=ns;
+        } else {
+          ++result.diagnostics.labelPopHits;
+          result.diagnostics.labelPopHitNanoseconds+=ns;
+        }
+        return it;
+#else
         return active.find(current.key);
+#endif
       }();
       ++result.diagnostics.labelFinds;
       if(label!=active.end())++result.diagnostics.labelFindHits;
@@ -1276,8 +1292,24 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
           const double lowerG=current.g+cost;
           if (!std::isfinite(lowerG)) {result.status=PlanStatus::InternalError;return result;}
           const auto found=[&] {
-            HotPathTimer lookupTimer(result.diagnostics.labelLookupNanoseconds);
+#if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
+            const auto started=std::chrono::steady_clock::now();
+            const auto it=active.find(key);
+            const auto ns=static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now()-started).count());
+            result.diagnostics.labelLookupNanoseconds+=ns;
+            if(it==active.end()) {
+              ++result.diagnostics.labelSuccessorMisses;
+              result.diagnostics.labelSuccessorMissNanoseconds+=ns;
+            } else {
+              ++result.diagnostics.labelSuccessorHits;
+              result.diagnostics.labelSuccessorHitNanoseconds+=ns;
+            }
+            return it;
+#else
             return active.find(key);
+#endif
           }();
           ++result.diagnostics.labelFinds;
           if(found!=active.end())++result.diagnostics.labelFindHits;
