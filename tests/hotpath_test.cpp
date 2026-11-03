@@ -403,6 +403,116 @@ TEST_CASE("Differential and mecanum prefix modes preserve inflated exact search"
   }
 }
 
+TEST_CASE("Fast empty AABB matches original checker across rotated, occupied and unknown maps",
+          "[w6][prefix][fast-aabb][collision]") {
+  MapSnapshot map;
+  map.width=96;map.height=84;
+  map.resolutionMeters=.12;
+  map.origin={4.,-3.,1.1};
+  map.cells.assign(map.width*map.height,0);
+  for(std::size_t y=15;y<70;++y)
+    map.cells[y*map.width+46]=100;
+  for(std::size_t y=20;y<32;++y)
+    map.cells[y*map.width+70]=-1;
+  for(std::size_t x=14;x<29;++x)
+    map.cells[60*map.width+x]=75;
+  const auto world=[&](double x,double y,double yaw) {
+    const double c=std::cos(map.origin.yaw),s=std::sin(map.origin.yaw);
+    return Pose2D{map.origin.x+c*x-s*y,
+                  map.origin.y+s*x+c*y,yaw+map.origin.yaw};
+  };
+  for(const auto unknown:{UnknownPolicy::Occupied,UnknownPolicy::Free}) {
+    for(const auto footprint:{Footprint{-.35,.35,.25},Footprint{-.25,.25,.15}}) {
+      for(const double margin:{0.,.10}) {
+        OccupancyPolicy policy{0,unknown};
+        const ExactCollisionChecker baseline(map,policy,footprint,margin,true,true,false);
+        const ExactCollisionChecker quick(map,policy,footprint,margin,true,true,true);
+        std::uint64_t fastBypasses=0,nonemptyScans=0,boundaryHits=0;
+        for(int iy=0;iy<84;iy+=3) for(int ix=0;ix<96;ix+=3) {
+          for(int turn=0;turn<12;++turn) {
+            const double yaw=.5235987755982988*turn;
+            const auto pose=world((ix+.37)*map.resolutionMeters,
+                                  (iy+.41)*map.resolutionMeters,yaw);
+            CollisionWorkCounters a,b;
+            const auto original=baseline.check(pose,&a);
+            const auto optimized=quick.check(pose,&b);
+            INFO("ix="<<ix<<" iy="<<iy<<" yaw="<<yaw
+                 <<" unknown="<<static_cast<int>(unknown)
+                 <<" margin="<<margin);
+            REQUIRE(optimized==original);
+            REQUIRE(b.candidateCells==a.candidateCells);
+            REQUIRE(b.occupiedCells==a.occupiedCells);
+            REQUIRE(b.satTests==a.satTests);
+            REQUIRE(b.distanceTests==a.distanceTests);
+            fastBypasses+=b.fastEmptyAabbBypasses;
+            nonemptyScans+=b.candidateCells>0;
+            boundaryHits+=b.boundaryRejections>0;
+          }
+        }
+        REQUIRE(fastBypasses>0);
+        REQUIRE(nonemptyScans>0);
+        REQUIRE(boundaryHits>0);
+      }
+    }
+  }
+}
+
+TEST_CASE("Fast AABB opt-in preserves differential and mecanum route geometry",
+          "[w6][prefix][fast-aabb][models]") {
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=96;map->height=96;map->resolutionMeters=.2;
+  map->origin={2.,-1.,.4};
+  map->cells.assign(map->width*map->height,0);
+  for(std::size_t y=30;y<64;++y)
+    map->cells[y*map->width+67]=100;
+  for(const auto model:{PlanOptions::Model::DifferentialDrive,
+                        PlanOptions::Model::Mecanum}) {
+    for(double margin:{0.,.10}) {
+      PlanRequest request;
+      request.map=map;
+      request.options.model=model;
+      request.options.footprintInflationMeters=margin;
+      request.options.maxExpansions=10000;
+      request.options.maxGeneratedNodes=40000;
+      request.options.collectCollisionWork=true;
+      request.footprint={-.35,.35,.25};
+      const double c=std::cos(map->origin.yaw),s=std::sin(map->origin.yaw);
+      request.start={2.+c*4.-s*4.,-1.+s*4.+c*4.,map->origin.yaw};
+      request.goal={2.+c*7.-s*4.,-1.+s*7.+c*4.,map->origin.yaw};
+      const auto old=plan(request);
+      request.options.useFastEmptyAabb=true;
+      const auto fast=plan(request);
+      INFO("model="<<static_cast<int>(model)<<" margin="<<margin);
+      REQUIRE(old.status==PlanStatus::Success);
+      REQUIRE(fast.status==old.status);
+      REQUIRE_FALSE(old.diagnostics.fastEmptyAabbUsed);
+      REQUIRE(fast.diagnostics.fastEmptyAabbUsed);
+      REQUIRE(old.diagnostics.expanded==fast.diagnostics.expanded);
+      REQUIRE(old.diagnostics.generated==fast.diagnostics.generated);
+      REQUIRE(old.diagnostics.exactCollisionPoseCalls==
+              fast.diagnostics.exactCollisionPoseCalls);
+      REQUIRE(old.sections.size()==fast.sections.size());
+      REQUIRE(std::abs(old.weightedCostMeters-fast.weightedCostMeters)<1e-9);
+      REQUIRE(fast.diagnostics.collisionWork.fastEmptyAabbQueries>0);
+      REQUIRE(fast.diagnostics.collisionWork.fastEmptyAabbBypasses>0);
+      REQUIRE(old.diagnostics.collisionWork.candidateCells==
+              fast.diagnostics.collisionWork.candidateCells);
+      for(std::size_t i=0;i<old.sections.size();++i) {
+        const auto& a=old.sections[i];
+        const auto& b=fast.sections[i];
+        REQUIRE(a.kind==b.kind);
+        REQUIRE(a.gear==b.gear);
+        REQUIRE(std::abs(a.start.x-b.start.x)<1e-9);
+        REQUIRE(std::abs(a.start.y-b.start.y)<1e-9);
+        REQUIRE(std::abs(a.start.yaw-b.start.yaw)<1e-9);
+        REQUIRE(std::abs(a.end.x-b.end.x)<1e-9);
+        REQUIRE(std::abs(a.end.y-b.end.y)<1e-9);
+        REQUIRE(std::abs(a.end.yaw-b.end.yaw)<1e-9);
+      }
+    }
+  }
+}
+
 TEST_CASE("Collision outcome profiling separates empty bypass, fallback and boundary",
           "[w6][prefix][hotpath][profile]") {
   MapSnapshot map;
