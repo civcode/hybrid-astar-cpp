@@ -42,9 +42,11 @@ int main(int argc,char** argv) {
         std::vector<bool>{false,true}:
         std::vector<bool>{config.collisionMode=="fastpath"};
     for(const auto& scenario:scenarios) {
+      auto checkerOrder=variants;
+      if(scenario.id%2==1)std::reverse(checkerOrder.begin(),checkerOrder.end());
       const auto runMargin=[&](double margin) {
         std::vector<std::pair<bool,Measurement>> results;
-        for(const bool fast:variants) {
+        for(const bool fast:checkerOrder) {
           auto paired=request;
           paired.start=scenario.endpoints.start;
           paired.goal=scenario.endpoints.goal;
@@ -74,8 +76,9 @@ int main(int argc,char** argv) {
             <<" ms, total_p50="<<m.totalP50<<" ms\n";
         }
       };
-      // Balance margin order between cases, and checker order inside cases
-      // remains identical to permit within-route before/after comparisons.
+      // Alternate margin and checker ordering across cases to reduce
+      // systematic CPU cache / frequency bias. Geometry is asserted
+      // equivalent before CSV rows are emitted.
       if(scenario.id%2==0){runMargin(0.0);runMargin(.1);}
       else{runMargin(.1);runMargin(0.0);}
     }
