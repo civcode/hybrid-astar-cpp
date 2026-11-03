@@ -265,6 +265,8 @@ if(HYBRID_ASTAR_BUILD_APP)
       tests/nav2_footprint_envelope_contract_test.cpp)
     target_include_directories(hybrid_astar_nav2_footprint_envelope_contract_test
       PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_compile_definitions(hybrid_astar_nav2_footprint_envelope_contract_test
+      PRIVATE HYBRID_ASTAR_ENVELOPE_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/bench/fixtures/nav2_full_10_seed20261029.csv")
     target_link_libraries(hybrid_astar_nav2_footprint_envelope_contract_test
       PRIVATE hybrid_astar_demo_logic Catch2::Catch2WithMain)
     add_test(NAME nav2_footprint_envelope_contract_test
