@@ -40,7 +40,7 @@ TEST_CASE("Two geometries share outer 70x50 cm extents but not corner shape",
   // corner, but OUTSIDE the small rectangle + circular margin (distance
   // sqrt(.09^2+.09^2) > .10): results should legitimately differ.
   map->cells[174*map->width+184]=100;
-  const Pose2D pose{1.5,1.5,0};
+  const hybrid_astar::Pose2D pose{1.5,1.5,0};
   const ExactCollisionChecker larger(*map,sharp.occupancy,sharp.footprint,0);
   const ExactCollisionChecker inflated(*map,round.occupancy,round.footprint,.1);
   REQUIRE(larger.check(pose)==PoseCollision::Colliding);

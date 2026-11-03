@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 namespace fe=hybrid_astar::bench::footprint_envelope;
-namespace pipe=hybrid_astar::bench::nav2_pipeline;
 using namespace hybrid_astar::ackermann;
 namespace {
+namespace pipe=hybrid_astar::bench::nav2_pipeline;
 struct Micro {
   double ctorP50Ms=0,poseP50Us=0;
   std::size_t collisions=0;
@@ -104,6 +104,7 @@ void printRow(const pipe::Config& cfg,const pipe::Scenario& scenario,
 }
 }
 int main(int argc,char** argv) {
+  namespace pipe=hybrid_astar::bench::nav2_pipeline;
   try {
     std::size_t microPoses=20000,microRepeats=5;
     std::vector<char*> forwarded{argv[0]};
