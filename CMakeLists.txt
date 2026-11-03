@@ -259,6 +259,13 @@ if(HYBRID_ASTAR_BUILD_APP)
       PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(hybrid_astar_nav2_footprint_envelope_benchmark_test
       PRIVATE hybrid_astar_demo_logic)
+    # Manually-run paired prefix-sum A/B, not registered with CTest.
+    add_executable(hybrid_astar_nav2_prefix_sum_benchmark_test
+      tests/nav2_prefix_sum_benchmark_test.cpp)
+    target_include_directories(hybrid_astar_nav2_prefix_sum_benchmark_test
+      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(hybrid_astar_nav2_prefix_sum_benchmark_test
+      PRIVATE hybrid_astar_demo_logic)
   endif()
   if(HYBRID_ASTAR_BUILD_TESTS)
     add_executable(hybrid_astar_nav2_footprint_envelope_contract_test
