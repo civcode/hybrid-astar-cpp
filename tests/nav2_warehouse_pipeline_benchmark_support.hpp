@@ -268,6 +268,78 @@ inline std::vector<Scenario> discover(const Config& config,const PlanRequest& ba
         std::to_string(unusable));
   return cases;
 }
+// Reuse the EXACT 10 routes from the earlier full-map benchmark CSV. This
+// avoids costly discovery and allows old-vs-new comparisons without reselecting
+// easier paths. The schema is the benchmark's numeric, unquoted CSV format.
+inline std::vector<Scenario> replayScenarios(const Config& c,const PlanRequest& base) {
+  std::ifstream input(c.replayCsv);
+  if(!input)throw std::invalid_argument("Cannot open replay CSV: "+c.replayCsv);
+  const auto split=[](const std::string& line) {
+    std::vector<std::string> values;
+    std::istringstream stream(line);
+    std::string value;
+    while(std::getline(stream,value,','))values.push_back(value);
+    return values;
+  };
+  std::string line;
+  if(!std::getline(input,line))throw std::invalid_argument("Replay CSV is empty");
+  const auto columns=split(line);
+  std::map<std::string,std::size_t> labels;
+  for(std::size_t i=0;i<columns.size();++i)
+    if(!labels.emplace(columns[i],i).second)
+      throw std::invalid_argument("Duplicate replay CSV column");
+  const auto col=[&](const std::vector<std::string>& v,const char* name)
+      ->const std::string& {
+    const auto it=labels.find(name);
+    if(it==labels.end()||it->second>=v.size())
+      throw std::invalid_argument(std::string("Missing replay CSV field ")+name);
+    return v[it->second];
+  };
+  std::map<std::size_t,Scenario> selected;
+  std::size_t lineNumber=1;
+  while(std::getline(input,line)) {
+    ++lineNumber;
+    if(line.empty())continue;
+    const auto v=split(line);
+    if(col(v,"margin_m")!="0.000000" && std::stod(col(v,"margin_m"))!=0.0)continue;
+    if(col(v,"status")!="Success" ||
+       col(v,"model")!=c.model || col(v,"connector")!=c.connector ||
+       integer(col(v,"map_cells"))!=base.map->cells.size() ||
+       std::abs(std::stod(col(v,"resolution_m"))-base.map->resolutionMeters)>1e-10 ||
+       integer(col(v,"seed"),true)!=c.seed)
+      throw std::invalid_argument("Replay CSV route mismatch at line "+
+                                  std::to_string(lineNumber));
+    const auto expansions=integer(col(v,"discovery_expansions"));
+    if(expansions<c.minimumExpansions)
+      throw std::invalid_argument("Replay route below minimum expansions");
+    const auto id=integer(col(v,"case_id"),true);
+    const auto draw=integer(col(v,"draw_index"),true);
+    const auto start=Pose2D{std::stod(col(v,"start_x_m")),
+      std::stod(col(v,"start_y_m")),std::stod(col(v,"start_yaw_rad"))};
+    const auto goal=Pose2D{std::stod(col(v,"goal_x_m")),
+      std::stod(col(v,"goal_y_m")),std::stod(col(v,"goal_yaw_rad"))};
+    if(!std::isfinite(start.x)||!std::isfinite(start.y)||!std::isfinite(start.yaw)||
+       !std::isfinite(goal.x)||!std::isfinite(goal.y)||!std::isfinite(goal.yaw)||
+       std::hypot(start.x-goal.x,start.y-goal.y)<15.0)
+      throw std::invalid_argument("Invalid replay coordinates");
+    const Endpoints e{start,goal,regionOf(start,*base.map),regionOf(goal,*base.map)};
+    if(!selected.emplace(id,Scenario{id,draw,e,expansions}).second)
+      throw std::invalid_argument("Duplicate baseline case ID in replay CSV");
+  }
+  if(selected.size()!=c.cases)
+    throw std::runtime_error("Replay contains "+std::to_string(selected.size())+
+      " routes; expected --cases="+std::to_string(c.cases));
+  std::vector<Scenario> cases;
+  cases.reserve(selected.size());
+  for(const auto& [id,scenario]:selected) {
+    if(id!=cases.size())
+      throw std::invalid_argument("Replay cases must be sequential from zero");
+    cases.push_back(scenario);
+  }
+  std::cerr<<"Replaying "<<cases.size()<<" same start/goal pairs from "<<c.replayCsv
+           <<"; selection is outside timed pipeline\n";
+  return cases;
+}
 inline double percentile(std::vector<double> v,double fraction) {
   if(v.empty())return 0;
   std::sort(v.begin(),v.end());
