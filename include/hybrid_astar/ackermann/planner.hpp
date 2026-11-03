@@ -222,6 +222,12 @@ struct PlanDiagnostics {
   // Timing counters are nonzero only with HYBRID_ASTAR_PROFILE_HOTPATHS=ON.
   // Motion timings INCLUDE nested exact-collision timings: do not sum.
   std::uint64_t labelLookupNanoseconds = 0, labelWriteNanoseconds = 0;
+  // Mutually exclusive lookup categories, collected only in profiling builds.
+  // Hash time is nested inside each lookup, not an additional cost.
+  std::uint64_t labelPopHitNanoseconds = 0, labelPopMissNanoseconds = 0;
+  std::uint64_t labelSuccessorHitNanoseconds = 0, labelSuccessorMissNanoseconds = 0;
+  std::size_t labelPopHits = 0, labelPopMisses = 0;
+  std::size_t labelSuccessorHits = 0, labelSuccessorMisses = 0;
   std::uint64_t hashNanoseconds = 0, openQueueNanoseconds = 0;
   std::uint64_t gridQueueNanoseconds = 0, exactCollisionNanoseconds = 0;
   std::uint64_t searchMotionNanoseconds = 0, finalMotionNanoseconds = 0;
