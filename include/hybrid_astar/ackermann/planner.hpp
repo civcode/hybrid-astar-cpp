@@ -49,6 +49,8 @@ struct CollisionWorkCounters {
   std::uint64_t occupiedCells = 0;  // visited cells classified as obstacles
   std::uint64_t satTests = 0;       // rectangle-vs-square intersection checks
   std::uint64_t distanceTests = 0;  // exact continuous margin checks after SAT misses
+  std::uint64_t inflatedAabbRejections = 0; // provably > margin by AABB gap
+  std::uint64_t inflatedAxisRejections = 0; // provably > margin on body axes
   std::uint64_t boundaryRejections = 0; // poses rejected at map boundary
   std::uint64_t emptyRegionQueries = 0; // occupancy-prefix-sum AABB tests
   std::uint64_t emptyRegionBypasses = 0; // AABBs proven fully traversable
@@ -59,7 +61,8 @@ class ExactCollisionChecker {
 public:
   ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy,
                         Footprint footprint, double inflationMeters = 0.0,
-                        bool useEmptyRegionPrefixSum = false);
+                        bool useEmptyRegionPrefixSum = false,
+                        bool useInflatedFootprintBroadPhase = true);
   PoseCollision check(const Pose2D& pose,CollisionWorkCounters* work=nullptr) const;
   double maxBodyRadius() const noexcept;
 private:
@@ -67,6 +70,7 @@ private:
   OccupancyPolicy policy_;
   Footprint footprint_;
   double inflationMeters_ = 0.0;
+  bool useInflatedFootprintBroadPhase_ = true;
   // (w+1)*(h+1) summed occupancy. Empty for the legacy SAT-only scanner.
   std::vector<std::size_t> blockedPrefix_;
   std::size_t prefixPitch_ = 0;
@@ -144,6 +148,9 @@ struct PlanOptions {
   std::size_t discPrefilterCount = AutomaticDiscPrefilter;
   bool useEmptyRegionPrefixSum = true; // Ackermann only; 0-occupancy AABB bypass
   bool collectCollisionWork = false; // opt-in broad-phase counters; adds overhead
+  // Default-on exact-equivalent AABB / body-axis early rejection for positive
+  // geometric inflation. Disable ONLY for controlled old-vs-new benchmarks.
+  bool useInflatedFootprintBroadPhase = true;
   double minimumTurningRadiusMeters = 4.0;
   double goalXYToleranceMeters = 0.25;
   double goalYawToleranceRadians = 0.17453292519943295; // 10 degrees
