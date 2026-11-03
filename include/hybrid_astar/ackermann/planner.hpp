@@ -85,6 +85,7 @@ private:
   double inflationMeters_ = 0.0;
   bool useInflatedFootprintBroadPhase_ = true;
   bool useFastEmptyAabb_ = false;
+  double fastEmptyAabbErrorBase_ = 0.0; // footprint-only roundoff upper bound
   // (w+1)*(h+1) summed occupancy. Empty for the legacy SAT-only scanner.
   std::vector<std::size_t> blockedPrefix_;
   std::size_t prefixPitch_ = 0;
