@@ -709,14 +709,14 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     const bool ackermann=r.options.model==PlanOptions::Model::Ackermann;
     const ExactCollisionChecker checker(*r.map,r.occupancy,model.footprint(),
         r.options.footprintInflationMeters,
-        ackermann&&r.options.useEmptyRegionPrefixSum,
+        r.options.useEmptyRegionPrefixSum,
         r.options.useInflatedFootprintBroadPhase);
     const std::size_t discCount=
         r.options.discPrefilterCount==PlanOptions::AutomaticDiscPrefilter?
         (ackermann?4U:0U):r.options.discPrefilterCount;
     result.diagnostics.discPrefilterCountUsed=discCount;
     result.diagnostics.emptyRegionPrefixSumUsed=
-        ackermann&&r.options.useEmptyRegionPrefixSum;
+        r.options.useEmptyRegionPrefixSum;
     std::unique_ptr<ConservativeDiscPrefilter> prefilter;
     if(discCount)
       prefilter=std::make_unique<ConservativeDiscPrefilter>(

@@ -289,9 +289,9 @@ TEST_CASE("Four covering discs stay conservative for inflated Ackermann rectangl
   }
 }
 
-// Keep model defaults unambiguous. Auto resolution must never silently
-// enable discs (or the integral grid) for differential or mecanum policies.
-TEST_CASE("Automatic four-disc Ackermann and empty-region defaults can be disabled",
+// All planar models share the exact conservative empty-region fast path.
+// Automatic four-disc prefilter remains Ackermann-only.
+TEST_CASE("Automatic Ackermann discs and all-model empty-region defaults can be disabled",
           "[w6][prefilter][prefix][defaults]") {
   const PlanOptions opts;
   REQUIRE(opts.heuristicMode==HeuristicMode::PerformanceReedsSheppAndObstacleGrid);
@@ -312,12 +312,15 @@ TEST_CASE("Automatic four-disc Ackermann and empty-region defaults can be disabl
     if(model!=PlanOptions::Model::Ackermann)
       req.footprint={-.35,.35,.25};
     else req.footprint={-1,3.6,.9};
+    req.options.collectCollisionWork=true;
     const auto automatic=plan(req);
     REQUIRE(automatic.status!=PlanStatus::InvalidRequest);
     REQUIRE(automatic.diagnostics.discPrefilterCountUsed==
             (model==PlanOptions::Model::Ackermann?4:0));
-    REQUIRE(automatic.diagnostics.emptyRegionPrefixSumUsed==
-            (model==PlanOptions::Model::Ackermann));
+    REQUIRE(automatic.diagnostics.emptyRegionPrefixSumUsed);
+    REQUIRE(automatic.diagnostics.collisionWork.emptyRegionQueries>0);
+    REQUIRE(automatic.diagnostics.collisionWork.emptyRegionBypasses>0);
+    REQUIRE(automatic.diagnostics.collisionWork.candidateCells==0);
     req.options.discPrefilterCount=0;
     req.options.useEmptyRegionPrefixSum=false;
     const auto off=plan(req);
@@ -327,7 +330,75 @@ TEST_CASE("Automatic four-disc Ackermann and empty-region defaults can be disabl
     REQUIRE(off.sections.size()==automatic.sections.size());
     REQUIRE(off.diagnostics.discPrefilterCountUsed==0);
     REQUIRE_FALSE(off.diagnostics.emptyRegionPrefixSumUsed);
+    REQUIRE(off.diagnostics.collisionWork.emptyRegionQueries==0);
+    REQUIRE(off.diagnostics.collisionWork.candidateCells>0);
     req.options.discPrefilterCount=PlanOptions::AutomaticDiscPrefilter;
     req.options.useEmptyRegionPrefixSum=true;
+  }
+}
+
+TEST_CASE("Differential and mecanum prefix modes preserve inflated exact search",
+          "[w6][prefix][models][inflation]") {
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=map->height=128;
+  map->resolutionMeters=.2;
+  map->origin={2.,-1.,.31};
+  map->cells.assign(map->width*map->height,0);
+  map->cells[80*map->width+80]=-1;
+  map->cells[90*map->width+50]=75;
+  const auto world=[&](double x,double y) {
+    const double c=std::cos(map->origin.yaw),s=std::sin(map->origin.yaw);
+    return Pose2D{map->origin.x+c*x-s*y,
+                  map->origin.y+s*x+c*y,map->origin.yaw};
+  };
+  for(const auto model:{PlanOptions::Model::DifferentialDrive,
+                        PlanOptions::Model::Mecanum}) {
+    for(double inflation:{0.,.10}) {
+      for(const auto unknown:{UnknownPolicy::Occupied,UnknownPolicy::Free}) {
+        PlanRequest req;
+        req.map=map;
+        req.occupancy={0,unknown};
+        req.start=world(8.,8.);
+        req.goal=world(11.,8.);
+        req.footprint={-.35,.35,.25};
+        req.options.model=model;
+        req.options.footprintInflationMeters=inflation;
+        req.options.maxExpansions=15000;
+        req.options.maxGeneratedNodes=60000;
+        req.options.collectCollisionWork=true;
+        req.options.useEmptyRegionPrefixSum=false;
+        const auto off=plan(req);
+        req.options.useEmptyRegionPrefixSum=true;
+        const auto on=plan(req);
+        INFO("model="<<static_cast<int>(model)<<" inflation="<<inflation
+             <<" unknown="<<static_cast<int>(unknown));
+        REQUIRE(off.status==PlanStatus::Success);
+        REQUIRE(on.status==off.status);
+        REQUIRE(on.diagnostics.emptyRegionPrefixSumUsed);
+        REQUIRE_FALSE(off.diagnostics.emptyRegionPrefixSumUsed);
+        REQUIRE(on.diagnostics.expanded==off.diagnostics.expanded);
+        REQUIRE(on.diagnostics.generated==off.diagnostics.generated);
+        REQUIRE(on.diagnostics.exactCollisionPoseCalls==
+                off.diagnostics.exactCollisionPoseCalls);
+        REQUIRE(on.sections.size()==off.sections.size());
+        REQUIRE(std::abs(on.weightedCostMeters-off.weightedCostMeters)<1e-9);
+        for(std::size_t i=0;i<on.sections.size();++i) {
+          const auto& a=on.sections[i];
+          const auto& b=off.sections[i];
+          REQUIRE(a.kind==b.kind);
+          REQUIRE(a.gear==b.gear);
+          REQUIRE(std::abs(a.start.x-b.start.x)<1e-9);
+          REQUIRE(std::abs(a.start.y-b.start.y)<1e-9);
+          REQUIRE(std::abs(a.start.yaw-b.start.yaw)<1e-9);
+          REQUIRE(std::abs(a.end.x-b.end.x)<1e-9);
+          REQUIRE(std::abs(a.end.y-b.end.y)<1e-9);
+          REQUIRE(std::abs(a.end.yaw-b.end.yaw)<1e-9);
+        }
+        REQUIRE(on.diagnostics.collisionWork.emptyRegionQueries>0);
+        REQUIRE(on.diagnostics.collisionWork.emptyRegionBypasses>0);
+        REQUIRE(on.diagnostics.collisionWork.candidateCells==0);
+        REQUIRE(off.diagnostics.collisionWork.candidateCells>0);
+      }
+    }
   }
 }

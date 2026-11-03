@@ -146,7 +146,7 @@ struct PlanOptions {
   static constexpr std::size_t AutomaticDiscPrefilter =
       std::numeric_limits<std::size_t>::max();
   std::size_t discPrefilterCount = AutomaticDiscPrefilter;
-  bool useEmptyRegionPrefixSum = true; // Ackermann only; 0-occupancy AABB bypass
+  bool useEmptyRegionPrefixSum = true; // All models; exact empty-AABB bypass
   bool collectCollisionWork = false; // opt-in broad-phase counters; adds overhead
   // Default-on exact-equivalent AABB / body-axis early rejection for positive
   // geometric inflation. Disable ONLY for controlled old-vs-new benchmarks.
