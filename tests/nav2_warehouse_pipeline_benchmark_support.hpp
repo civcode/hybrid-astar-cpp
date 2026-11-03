@@ -13,6 +13,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>
+#include <fstream>
+#include <map>
+#include <sstream>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -43,6 +46,11 @@ struct Config {
   std::uint64_t seed=20261029;
   std::size_t acceptedLimit=16;
   bool curved=true;
+  // "both" directly pairs the legacy and new strict geometry checkers.
+  std::string collisionMode="both"; // both|legacy|fastpath
+  std::string replayCsv; // optional original full-map results: no rediscovery
+  std::size_t gridSettlements=100000;
+  bool collectCollisionWork=false; // opt-in, changes measured overhead
 };
 inline std::size_t integer(const std::string& value,bool allowZero=false) {
   if(value.empty()||value[0]=='-')throw std::invalid_argument("Expected nonnegative integer");
@@ -61,8 +69,11 @@ inline Config parseArgs(int argc,char** argv) {
       throw std::invalid_argument("Usage: BENCH [--map YAML] [--model differential|ackermann|mecanum] "
           "[--connector native|ompl] [--cases 10] [--repeats 3] [--min-expansions 30000] "
           "[--search-budget 500000] [--max-candidates 2500 (0=unbounded)] "
-          "[--seed 20261029] [--max-accepted 8|12|16] [--no-curved]");
+          "[--seed 20261029] [--max-accepted 8|12|16] [--no-curved] "
+          "[--collision-mode both|legacy|fastpath] [--replay-csv PREVIOUS.csv] "
+          "[--grid-settlements 100000|250000|500000] [--collect-collision-work]");
     if(arg=="--no-curved"){c.curved=false;continue;}
+    if(arg=="--collect-collision-work"){c.collectCollisionWork=true;continue;}
     if(i+1>=argc)throw std::invalid_argument("Missing value for "+arg);
     const std::string val=argv[++i];
     if(arg=="--map")c.yamlPath=val;
@@ -75,6 +86,9 @@ inline Config parseArgs(int argc,char** argv) {
     else if(arg=="--max-candidates")c.maxCandidates=integer(val,true);
     else if(arg=="--seed")c.seed=integer(val,true);
     else if(arg=="--max-accepted")c.acceptedLimit=integer(val);
+    else if(arg=="--collision-mode")c.collisionMode=val;
+    else if(arg=="--replay-csv")c.replayCsv=val;
+    else if(arg=="--grid-settlements")c.gridSettlements=integer(val);
     else throw std::invalid_argument("Unknown argument: "+arg);
   }
   if((c.model!="ackermann"&&c.model!="differential"&&c.model!="mecanum")||
@@ -84,6 +98,10 @@ inline Config parseArgs(int argc,char** argv) {
      c.searchBudget<30000||c.searchBudget>1000000||
      c.minimumExpansions>c.searchBudget||
      (c.acceptedLimit!=8&&c.acceptedLimit!=12&&c.acceptedLimit!=16)||
+     (c.collisionMode!="both"&&c.collisionMode!="legacy"&&
+      c.collisionMode!="fastpath")||
+     (c.gridSettlements!=100000&&c.gridSettlements!=250000&&
+      c.gridSettlements!=500000)||
      (c.maxCandidates!=0&&c.maxCandidates<c.cases))
     throw std::invalid_argument("Invalid benchmark configuration");
 #ifndef HYBRID_ASTAR_NAV2_PIPELINE_WITH_OMPL
@@ -143,6 +161,8 @@ inline PlanRequest baseRequest(const Config& config,std::shared_ptr<const MapSna
   req.options.maxExpansions=config.searchBudget;
   req.options.maxGeneratedNodes=4*config.searchBudget;
   req.options.heuristicMode=HeuristicMode::PerformanceReedsSheppAndObstacleGrid;
+  req.options.gridMaxTotalSettlements=config.gridSettlements;
+  req.options.collectCollisionWork=config.collectCollisionWork;
   if(config.model=="differential") {
     req.options.model=PlanOptions::Model::DifferentialDrive;
     req.footprint={-.35,.35,.25};
