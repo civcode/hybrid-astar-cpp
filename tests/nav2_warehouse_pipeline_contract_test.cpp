@@ -3,6 +3,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <array>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <set>
 #include <string>
 
@@ -23,6 +25,9 @@ TEST_CASE("Nav2 warehouse benchmark defaults to full map, 30k minimum and paired
   REQUIRE(c.repeats==3);
   REQUIRE(c.acceptedLimit==16);
   REQUIRE(c.curved);
+  REQUIRE(c.collisionMode=="both");
+  REQUIRE(c.gridSettlements==100000);
+  REQUIRE_FALSE(c.collectCollisionWork);
   auto opts=refinementOptions(c);
   REQUIRE(opts.maxAttempts==160);
   REQUIRE(opts.maxAccepted==16);
@@ -121,4 +126,65 @@ TEST_CASE("Benchmark CLI rejects invalid model, caps and connectors",
   REQUIRE_THROWS_AS(parseArgs(5,impossible),std::invalid_argument);
   REQUIRE(percentile({1.0,2.0,3.0,4.0,5.0},.95)==5.0);
   REQUIRE(percentile({1.0,2.0,3.0,4.0,5.0},.50)==3.0);
+}
+
+
+TEST_CASE("Checker A/B CLI supports grid settlements and rejects bad modes",
+          "[benchmark][nav2][broadphase]") {
+  char cmd[]="nav2_pipeline_benchmark", mode[]="--collision-mode",
+       fast[]="fastpath", grid[]="--grid-settlements", large[]="250000",
+       work[]="--collect-collision-work";
+  char* args[]={cmd,mode,fast,grid,large,work};
+  const auto c=parseArgs(6,args);
+  REQUIRE(c.collisionMode=="fastpath");
+  REQUIRE(c.gridSettlements==250000);
+  REQUIRE(c.collectCollisionWork);
+  char wrong[]="invalid";
+  char* bad[]={cmd,mode,wrong};
+  REQUIRE_THROWS_AS(parseArgs(3,bad),std::invalid_argument);
+  char wrongGrid[]="75000";
+  char* badGrid[]={cmd,grid,wrongGrid};
+  REQUIRE_THROWS_AS(parseArgs(3,badGrid),std::invalid_argument);
+
+  Measurement before,after;
+  REQUIRE(equivalentMeasurements(before,after));
+  after.raw.diagnostics.expanded=1;
+  REQUIRE_FALSE(equivalentMeasurements(before,after));
+}
+
+TEST_CASE("Old CSV replay reads exact poses and skips separate margin row",
+          "[benchmark][nav2][replay]") {
+  const auto path=std::filesystem::temp_directory_path() /
+      ("nav2_replay_contract_"+
+       std::to_string(Clock::now().time_since_epoch().count())+".csv");
+  const auto makeFile=[&](const char* seed) {
+    std::ofstream out(path);
+    REQUIRE(out.good());
+    out<<"case_id,draw_index,seed,model,connector,map_cells,resolution_m,"
+          "start_x_m,start_y_m,start_yaw_rad,goal_x_m,goal_y_m,goal_yaw_rad,"
+          "discovery_expansions,margin_m,status\n"
+       <<"0,42,"<<seed<<",differential,native,1684044,0.030000,"
+          "12.460167,-19.279700,0.735790,-0.005304,13.783863,-2.392485,"
+          "171652,0.000000,Success\n"
+       <<"0,42,"<<seed<<",differential,native,1684044,0.030000,"
+          "12.460167,-19.279700,0.735790,-0.005304,13.783863,-2.392485,"
+          "171652,0.100000,Success\n";
+  };
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=1006;map->height=1674;map->resolutionMeters=.03;
+  map->origin={-15.1,-25.,0};
+  map->cells.resize(map->width*map->height,0);
+  Config c;c.cases=1;c.replayCsv=path.string();
+  const auto req=baseRequest(c,map);
+  makeFile("20261029");
+  const auto cases=replayScenarios(c,req);
+  REQUIRE(cases.size()==1);
+  REQUIRE(cases[0].id==0);
+  REQUIRE(cases[0].drawIndex==42);
+  REQUIRE(cases[0].discoveryExpansions==171652);
+  REQUIRE(cases[0].endpoints.start.x==12.460167);
+  REQUIRE(cases[0].endpoints.goal.y==13.783863);
+  makeFile("20261028");
+  REQUIRE_THROWS_AS(replayScenarios(c,req),std::invalid_argument);
+  std::filesystem::remove(path);
 }
