@@ -85,3 +85,28 @@ TEST_CASE("Fixed collision pose bank is deterministic and independent of geometr
   REQUIRE(first.medianUsPerPose>=0);
   REQUIRE(second.medianUsPerPose>=0);
 }
+
+
+TEST_CASE("Bundled randomized full-warehouse routes meet 30k qualification",
+          "[benchmark][envelope][fixture]") {
+#ifndef HYBRID_ASTAR_ENVELOPE_FIXTURE_PATH
+#error "CMake must define absolute fixture path for the contract test"
+#endif
+  pipeline::Config c;
+  c.replayCsv=HYBRID_ASTAR_ENVELOPE_FIXTURE_PATH;
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=1006;map->height=1674;map->resolutionMeters=.03;
+  map->origin={-15.1,-25.,0.};
+  map->cells.assign(map->width*map->height,0);
+  const auto original=pipeline::baseRequest(c,map);
+  const auto cases=pipeline::replayScenarios(c,original);
+  REQUIRE(cases.size()==10);
+  REQUIRE(cases.front().drawIndex==0);
+  REQUIRE(cases.back().drawIndex==33);
+  for(std::size_t i=0;i<cases.size();++i) {
+    REQUIRE(cases[i].id==i);
+    REQUIRE(cases[i].discoveryExpansions>=30000);
+    REQUIRE(std::hypot(cases[i].endpoints.start.x-cases[i].endpoints.goal.x,
+                       cases[i].endpoints.start.y-cases[i].endpoints.goal.y)>=15.);
+  }
+}
