@@ -544,13 +544,16 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCount
   // are omitted. A conservative roundoff guard preserves near-contact
   // behavior (including occupied cells touching the inflated boundary).
   const bool broadphase=inflationMeters_>0&&useInflatedFootprintBroadPhase_;
-  const double safetyGuard=64*std::numeric_limits<double>::epsilon()*
-      (1.0+std::max(boundX,boundY)+
-       std::max(std::abs(footprint_.rearX),std::abs(footprint_.frontX)));
+  const double safetyGuard=broadphase?
+      64*std::numeric_limits<double>::epsilon()*
+      (1.0+std::max({std::abs(pose.x),std::abs(pose.y),
+                     std::abs(map_.origin.x),std::abs(map_.origin.y),
+                     boundX,boundY,
+                     std::abs(footprint_.rearX),std::abs(footprint_.frontX)})):0.0;
   const double skipThreshold=inflationMeters_+epsilon+safetyGuard;
   const double skipThresholdSquared=skipThreshold*skipThreshold;
-  const double halfProjectedCell=.5*map_.resolutionMeters*
-      (std::abs(c)+std::abs(s));
+  const double halfProjectedCell=broadphase?
+      .5*map_.resolutionMeters*(std::abs(c)+std::abs(s)):0.0;
   for (std::size_t y=firstY;y<=lastY;++y) {
     for (std::size_t x=firstX;x<=lastX;++x) {
       if(work)++work->candidateCells;
