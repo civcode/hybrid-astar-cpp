@@ -155,3 +155,70 @@ the high-frequency prefix lookup or state-label overhead.
 
 For final end-to-end latency comparisons, rebuild with
 `PROFILE_HOTPATHS=OFF` and keep build parallelism at `BUILD_JOBS=28`.
+
+
+## Experimental fast pre-polygon AABB bypass (opt-in)
+
+`PlanOptions.useFastEmptyAabb` defaults to **false**. When enabled alongside
+the default `useEmptyRegionPrefixSum=true`, the exact collision checker:
+
+1. Computes a conservative, outward-padded AABB from the rotated rectangle's
+   projected rear/front and half-width extents. It does **not** transform
+   the four polygon corners on this path.
+2. Requires the *entire* padded/inflated AABB to be strictly inside the map
+   boundary, so original edge-contact rules remain authoritative.
+3. Checks its complete cell range with the same policy-aware occupancy prefix.
+   If empty, return `Clear` without constructing polygon corners.
+4. Otherwise run the **original full** corner-transform, boundary, prefix,
+   SAT and exact metric-distance checks, unchanged.
+
+There is no map-data-format change and no new construction-time index. The
+regular prefix-sum and standard collision paths stay the default until
+benchmarks show a consistent speedup with identical results. If prefix sums
+are disabled, the fast-AABB option has no effect.
+
+### Docker A/B experiment on the original 10 warehouse routes
+
+The existing manual `hybrid_astar_nav2_prefix_sum_benchmark_test` now supports
+`--fast-empty-aabb-ab`. That mode tests *prefix ON in both variants*, with
+the optional pre-polygon AABB optimization OFF and ON, alternating run order
+across routes. It covers **both** the 70 x 50 cm rectangle and the 50 x
+30 cm rectangle with a 10 cm geometric inflation margin, using the same
+10 replayed start/goal pairs.
+
+```bash
+git switch feature/nav2-equivalent-envelope-footprint-benchmark
+git pull --ff-only
+export BUILD_JOBS=28 TEST_JOBS=4 PROFILE_HOTPATHS=OFF
+docker compose build test
+
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure -j 4 \
+  -R '^(hotpath_test|footprint_inflation_test|w10_differential_search_test|w12_mecanum_test)$'
+
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_nav2_prefix_sum_benchmark_test \
+  --fast-empty-aabb-ab \
+  --model differential --connector native \
+  --map apps/demo/maps/nav2_warehouse_full.yaml \
+  --replay-csv bench/fixtures/nav2_full_10_seed20261029.csv \
+  --cases 10 --repeats 5 \
+  --micro-poses 20000 --micro-repeats 5 \
+  --grid-settlements 100000 > nav2-fast-empty-aabb-ab.csv
+```
+
+The CSV appends `fast_empty_aabb_enabled`,
+`search_fast_aabb_queries`, `search_fast_aabb_bypasses` and corresponding
+fixed-pose microbenchmark counters. `prefix_enabled` remains 1 for **both**
+variants in this mode. The benchmark fails on any change to the full
+search/refinement outcomes, exact-pose call counts, fixed-pose collision
+results, or candidate/occupied cell, SAT, or distance-check work.
+
+Use `PROFILE_HOTPATHS=OFF` for a trustworthy end-to-end latency A/B.
+Build with `PROFILE_HOTPATHS=ON` only to compare instrumented empty-AABB
+timings, not for production speed estimates. Benchmark execution is manual
+only; it is not registered in CTest and no GitHub Actions are involved.
+
+Mecanum may also be tested, but **omit** `--replay-csv` when selecting
+`--model mecanum`: the 10-route fixture was discovered for differential
+drive, not mecanum.
