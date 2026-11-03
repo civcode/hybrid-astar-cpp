@@ -310,7 +310,8 @@ MotionStatus checkMotion(const MotionSection& section, const ExactCollisionCheck
         ++stats->exactCollisionPoseCalls;
         HotPathTimer collisionTimer(stats->exactCollisionNanoseconds);
         status=checker.check(pose,stats->collectCollisionWork?
-                            &stats->collisionWork:nullptr);
+                            &stats->collisionWork:nullptr,
+                            &stats->collisionTiming);
       } else status=checker.check(pose);
       if (status==PoseCollision::Colliding) return MotionStatus::Colliding;
     }
@@ -490,7 +491,45 @@ double ExactCollisionChecker::maxBodyRadius() const noexcept {
                     footprint_.halfWidth)+inflationMeters_;
 }
 
-PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCounters* work) const {
+PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCounters* work,
+                                           CollisionTimingCounters* timing) const {
+#if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
+  // Time the full check, including transforms and the four prefix reads.
+  // Each call is assigned to exactly one non-overlapping outcome at exit.
+  // No clocks, writes or profiling branches exist in the default build.
+  struct OutcomeTimer {
+    enum class Kind { NonemptyFallback, EmptyBypass, Boundary };
+    CollisionTimingCounters* totals;
+    std::chrono::steady_clock::time_point started;
+    Kind kind=Kind::NonemptyFallback;
+    explicit OutcomeTimer(CollisionTimingCounters* counter)
+      : totals(counter),
+        started(counter?std::chrono::steady_clock::now():
+                std::chrono::steady_clock::time_point{}) {}
+    ~OutcomeTimer() noexcept {
+      if(!totals)return;
+      using namespace std::chrono;
+      const auto ns=static_cast<std::uint64_t>(
+          duration_cast<nanoseconds>(steady_clock::now()-started).count());
+      switch(kind) {
+        case Kind::EmptyBypass:
+          ++totals->emptyBypassCalls;
+          totals->emptyBypassNanoseconds+=ns;
+          break;
+        case Kind::NonemptyFallback:
+          ++totals->nonemptyFallbackCalls;
+          totals->nonemptyFallbackNanoseconds+=ns;
+          break;
+        case Kind::Boundary:
+          ++totals->boundaryCalls;
+          totals->boundaryNanoseconds+=ns;
+          break;
+      }
+    }
+  } outcomeTimer(timing);
+#else
+  (void)timing;
+#endif
   if (!finite(pose)) throw std::invalid_argument("Nonfinite collision pose");
   const double yaw=pose.yaw-map_.origin.yaw;
   const double c=std::cos(yaw),s=std::sin(yaw);
@@ -513,6 +552,9 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCount
         v.x>=boundX-inflationMeters_-epsilon||
         v.y>=boundY-inflationMeters_-epsilon) {
       if(work)++work->boundaryRejections;
+#if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
+      outcomeTimer.kind=OutcomeTimer::Kind::Boundary;
+#endif
       return PoseCollision::Colliding;
     }
     minx=std::min(minx,v.x);maxx=std::max(maxx,v.x);
@@ -534,6 +576,9 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCount
                             blockedPrefix_[firstY*prefixPitch_+lastX+1];
     if(right==left) {
       if(work)++work->emptyRegionBypasses;
+#if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
+      outcomeTimer.kind=OutcomeTimer::Kind::EmptyBypass;
+#endif
       return PoseCollision::Clear;
     }
   }
@@ -731,7 +776,8 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
       ++result.diagnostics.exactCollisionPoseCalls;
       HotPathTimer timer(result.diagnostics.exactCollisionNanoseconds);
       return checker.check(pose,result.diagnostics.collectCollisionWork?
-                           &result.diagnostics.collisionWork:nullptr);
+                           &result.diagnostics.collisionWork:nullptr,
+                           &result.diagnostics.collisionTiming);
     };
     if (checkedPose(r.start)==PoseCollision::Colliding) { result.status=PlanStatus::StartInCollision; return result; }
     ++result.diagnostics.searchPoseChecks;
