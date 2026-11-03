@@ -96,7 +96,8 @@ def summarize(rows):
         print(f"\n{title}: status={status}")
         for field in (
             "search_p50_ms", "refine_p50_ms", "total_p50_ms",
-            "expanded", "exact_collision_pose_calls", "raw_length_m",
+            "expanded", "search_pose_checks", "exact_collision_pose_calls",
+            "raw_length_m",
             "micro_p50_us_per_pose", "micro_p95_us_per_pose"
         ):
             values = [num(r, field) for r in selected]
@@ -137,7 +138,8 @@ def summarize(rows):
     if succeeded:
         for field in (
             "search_p50_ms", "refine_p50_ms", "total_p50_ms",
-            "expanded", "exact_collision_pose_calls", "refined_length_m"
+            "expanded", "search_pose_checks", "exact_collision_pose_calls",
+            "refined_length_m"
         ):
             deltas = [num(b, field) - num(a, field) for a, b in succeeded]
             print(f"  rounded_minus_sharp {field}: median={med(deltas):+.3f}, "
@@ -161,6 +163,9 @@ def summarize(rows):
     print("Caveats: microbenchmark poses are sampled uniformly, not from planner "
           "trajectories. Full-pipeline work counts were collected in a separate "
           "untimed pass. Reported microseconds/check include early collision exits.")
+    print("Adaptive body-motion sampling can also differ because the shapes "
+          "have different corner radii relative to the reference point; "
+          "compare search_pose_checks as well as expanded nodes.")
     print("These results compare collision implementations and shapes in our planner, "
           "not Nav2 Smac's runtime.")
 
