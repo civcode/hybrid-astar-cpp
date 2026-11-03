@@ -396,6 +396,52 @@ inline Measurement measure(const Config& c,const PlanRequest& request) {
   m.totalP50=percentile(total,.5);m.totalP95=percentile(total,.95);
   return m;
 }
+// Exact path and search-work equivalence is a contract, not just a
+// statistical tolerance: conservative broad-phase pruning must never alter
+// planning success, motion sections, refinements or strict checks.
+inline bool equivalentPaths(const PlanResult& a,const PlanResult& b) {
+  const auto close=[](double x,double y) {
+    return std::abs(x-y)<=1e-9*(1+std::abs(x)+std::abs(y));
+  };
+  const auto poseEqual=[&](const Pose2D& x,const Pose2D& y) {
+    return close(x.x,y.x)&&close(x.y,y.y)&&close(x.yaw,y.yaw);
+  };
+  if(a.status!=b.status||a.modelGeometryValid!=b.modelGeometryValid||
+     a.collisionEvidence!=b.collisionEvidence||
+     a.sections.size()!=b.sections.size()||
+     !close(a.geometricLengthMeters,b.geometricLengthMeters)||
+     !close(a.weightedCostMeters,b.weightedCostMeters)||
+     !poseEqual(a.reached,b.reached))return false;
+  for(std::size_t i=0;i<a.sections.size();++i) {
+    const auto& x=a.sections[i];const auto& y=b.sections[i];
+    if(x.kind!=y.kind||x.gear!=y.gear||
+       !poseEqual(x.start,y.start)||!poseEqual(x.end,y.end)||
+       !close(x.lengthMeters,y.lengthMeters)||
+       !close(x.curvature,y.curvature)||
+       !close(x.turnRadians,y.turnRadians)||
+       !close(x.forwardMeters,y.forwardMeters)||
+       !close(x.lateralMeters,y.lateralMeters))return false;
+  }
+  return true;
+}
+inline bool equivalentMeasurements(const Measurement& old,const Measurement& fast) {
+  if(!equivalentPaths(old.raw,fast.raw))return false;
+  const auto& a=old.raw.diagnostics;const auto& b=fast.raw.diagnostics;
+  if(a.expanded!=b.expanded||a.generated!=b.generated||
+     a.searchPoseChecks!=b.searchPoseChecks||
+     a.finalPoseChecks!=b.finalPoseChecks||
+     a.exactCollisionPoseCalls!=b.exactCollisionPoseCalls||
+     a.gridSettlements!=b.gridSettlements||
+     a.gridFallbacks!=b.gridFallbacks||
+     a.strictRejectedCollision!=b.strictRejectedCollision ||
+     old.refinement.has_value()!=fast.refinement.has_value())return false;
+  if(!old.refinement)return true;
+  const auto& x=*old.refinement;const auto& y=*fast.refinement;
+  return x.status==y.status && x.attempted==y.attempted &&
+         x.accepted==y.accepted && x.rejected==y.rejected &&
+         x.exactPoseChecks==y.exactPoseChecks &&
+         equivalentPaths(x.path,y.path);
+}
 inline const char* statusName(PlanStatus status) {
   switch(status) {
     case PlanStatus::Success:return "Success";
@@ -435,7 +481,12 @@ inline void header() {
     "refined_sections,refined_length_m,refined_cost_m,refined_reverse_m,"
     "profile_enabled,search_motion_hotpath_ms,final_motion_hotpath_ms,exact_collision_hotpath_ms,"
     "grid_queue_hotpath_ms,open_queue_hotpath_ms,label_lookup_hotpath_ms,"
-    "label_write_hotpath_ms,hash_hotpath_ms\n";
+    "label_write_hotpath_ms,hash_hotpath_ms,"
+    "collision_checker,grid_settlement_cap,collect_collision_work,"
+    "collision_candidate_cells,collision_occupied_cells,collision_sat_tests,"
+    "collision_exact_distance_tests,collision_inflated_aabb_rejections,"
+    "collision_inflated_axis_rejections,collision_empty_region_queries,"
+    "collision_empty_region_bypasses\n";
 }
 inline void row(const Config& c,const Scenario& s,const PlanRequest& req,const Measurement& m) {
   const auto& d=m.raw.diagnostics;
@@ -483,6 +534,17 @@ inline void row(const Config& c,const Scenario& s,const PlanRequest& req,const M
     <<nsMs(d.searchMotionNanoseconds)<<','<<nsMs(d.finalMotionNanoseconds)<<','
     <<nsMs(d.exactCollisionNanoseconds)<<','<<nsMs(d.gridQueueNanoseconds)<<','
     <<nsMs(d.openQueueNanoseconds)<<','<<nsMs(d.labelLookupNanoseconds)<<','
-    <<nsMs(d.labelWriteNanoseconds)<<','<<nsMs(d.hashNanoseconds)<<'\n';
+    <<nsMs(d.labelWriteNanoseconds)<<','<<nsMs(d.hashNanoseconds)<<','
+    <<(req.options.useInflatedFootprintBroadPhase?"fastpath":"legacy")<<','
+    <<req.options.gridMaxTotalSettlements<<','
+    <<(req.options.collectCollisionWork?1:0)<<','
+    <<d.collisionWork.candidateCells<<','
+    <<d.collisionWork.occupiedCells<<','
+    <<d.collisionWork.satTests<<','
+    <<d.collisionWork.distanceTests<<','
+    <<d.collisionWork.inflatedAabbRejections<<','
+    <<d.collisionWork.inflatedAxisRejections<<','
+    <<d.collisionWork.emptyRegionQueries<<','
+    <<d.collisionWork.emptyRegionBypasses<<'\n';
 }
 } // namespace hybrid_astar::bench::nav2_pipeline
