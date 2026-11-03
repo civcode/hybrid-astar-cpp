@@ -55,6 +55,15 @@ struct CollisionWorkCounters {
   std::uint64_t emptyRegionQueries = 0; // occupancy-prefix-sum AABB tests
   std::uint64_t emptyRegionBypasses = 0; // AABBs proven fully traversable
 };
+// Enabled only by HYBRID_ASTAR_PROFILE_HOTPATHS. A collision check belongs
+// to exactly one category: empty prefix bypass, nonempty fallback, or map edge.
+// These durations are SUBSETS of exactCollisionNanoseconds, not extra work.
+struct CollisionTimingCounters {
+  std::uint64_t emptyBypassCalls = 0, nonemptyFallbackCalls = 0;
+  std::uint64_t boundaryCalls = 0;
+  std::uint64_t emptyBypassNanoseconds = 0, nonemptyFallbackNanoseconds = 0;
+  std::uint64_t boundaryNanoseconds = 0;
+};
 // Construction validates the ENTIRE immutable snapshot and policy once.
 // Contact (including map boundary contact) counts as collision.
 class ExactCollisionChecker {
@@ -63,7 +72,8 @@ public:
                         Footprint footprint, double inflationMeters = 0.0,
                         bool useEmptyRegionPrefixSum = false,
                         bool useInflatedFootprintBroadPhase = true);
-  PoseCollision check(const Pose2D& pose,CollisionWorkCounters* work=nullptr) const;
+  PoseCollision check(const Pose2D& pose,CollisionWorkCounters* work=nullptr,
+                      CollisionTimingCounters* timing=nullptr) const;
   double maxBodyRadius() const noexcept;
 private:
   const MapSnapshot& map_;
@@ -198,6 +208,7 @@ struct PlanDiagnostics {
   std::size_t searchMotionCalls = 0, finalMotionCalls = 0;
   std::size_t exactCollisionPoseCalls = 0;
   CollisionWorkCounters collisionWork{}; // zero unless collectCollisionWork enabled
+  CollisionTimingCounters collisionTiming{}; // only populated in profiling builds
   bool collectCollisionWork = false;
   // Timing counters are nonzero only with HYBRID_ASTAR_PROFILE_HOTPATHS=ON.
   // Motion timings INCLUDE nested exact-collision timings: do not sum.
