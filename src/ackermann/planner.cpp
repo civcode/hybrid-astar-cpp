@@ -581,23 +581,28 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCount
       const auto lastFastY=static_cast<std::size_t>(
           std::min(static_cast<double>(map_.height-1),
                    std::floor((maxFastY+inflationMeters_+epsilon)/spacing)));
-      if(work) {
-        ++work->fastEmptyAabbQueries;
-        ++work->emptyRegionQueries;
-      }
-      const std::size_t left=blockedPrefix_[(lastFastY+1)*prefixPitch_+firstFastX]-
-                             blockedPrefix_[firstFastY*prefixPitch_+firstFastX];
-      const std::size_t right=blockedPrefix_[(lastFastY+1)*prefixPitch_+lastFastX+1]-
-                              blockedPrefix_[firstFastY*prefixPitch_+lastFastX+1];
-      if(left==right) {
+      // Defensive against exotic floating-point/grid dimension ratios:
+      // never form a prefix index from an inverted or out-of-range box.
+      if(firstFastX<=lastFastX && firstFastY<=lastFastY &&
+         lastFastX<map_.width && lastFastY<map_.height) {
         if(work) {
-          ++work->fastEmptyAabbBypasses;
-          ++work->emptyRegionBypasses;
+          ++work->fastEmptyAabbQueries;
+          ++work->emptyRegionQueries;
         }
+        const std::size_t left=blockedPrefix_[(lastFastY+1)*prefixPitch_+firstFastX]-
+                               blockedPrefix_[firstFastY*prefixPitch_+firstFastX];
+        const std::size_t right=blockedPrefix_[(lastFastY+1)*prefixPitch_+lastFastX+1]-
+                                blockedPrefix_[firstFastY*prefixPitch_+lastFastX+1];
+        if(left==right) {
+          if(work) {
+            ++work->fastEmptyAabbBypasses;
+            ++work->emptyRegionBypasses;
+          }
 #if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
-        outcomeTimer.kind=OutcomeTimer::Kind::EmptyBypass;
+          outcomeTimer.kind=OutcomeTimer::Kind::EmptyBypass;
 #endif
-        return PoseCollision::Clear;
+          return PoseCollision::Clear;
+        }
       }
     }
   }
