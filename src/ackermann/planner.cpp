@@ -455,9 +455,11 @@ void removeAvoidableMecanumSpins(const PlanRequest& request,
 ExactCollisionChecker::ExactCollisionChecker(const MapSnapshot& map, OccupancyPolicy policy,
                                              Footprint footprint,double inflationMeters,
                                              bool useEmptyRegionPrefixSum,
-                                             bool useInflatedFootprintBroadPhase)
+                                             bool useInflatedFootprintBroadPhase,
+                                             bool useFastEmptyAabb)
   : map_(map), policy_(policy), footprint_(footprint), inflationMeters_(inflationMeters),
     useInflatedFootprintBroadPhase_(useInflatedFootprintBroadPhase),
+    useFastEmptyAabb_(useFastEmptyAabb && useEmptyRegionPrefixSum),
     originCos_(std::cos(map.origin.yaw)),originSin_(std::sin(map.origin.yaw)) {
   validateMap(map_,policy_); validateFootprint(footprint_);
   if(!std::isfinite(inflationMeters_)||inflationMeters_<0)
@@ -536,6 +538,69 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCount
   const double co=originCos_,so=originSin_;
   const double dx=pose.x-map_.origin.x,dy=pose.y-map_.origin.y;
   const double x0=co*dx+so*dy,y0=-so*dx+co*dy;
+  const double boundX=map_.width*map_.resolutionMeters,
+               boundY=map_.height*map_.resolutionMeters;
+
+  if(useFastEmptyAabb_ && !blockedPrefix_.empty()) {
+    // A rectangle's projected extents can be bounded without transforming its
+    // four corners. Outward rounding prevents a false Clear near grid lines,
+    // map edges or at inflated-contact tolerances.
+    const double rearCos=c*footprint_.rearX,frontCos=c*footprint_.frontX;
+    const double rearSin=s*footprint_.rearX,frontSin=s*footprint_.frontX;
+    const double crossX=std::abs(s)*footprint_.halfWidth;
+    const double crossY=std::abs(c)*footprint_.halfWidth;
+    const double rawMinX=x0+std::min(rearCos,frontCos)-crossX;
+    const double rawMaxX=x0+std::max(rearCos,frontCos)+crossX;
+    const double rawMinY=y0+std::min(rearSin,frontSin)-crossY;
+    const double rawMaxY=y0+std::max(rearSin,frontSin)+crossY;
+    // Conservatively include error from the alternative evaluation order.
+    // Values near boundaries always fall through to the original checker.
+    const double guard=64*std::numeric_limits<double>::epsilon()*
+       (1.0+std::abs(x0)+std::abs(y0)+
+        std::abs(rearCos)+std::abs(frontCos)+
+        std::abs(rearSin)+std::abs(frontSin)+crossX+crossY);
+    const double minFastX=rawMinX-guard,maxFastX=rawMaxX+guard;
+    const double minFastY=rawMinY-guard,maxFastY=rawMaxY+guard;
+    if(std::isfinite(minFastX)&&std::isfinite(maxFastX)&&
+       std::isfinite(minFastY)&&std::isfinite(maxFastY)&&
+       std::isfinite(boundX)&&std::isfinite(boundY)&&
+       minFastX>inflationMeters_+epsilon &&
+       minFastY>inflationMeters_+epsilon &&
+       maxFastX<boundX-inflationMeters_-epsilon &&
+       maxFastY<boundY-inflationMeters_-epsilon) {
+      const double spacing=map_.resolutionMeters;
+      const auto firstFastX=static_cast<std::size_t>(
+          std::floor((minFastX-inflationMeters_-epsilon)/spacing));
+      const auto firstFastY=static_cast<std::size_t>(
+          std::floor((minFastY-inflationMeters_-epsilon)/spacing));
+      const auto lastFastX=static_cast<std::size_t>(
+          std::min(static_cast<double>(map_.width-1),
+                   std::floor((maxFastX+inflationMeters_+epsilon)/spacing)));
+      const auto lastFastY=static_cast<std::size_t>(
+          std::min(static_cast<double>(map_.height-1),
+                   std::floor((maxFastY+inflationMeters_+epsilon)/spacing)));
+      if(work) {
+        ++work->fastEmptyAabbQueries;
+        ++work->emptyRegionQueries;
+      }
+      const std::size_t left=blockedPrefix_[(lastFastY+1)*prefixPitch_+firstFastX]-
+                             blockedPrefix_[firstFastY*prefixPitch_+firstFastX];
+      const std::size_t right=blockedPrefix_[(lastFastY+1)*prefixPitch_+lastFastX+1]-
+                              blockedPrefix_[firstFastY*prefixPitch_+lastFastX+1];
+      if(left==right) {
+        if(work) {
+          ++work->fastEmptyAabbBypasses;
+          ++work->emptyRegionBypasses;
+        }
+#if defined(HYBRID_ASTAR_PROFILE_HOTPATHS)
+        outcomeTimer.kind=OutcomeTimer::Kind::EmptyBypass;
+#endif
+        return PoseCollision::Clear;
+      }
+    }
+  }
+  // Nonempty or uncertain AABB: retain ALL original corner transforms,
+  // boundary/contact checks and exact polygon-to-square intersection logic.
   const std::array<Vec2,4> body{{{footprint_.rearX,-footprint_.halfWidth},
                                  {footprint_.frontX,-footprint_.halfWidth},
                                  {footprint_.frontX,footprint_.halfWidth},
@@ -543,7 +608,6 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCount
   std::array<Vec2,4> poly{};
   double minx=std::numeric_limits<double>::infinity(),miny=minx;
   double maxx=-minx,maxy=-minx;
-  const double boundX=map_.width*map_.resolutionMeters,boundY=map_.height*map_.resolutionMeters;
   for (std::size_t i=0;i<4;++i) {
     auto& v=poly[i]; v={x0+c*body[i].x-s*body[i].y,y0+s*body[i].x+c*body[i].y};
     if (!std::isfinite(v.x)||!std::isfinite(v.y)) throw std::invalid_argument("Overflowed body transform");
@@ -755,13 +819,16 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
     const ExactCollisionChecker checker(*r.map,r.occupancy,model.footprint(),
         r.options.footprintInflationMeters,
         r.options.useEmptyRegionPrefixSum,
-        r.options.useInflatedFootprintBroadPhase);
+        r.options.useInflatedFootprintBroadPhase,
+        r.options.useFastEmptyAabb);
     const std::size_t discCount=
         r.options.discPrefilterCount==PlanOptions::AutomaticDiscPrefilter?
         (ackermann?4U:0U):r.options.discPrefilterCount;
     result.diagnostics.discPrefilterCountUsed=discCount;
     result.diagnostics.emptyRegionPrefixSumUsed=
         r.options.useEmptyRegionPrefixSum;
+    result.diagnostics.fastEmptyAabbUsed=
+        r.options.useFastEmptyAabb && r.options.useEmptyRegionPrefixSum;
     std::unique_ptr<ConservativeDiscPrefilter> prefilter;
     if(discCount)
       prefilter=std::make_unique<ConservativeDiscPrefilter>(
