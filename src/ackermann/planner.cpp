@@ -460,6 +460,8 @@ ExactCollisionChecker::ExactCollisionChecker(const MapSnapshot& map, OccupancyPo
   : map_(map), policy_(policy), footprint_(footprint), inflationMeters_(inflationMeters),
     useInflatedFootprintBroadPhase_(useInflatedFootprintBroadPhase),
     useFastEmptyAabb_(useFastEmptyAabb && useEmptyRegionPrefixSum),
+    fastEmptyAabbErrorBase_(2.0*(std::abs(footprint.rearX)+
+                                    std::abs(footprint.frontX)+footprint.halfWidth)),
     originCos_(std::cos(map.origin.yaw)),originSin_(std::sin(map.origin.yaw)) {
   validateMap(map_,policy_); validateFootprint(footprint_);
   if(!std::isfinite(inflationMeters_)||inflationMeters_<0)
@@ -555,10 +557,10 @@ PoseCollision ExactCollisionChecker::check(const Pose2D& pose,CollisionWorkCount
     const double rawMaxY=y0+std::max(rearSin,frontSin)+crossY;
     // Conservatively include error from the alternative evaluation order.
     // Values near boundaries always fall through to the original checker.
+    // |cos|,|sin| <= 1, so the cached footprint bound covers all
+    // projected terms without per-pose absolute values and summation.
     const double guard=64*std::numeric_limits<double>::epsilon()*
-       (1.0+std::abs(x0)+std::abs(y0)+
-        std::abs(rearCos)+std::abs(frontCos)+
-        std::abs(rearSin)+std::abs(frontSin)+crossX+crossY);
+       (1.0+std::abs(x0)+std::abs(y0)+fastEmptyAabbErrorBase_);
     const double minFastX=rawMinX-guard,maxFastX=rawMaxX+guard;
     const double minFastY=rawMinY-guard,maxFastY=rawMaxY+guard;
     if(std::isfinite(minFastX)&&std::isfinite(maxFastX)&&
