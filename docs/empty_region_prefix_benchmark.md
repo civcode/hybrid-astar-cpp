@@ -78,3 +78,80 @@ Mecanum is supported using --model mecanum without --replay-csv (it must
 discover its own model-specific routes instead of replaying the differential
 discovery fixture). The benchmark executable is opt-in, not registered as an
 ordinary CTest test, and does not run GitHub Actions.
+
+
+## Profile the optimized checker: empty bypass versus nonempty fallback
+
+This is the **first stage** before deciding whether an occupied-cell row
+index is worth its construction cost. The collision checker now collects
+three disjoint full-check categories when `PROFILE_HOTPATHS=ON`:
+`collision_empty_bypass_ms` (empty prefix AABB),
+`collision_nonempty_fallback_ms` (nonempty AABB, with original exact checks),
+and `collision_boundary_ms` (map-boundary early rejection). Each category
+includes transform and box computation for its own calls; the sum is a
+subset of existing `exact_collision_hotpath_ms`. Calls and durations are
+zero in regular nonprofiling builds. Counters are accumulated for one
+complete representative search, not the median of repeated searches.
+
+```bash
+export BUILD_JOBS=28 TEST_JOBS=4 PROFILE_HOTPATHS=ON
+docker compose build test
+
+# Verify instrumentation without invoking any GitHub Actions.
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure -j 4 \
+  -R '^(hotpath_test|footprint_inflation_test|w10_differential_search_test|w12_mecanum_test)$'
+
+# Reuse the original 10 routes and BOTH original footprint geometries.
+# Keep fixed-pose microbenchmark short: this pass is for search profiling.
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_nav2_prefix_sum_benchmark_test \
+  --model differential --connector native \
+  --map apps/demo/maps/nav2_warehouse_full.yaml \
+  --replay-csv bench/fixtures/nav2_full_10_seed20261029.csv \
+  --cases 10 --repeats 3 --micro-poses 100 --micro-repeats 1 \
+  --grid-settlements 100000 > nav2-prefix-collision-profile.csv
+```
+
+Summarize the **prefix ON** rows with Python on the host (no external package):
+
+```bash
+python3 - <<'PY'
+import csv
+from statistics import median
+with open("nav2-prefix-collision-profile.csv", newline="") as f:
+    rows = list(csv.DictReader(f))
+assert len(rows) == 40 and all(r["profile_enabled"] == "1" for r in rows)
+for geometry in sorted({r["geometry"] for r in rows}):
+    selected = [r for r in rows
+                if r["geometry"] == geometry and r["prefix_enabled"] == "1"]
+    assert len(selected) == 10
+    parts = ("empty_bypass", "nonempty_fallback", "boundary")
+    shares = {part: [] for part in parts}
+    times = {part: [] for part in parts}
+    for r in selected:
+        assert sum(int(r[f"collision_{p}_calls"]) for p in parts) == int(r["exact_pose_calls"])
+        total = sum(float(r[f"collision_{p}_ms"]) for p in parts)
+        assert total > 0
+        for part in parts:
+            t = float(r[f"collision_{part}_ms"])
+            times[part].append(t)
+            shares[part].append(100 * t / total)
+    print("\n", geometry)
+    for part in parts:
+        print(f"  {part:18s}: {median(times[part]):8.2f} ms, "
+              f"{median(shares[part]):5.1f}% of categorized collision time")
+PY
+```
+
+Interpret the percentages as profiling-build attribution, **not**
+un-instrumented production timings. Profiling creates per-check clock
+overhead; the existing outer `exact_collision_hotpath_ms` timer overlaps
+with all three category timers, so do **not** sum them with that outer
+metric. Compare the empty-bypass and fallback shares before investing
+in occupied-cell indexing. If fallback time dominates, build an opt-in
+row-index A/B mode and verify exact route equivalence; otherwise target
+the high-frequency prefix lookup or state-label overhead.
+
+For final end-to-end latency comparisons, rebuild with
+`PROFILE_HOTPATHS=OFF` and keep build parallelism at `BUILD_JOBS=28`.
