@@ -35,7 +35,8 @@ Micro measureMicro(const PlanRequest& req,
         *req.map,req.occupancy,req.footprint,
         req.options.footprintInflationMeters,
         req.options.useEmptyRegionPrefixSum,
-        req.options.useInflatedFootprintBroadPhase);
+        req.options.useInflatedFootprintBroadPhase,
+        req.options.useFastEmptyAabb);
     const auto end=pipe::Clock::now();
     if(i==0)checker=std::move(instance);
     else ctor.push_back(pipe::millis(begin,end));
@@ -82,7 +83,7 @@ Result measure(const pipe::Config& cfg,const PlanRequest& req,
   return result;
 }
 void printRow(const pipe::Config& cfg,const pipe::Scenario& scenario,
-              fe::Variant geometry,bool prefix,const PlanRequest& req,
+              fe::Variant geometry,const PlanRequest& req,
               const Result& r,std::size_t poses) {
   const auto& d=r.pipeline.raw.diagnostics;
   const auto& w=r.work;
@@ -98,7 +99,8 @@ void printRow(const pipe::Config& cfg,const pipe::Scenario& scenario,
 #endif
   std::cout<<std::fixed<<std::setprecision(6)
       <<scenario.id<<','<<scenario.drawIndex<<','<<cfg.seed<<','
-      <<cfg.model<<','<<fe::label(geometry)<<','<<(prefix?1:0)<<','
+      <<cfg.model<<','<<fe::label(geometry)<<','
+      <<(req.options.useEmptyRegionPrefixSum?1:0)<<','
       <<req.options.footprintInflationMeters<<','<<cfg.gridSettlements<<','
       <<pipe::statusName(r.pipeline.raw.status)<<','<<cfg.repeats<<','
       <<r.pipeline.searchP50<<','<<r.pipeline.refineP50<<','
@@ -115,17 +117,23 @@ void printRow(const pipe::Config& cfg,const pipe::Scenario& scenario,
       <<pipe::nsMs(t.emptyBypassNanoseconds)<<','
       <<pipe::nsMs(t.nonemptyFallbackNanoseconds)<<','
       <<pipe::nsMs(t.boundaryNanoseconds)<<','
-      <<pipe::nsMs(d.exactCollisionNanoseconds)<<'\n';
+      <<pipe::nsMs(d.exactCollisionNanoseconds)<<','
+      <<(req.options.useFastEmptyAabb?1:0)<<','
+      <<w.fastEmptyAabbQueries<<','<<w.fastEmptyAabbBypasses<<','
+      <<m.work.fastEmptyAabbQueries<<','<<m.work.fastEmptyAabbBypasses<<'\n';
 }
 }
 int main(int argc,char** argv) {
   namespace pipe=hybrid_astar::bench::nav2_pipeline;
   try {
     std::size_t microPoses=20000,microRepeats=5;
+    bool quickAabbAb=false;
     std::vector<char*> forwarded{argv[0]};
     for(int i=1;i<argc;++i) {
       const std::string a=argv[i];
-      if(a=="--micro-poses"||a=="--micro-repeats") {
+      if(a=="--fast-empty-aabb-ab") {
+        quickAabbAb=true;
+      } else if(a=="--micro-poses"||a=="--micro-repeats") {
         if(i+1>=argc)throw std::invalid_argument("Missing value for "+a);
         const auto n=pipe::integer(argv[++i]);
         if(a=="--micro-poses")microPoses=n;else microRepeats=n;
@@ -142,7 +150,9 @@ int main(int argc,char** argv) {
     const auto base=pipe::baseRequest(cfg,map);
     const auto cases=cfg.replayCsv.empty()?
         pipe::discover(cfg,base):pipe::replayScenarios(cfg,base);
-    std::cerr<<"Prefix sum OFF/ON: "<<cases.size()<<" routes; search includes build cost\n";
+    std::cerr<<(quickAabbAb?"Quick AABB OFF/ON (prefix always ON): ":
+                                   "Prefix sum OFF/ON: ")
+             <<cases.size()<<" routes; search includes build cost\n";
     std::cout<<"case_id,draw_index,seed,model,geometry,prefix_enabled,margin_m,"
                 "grid_settlements,status,repeats,search_p50_ms,refine_p50_ms,"
                 "total_p50_ms,expanded,generated,exact_pose_calls,"
@@ -154,7 +164,10 @@ int main(int argc,char** argv) {
                 "profile_enabled,collision_empty_bypass_calls,"
                 "collision_nonempty_fallback_calls,collision_boundary_calls,"
                 "collision_empty_bypass_ms,collision_nonempty_fallback_ms,"
-                "collision_boundary_ms,collision_outer_total_ms\n";
+                "collision_boundary_ms,collision_outer_total_ms,"
+                "fast_empty_aabb_enabled,search_fast_aabb_queries,"
+                "search_fast_aabb_bypasses,micro_fast_aabb_queries,"
+                "micro_fast_aabb_bypasses\n";
     for(const auto& scenario:cases) {
       const auto poses=fe::fixedPoseBank(cfg,scenario,*map,microPoses);
       const std::array<fe::Variant,2> geometries=scenario.id%2?
@@ -170,20 +183,39 @@ int main(int argc,char** argv) {
             geometry==fe::Variant::LargeRectangle?0.:.10;
         req.options.useInflatedFootprintBroadPhase=true;
         std::optional<Result> off,on;
-        for(bool prefix:scenario.id%2?
+        // Alternate order per route. Quick-AABB mode keeps the exact same
+        // prefix table and geometry for OFF and ON.
+        for(bool enabled:scenario.id%2?
              std::array{true,false}:std::array{false,true}) {
-          req.options.useEmptyRegionPrefixSum=prefix;
+          req.options.useEmptyRegionPrefixSum=quickAabbAb?true:enabled;
+          req.options.useFastEmptyAabb=quickAabbAb&&enabled;
           auto r=measure(cfg,req,poses,microRepeats);
-          if(prefix)on=std::move(r);else off=std::move(r);
+          if(enabled)on=std::move(r);else off=std::move(r);
         }
         if(!off||!on||
            !pipe::equivalentMeasurements(off->pipeline,on->pipeline)||
            off->micro.collisions!=on->micro.collisions)
-          throw std::runtime_error("Prefix ON/OFF altered plan or collision result");
-        req.options.useEmptyRegionPrefixSum=false;
-        printRow(cfg,scenario,geometry,false,req,*off,poses.size());
+          throw std::runtime_error("Collision A/B altered plan or collision results");
+        if(quickAabbAb) {
+          // The optional conservative bypass must never suppress an actual
+          // occupied-cell, SAT or distance test from the baseline.
+          const auto sameExactWork=[](const CollisionWorkCounters& a,
+                                      const CollisionWorkCounters& b) {
+            return a.candidateCells==b.candidateCells &&
+                   a.occupiedCells==b.occupiedCells &&
+                   a.satTests==b.satTests &&
+                   a.distanceTests==b.distanceTests;
+          };
+          if(!sameExactWork(off->work,on->work) ||
+             !sameExactWork(off->micro.work,on->micro.work))
+            throw std::runtime_error("Fast AABB changed exact cell/geometry work");
+        }
+        req.options.useEmptyRegionPrefixSum=quickAabbAb;
+        req.options.useFastEmptyAabb=false;
+        printRow(cfg,scenario,geometry,req,*off,poses.size());
         req.options.useEmptyRegionPrefixSum=true;
-        printRow(cfg,scenario,geometry,true,req,*on,poses.size());
+        req.options.useFastEmptyAabb=quickAabbAb;
+        printRow(cfg,scenario,geometry,req,*on,poses.size());
         std::cerr<<"Case "<<scenario.id<<' '<<fe::label(geometry)
                  <<" search off/on "<<off->pipeline.searchP50<<'/'
                  <<on->pipeline.searchP50<<" ms; micro off/on "
