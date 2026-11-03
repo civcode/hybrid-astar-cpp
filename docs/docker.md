@@ -433,6 +433,85 @@ benchmark still requires running Nav2 Smac State Lattice/Hybrid A* on
 the exact same map, footprint, motion constraints and endpoints, using
 the same hardware and compatible smoothing/validation behavior.
 
+## Full Nav2 warehouse: equal-envelope footprint inflation experiment (manual)
+
+This controlled experiment asks whether a **70 × 50 cm rectangular robot
+with no inflation** plans at the same speed as a **50 × 30 cm rectangular
+robot inflated by 0.10 m**. Both have **70 × 50 cm outer extents**, but the
+large uninflated rectangle has sharp corners, while the smaller footprint
+with geometric Minkowski-disk inflation has rounded corners. Consequently,
+their collision-free configurations and routes may differ; this experiment
+does NOT assert identical path geometry.
+
+The manually invoked binary
+`hybrid_astar_nav2_footprint_envelope_benchmark_test` uses the **original
+1006 × 1674 Nav2 warehouse at 0.03 m/cell**, differential-drive motion and
+identical heading, map, start/goal, search budget, 100k obstacle-grid
+settlement cap and post-path refinement settings. The reference pose is
+at the **center of both rectangles**. Both use the new conservative exact
+collision-check broad phase. Run on the **same 10 route pairs** as the
+previous benchmark via `--replay-csv` (the 30,000+ expansion qualification
+comes from the prior original 70 × 50 cm baseline). Every replayed case
+is included even if one geometry fails or expands fewer than 30,000 nodes;
+we do not cherry-pick successful outcomes.
+
+There are three separate measurement phases per route and geometry:
+
+1. **Timed whole pipeline:** warmup then repeated **search + strict
+   refinement**, with collision-work instrumentation **disabled**.
+   Records search, refinement and total p50/p95 latency and search effort.
+2. **Untimed real-search counters:** repeat the search once with exact
+   candidate-cell, occupied-cell, SAT and metric-distance-test counters.
+   Assert the instrumented plan is identical to the timed plan.
+3. **Collision-only fixed-pose microbenchmark:** generate **20,000 seeded
+   world poses** using the same map and exactly the same pose list for
+   both geometries. Separately count the cell work, then time five
+   uninstrumented repetitions of the collision checker. Records
+   microseconds/check and number of colliding poses. The microbenchmark
+   intentionally does **not** include map loading or checker construction.
+
+This separates **extra candidate/occupied cell work** from **extra SAT
+and exact-distance method work**, while also showing the real impact on
+planning. The fixed-pose sample is uniform across the map (not exclusively
+planner trajectory poses); collision results can differ in rounded corners.
+Do not treat total pipeline time deltas as pure per-cell computation
+deltas, because different geometries may produce different search
+expansions and routes.
+
+```bash
+git fetch origin
+git switch feature/nav2-equivalent-envelope-footprint-benchmark \
+  || git switch --track origin/feature/nav2-equivalent-envelope-footprint-benchmark
+export BUILD_JOBS=28 TEST_JOBS=4 PROFILE_HOTPATHS=OFF
+
+docker compose build test
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure -j "$TEST_JOBS"
+
+# Reuse the original full-map benchmark's exact ten start/goal pairs.
+# Mount the CSV since Docker doesn't automatically see the host file.
+docker compose --profile test run --rm \
+  -v "$PWD/nav2-full-margin-pipeline.csv:/tmp/baseline.csv:ro" \
+  test ./build-docker/hybrid_astar_nav2_footprint_envelope_benchmark_test \
+  --model differential --cases 10 --repeats 5 \
+  --min-expansions 30000 --search-budget 500000 \
+  --grid-settlements 100000 --replay-csv /tmp/baseline.csv \
+  --micro-poses 20000 --micro-repeats 5 \
+  > nav2-footprint-envelope.csv
+
+python3 tools/analyze_nav2_footprint_envelope.py \
+  nav2-footprint-envelope.csv
+```
+
+The script validates matched poses, seed, map dimensions, outer envelope
+and input settings, then summarizes per-route runtime differences,
+per-planning-pose cell/geometry work, and collision-only microseconds
+per identical pose. It reports changed statuses rather than dropping
+them; paired pipeline latencies are computed only where both routes
+succeed. Unit tests exercise the rounded-corner difference and seeded
+microbenchmark pose reproducibility. The heavy experiment is **never
+registered in CTest**, and no GitHub Actions are involved.
+
 ### Exact inflated-footprint collision fast path (legacy A/B)
 
 The collision checker now uses a **default-on**, conservative two-stage
