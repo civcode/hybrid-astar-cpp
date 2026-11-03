@@ -330,6 +330,8 @@ if(HYBRID_ASTAR_BUILD_APP)
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analyze_nav2_collision_fastpath.py)
       add_test(NAME nav2_grid_caps_analysis_test COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analyze_nav2_grid_caps.py)
+      add_test(NAME nav2_footprint_envelope_analysis_test COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_analyze_nav2_footprint_envelope.py)
     endif()
     if(Python3_Interpreter_FOUND AND UNIX)
       add_test(NAME demo_http_test COMMAND ${Python3_EXECUTABLE}
