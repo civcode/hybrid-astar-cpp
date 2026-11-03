@@ -433,6 +433,79 @@ benchmark still requires running Nav2 Smac State Lattice/Hybrid A* on
 the exact same map, footprint, motion constraints and endpoints, using
 the same hardware and compatible smoothing/validation behavior.
 
+### Exact inflated-footprint collision fast path (legacy A/B)
+
+The collision checker now uses a **default-on**, conservative two-stage
+broad phase for positive footprint inflation: reject a blocked map square
+only when its bounding-box Euclidean gap or vehicle-axis projection
+proves its distance exceeds the requested metric safety margin.
+Uncertain squares still receive the unchanged, exact
+rectangle-vs-square SAT and continuous polygon-square distance test.
+Neither occupancy resolution, map content, nor the requested safety
+margin changes. At **0 m inflation**, the existing checker is unchanged.
+
+The PlanOptions useInflatedFootprintBroadPhase flag is **true** in
+production and the Planning Lab. It can be disabled for a controlled
+legacy-vs-fastpath benchmark. The flag propagates through search,
+strict final-path validation, and post-path refinement.
+
+Optional CollisionWorkCounters capture inflatedAabbRejections and
+inflatedAxisRejections, candidate/occupied cells, SAT checks, and expensive
+distance checks. Enable --collect-collision-work for diagnostics only;
+its extra instrumentation can alter measured runtime.
+
+The benchmark accepts --collision-mode both|legacy|fastpath
+(default **both**), --grid-settlements 100000|250000|500000,
+--collect-collision-work, and --replay-csv to reuse the exact exported
+pose coordinates from the earlier 10-route benchmark CSV. In both mode,
+it runs four configurations: 0 m/0.10 m × legacy/fastpath. It asserts
+identical search outcomes, complete path sections, search work, and
+strict refinement geometry before writing paired rows.
+
+Use the previously generated CSV in your repository root:
+
+~~~bash
+git fetch origin
+git switch feature/nav2-inflated-footprint-collision-fastpath \
+  || git switch --track origin/feature/nav2-inflated-footprint-collision-fastpath
+export BUILD_JOBS=28 TEST_JOBS=4 PROFILE_HOTPATHS=OFF
+docker compose build test
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure -j "$TEST_JOBS"
+
+# Mount the CSV from the host. It is not automatically in the test image.
+docker compose --profile test run --rm \
+  -v "$PWD/nav2-full-margin-pipeline.csv:/tmp/baseline.csv:ro" \
+  test ./build-docker/hybrid_astar_nav2_warehouse_pipeline_benchmark_test \
+  --model differential --cases 10 --repeats 5 \
+  --collision-mode both --replay-csv /tmp/baseline.csv \
+  --grid-settlements 100000 > nav2-collision-fastpath.csv
+
+python3 tools/analyze_nav2_collision_fastpath.py nav2-collision-fastpath.csv
+
+# Optional work counters (instrumentation affects absolute runtime):
+docker compose --profile test run --rm \
+  -v "$PWD/nav2-full-margin-pipeline.csv:/tmp/baseline.csv:ro" \
+  test ./build-docker/hybrid_astar_nav2_warehouse_pipeline_benchmark_test \
+  --model differential --cases 10 --repeats 3 \
+  --collision-mode both --replay-csv /tmp/baseline.csv \
+  --collect-collision-work > nav2-collision-work.csv
+python3 tools/analyze_nav2_collision_fastpath.py nav2-collision-work.csv
+~~~
+
+The analyzer checks all four route pairs and refuses mismatched search
+work or path geometry. The C++ tests also compare the legacy and new
+collision checkers over 11,200 seeded poses spanning two footprints,
+rotated map origins, occupancy policies, metric margins, and boundary
+contacts. A speedup is acceptable only if strict collision decisions
+remain identical.
+
+For the **next** heuristic experiment, repeat the benchmark on the same
+replay CSV with --grid-settlements 250000 and then 500000; keep
+--collision-mode fastpath and all other inputs fixed. A larger grid budget
+may reduce A* expansions, but its computation cost must be included in
+the reported search time. This benchmark does not run Nav2 Smac itself.
+
 ## Ackermann steering-aware refinement: 100-path A/B (manual)
 
 The **default** `RefinementOptions` budget is now **160 attempts,
