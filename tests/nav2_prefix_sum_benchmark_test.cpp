@@ -87,6 +87,15 @@ void printRow(const pipe::Config& cfg,const pipe::Scenario& scenario,
   const auto& d=r.pipeline.raw.diagnostics;
   const auto& w=r.work;
   const auto& m=r.micro;
+  const auto& t=d.collisionTiming;
+#ifdef HYBRID_ASTAR_NAV2_PIPELINE_PROFILE_ENABLED
+  constexpr int profiling=1;
+  if(t.emptyBypassCalls+t.nonemptyFallbackCalls+t.boundaryCalls!=
+     d.exactCollisionPoseCalls)
+    throw std::runtime_error("Collision outcome timing missed an exact pose call");
+#else
+  constexpr int profiling=0;
+#endif
   std::cout<<std::fixed<<std::setprecision(6)
       <<scenario.id<<','<<scenario.drawIndex<<','<<cfg.seed<<','
       <<cfg.model<<','<<fe::label(geometry)<<','<<(prefix?1:0)<<','
@@ -100,7 +109,12 @@ void printRow(const pipe::Config& cfg,const pipe::Scenario& scenario,
       <<w.distanceTests<<','<<w.emptyRegionQueries<<','
       <<w.emptyRegionBypasses<<','
       <<m.work.candidateCells<<','<<m.work.occupiedCells<<','
-      <<m.work.emptyRegionQueries<<','<<m.work.emptyRegionBypasses<<'\n';
+      <<m.work.emptyRegionQueries<<','<<m.work.emptyRegionBypasses<<','
+      <<profiling<<','<<t.emptyBypassCalls<<','<<t.nonemptyFallbackCalls<<','
+      <<t.boundaryCalls<<','
+      <<pipe::nsMs(t.emptyBypassNanoseconds)<<','
+      <<pipe::nsMs(t.nonemptyFallbackNanoseconds)<<','
+      <<pipe::nsMs(t.boundaryNanoseconds)<<'\n';
 }
 }
 int main(int argc,char** argv) {
@@ -135,7 +149,11 @@ int main(int argc,char** argv) {
                 "micro_p50_us_per_pose,search_candidate_cells,search_occupied_cells,"
                 "search_sat_tests,search_distance_tests,search_prefix_queries,"
                 "search_prefix_bypasses,micro_candidate_cells,micro_occupied_cells,"
-                "micro_prefix_queries,micro_prefix_bypasses\n";
+                "micro_prefix_queries,micro_prefix_bypasses,"
+                "profile_enabled,collision_empty_bypass_calls,"
+                "collision_nonempty_fallback_calls,collision_boundary_calls,"
+                "collision_empty_bypass_ms,collision_nonempty_fallback_ms,"
+                "collision_boundary_ms\n";
     for(const auto& scenario:cases) {
       const auto poses=fe::fixedPoseBank(cfg,scenario,*map,microPoses);
       const std::array<fe::Variant,2> geometries=scenario.id%2?
