@@ -15,7 +15,7 @@ table for a short refinement might outweigh the savings.
 
 ## Manually benchmark identical routes with the prefix ON versus OFF
 
-    cmake -S . -B build -DHYBRID_ASTAR_BUILD_APP=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
+    cmake -S . -B build -DHYBRID_ASTAR_BUILD_TESTS=OFF -DHYBRID_ASTAR_BUILD_APP=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
     cmake --build build --target hybrid_astar_nav2_prefix_sum_benchmark_test -j 4
     ./build/hybrid_astar_nav2_prefix_sum_benchmark_test \
       --model differential --connector native \
