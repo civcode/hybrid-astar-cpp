@@ -15,6 +15,10 @@ table for a short refinement might outweigh the savings.
 
 ## Manually benchmark identical routes with the prefix ON versus OFF
 
+The full-resolution Nav2 map is generated locally and is not committed. If it
+is absent, first run `python3 tools/prepare_nav2_warehouse.py` (downloads the
+pinned upstream PGM; alternatively provide `--source /path/to/warehouse.pgm`).
+
     cmake -S . -B build -DHYBRID_ASTAR_BUILD_TESTS=OFF -DHYBRID_ASTAR_BUILD_APP=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
     cmake --build build --target hybrid_astar_nav2_prefix_sum_benchmark_test -j 4
     ./build/hybrid_astar_nav2_prefix_sum_benchmark_test \
