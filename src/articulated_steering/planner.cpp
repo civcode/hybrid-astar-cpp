@@ -184,6 +184,8 @@ StrictResult strictValidate(const Request& r,const Model& model,
       return StrictResult::Incomplete;
     } catch(const std::invalid_argument&) {
       return StrictResult::Reject;
+    } catch(const std::out_of_range&) {
+      return StrictResult::Reject;
     }
   }
   const auto rear=model.toRear(state);
@@ -338,6 +340,8 @@ Result plan(const Request& r) {
           ++out.diagnostics.rejectedInvalidMotion;
         } catch(const std::invalid_argument&) {
           ++out.diagnostics.rejectedInvalidMotion;
+        } catch(const std::out_of_range&) {
+          ++out.diagnostics.rejectedInvalidMotion;
         }
       }
     }
@@ -347,6 +351,9 @@ Result plan(const Request& r) {
     return out;
   } catch(const std::invalid_argument&) {
     out.status=Status::InvalidRequest;
+    return out;
+  } catch(const std::out_of_range&) {
+    out.status=Status::ValidationIncomplete;
     return out;
   }
 }
