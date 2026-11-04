@@ -143,3 +143,57 @@ TEST_CASE("EDT-assisted clearance integrates exactly the same penalized sections
           diagnostics.clearanceEdtZeroCostBypasses+
           diagnostics.clearanceExactFallbacks);
 }
+
+
+TEST_CASE("EDT and exact clearance produce identical differential search and path",
+          "[clearance][edt][planner]") {
+  auto map=std::make_shared<MapSnapshot>();
+  map->width=96;map->height=96;map->resolutionMeters=.2;
+  map->cells.assign(map->width*map->height,0);
+  for(std::size_t y=22;y<34;++y)map->cells[y*map->width+41]=100;
+  PlanRequest req;
+  req.map=map;
+  req.start={4.,5.,0.};
+  req.goal={8.,5.,0.};
+  req.footprint={-.25,.25,.15};
+  req.options.model=PlanOptions::Model::DifferentialDrive;
+  req.options.footprintInflationMeters=.1;
+  req.options.clearanceWeight=.15;
+  req.options.clearanceInfluenceRadiusMeters=.4;
+  req.options.maxExpansions=18000;
+  req.options.maxGeneratedNodes=72000;
+  const auto exact=plan(req);
+  req.options.useClearanceDistanceTransform=true;
+  const auto edt=plan(req);
+  REQUIRE(exact.status==PlanStatus::Success);
+  REQUIRE(edt.status==exact.status);
+  REQUIRE(exact.diagnostics.expanded==edt.diagnostics.expanded);
+  REQUIRE(exact.diagnostics.generated==edt.diagnostics.generated);
+  REQUIRE(exact.diagnostics.exactCollisionPoseCalls==
+          edt.diagnostics.exactCollisionPoseCalls);
+  REQUIRE(exact.diagnostics.clearanceSamples==edt.diagnostics.clearanceSamples);
+  REQUIRE(exact.diagnostics.clearanceDistanceQueries==
+          edt.diagnostics.clearanceDistanceQueries);
+  REQUIRE(edt.diagnostics.clearanceDistanceQueries==
+          edt.diagnostics.clearanceEdtZeroCostBypasses+
+          edt.diagnostics.clearanceExactFallbacks);
+  REQUIRE(edt.diagnostics.clearanceEdtBytes==
+          map->cells.size()*sizeof(double));
+  REQUIRE(edt.diagnostics.clearanceEdtZeroCostBypasses>0);
+  REQUIRE(edt.diagnostics.clearanceExactFallbacks>0);
+  REQUIRE(std::abs(exact.weightedCostMeters-edt.weightedCostMeters)<1e-9);
+  REQUIRE(std::abs(exact.clearanceCostMeters-edt.clearanceCostMeters)<1e-9);
+  REQUIRE(exact.sections.size()==edt.sections.size());
+  for(std::size_t i=0;i<exact.sections.size();++i) {
+    const auto& a=exact.sections[i];
+    const auto& b=edt.sections[i];
+    REQUIRE(a.kind==b.kind);
+    REQUIRE(a.gear==b.gear);
+    REQUIRE(std::abs(a.start.x-b.start.x)<1e-9);
+    REQUIRE(std::abs(a.start.y-b.start.y)<1e-9);
+    REQUIRE(std::abs(a.start.yaw-b.start.yaw)<1e-9);
+    REQUIRE(std::abs(a.end.x-b.end.x)<1e-9);
+    REQUIRE(std::abs(a.end.y-b.end.y)<1e-9);
+    REQUIRE(std::abs(a.end.yaw-b.end.yaw)<1e-9);
+  }
+}
