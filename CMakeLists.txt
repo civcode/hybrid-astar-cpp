@@ -248,6 +248,15 @@ if(HYBRID_ASTAR_BUILD_APP)
     target_link_libraries(hybrid_astar_label_reserve_map_calibration_benchmark
       PRIVATE hybrid_astar_demo_logic)
   endif()
+  # Manual matched calibration-route label capacity sweep, without CTest/CI.
+  if(HYBRID_ASTAR_BUILD_BENCHMARKS)
+    add_executable(hybrid_astar_label_reserve_refined_tiers_benchmark
+      tests/label_reserve_refined_tiers_benchmark.cpp)
+    target_include_directories(hybrid_astar_label_reserve_refined_tiers_benchmark
+      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(hybrid_astar_label_reserve_refined_tiers_benchmark
+      PRIVATE hybrid_astar_demo_logic)
+  endif()
   # Manual full-resolution Nav2 warehouse performance benchmark. Reuse
   # the same restricted ROS YAML/PGM loader as Planning Lab, with no map
   # reloading or JSON serialization included in timed plan/refine samples.
