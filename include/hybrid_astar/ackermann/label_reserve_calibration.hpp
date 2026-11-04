@@ -46,6 +46,9 @@ struct LabelReserveCalibrationResult {
   // The map and planning options (model, geometry, costs, budgets, policies)
   // must remain unchanged when applying this empirical recommendation.
   std::uint64_t mapRevision = 0;
+  // Stable FNV-1a of occupancy and map geometry. Map revisions from YAML
+  // loaders may be zero, so revision alone cannot identify calibration data.
+  std::uint64_t mapFingerprint = 0;
   std::size_t mapWidth = 0, mapHeight = 0;
   std::size_t strataX = 0, strataY = 0, validStrata = 0;
   std::size_t coveredStartStrata = 0, coveredGoalStrata = 0;
