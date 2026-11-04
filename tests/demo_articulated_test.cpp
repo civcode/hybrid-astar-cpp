@@ -28,8 +28,14 @@ TEST_CASE("Planning Lab articulated adapter searches and serializes complete two
   for(const auto& motion:result.result.motions)
     if(motion.control.frontSpeedMetersPerSecond!=0.0)
       REQUIRE(motion.control.gammaRateRadiansPerSecond==0.0);
-  REQUIRE(result.parameters.LfMeters==.5);
-  REQUIRE(result.parameters.LrMeters==.5);
+  REQUIRE(result.parameters.LfMeters==1.0);
+  REQUIRE(result.parameters.LrMeters==1.0);
+  REQUIRE(result.bodies.front.rearX==-0.5);
+  REQUIRE(result.bodies.front.frontX==0.5);
+  REQUIRE(result.bodies.front.halfWidth==0.3);
+  REQUIRE(result.bodies.rear.rearX==-0.5);
+  REQUIRE(result.bodies.rear.frontX==0.5);
+  REQUIRE(result.bodies.rear.halfWidth==0.3);
   const auto json=demo::articulatedToJson(result);
   REQUIRE(json.find("\"model\":\"articulated\"")!=std::string::npos);
   REQUIRE(json.find("\"articulatedGeometry\"")!=std::string::npos);
@@ -51,7 +57,7 @@ TEST_CASE("Planning Lab articulated gamma goals can require joint-only steering"
   o.scenario="open";
   o.start=hybrid_astar::Pose2D{10,15,0};
   o.startGammaDegrees=0;
-  const art::Parameters p{.5,.5,-1.2,1.2,1.0,.8,.1};
+  const art::Parameters p{1.0,1.0,-1.2,1.2,1.0,.8,.1};
   art::Model model(p);
   const auto end=model.toRear(model.propagate(
     model.fromRear({10,15,0,0}),{0,.4},.5,.002));
@@ -78,10 +84,10 @@ TEST_CASE("Planning Lab articulated adapter rejects nonsensical geometry or unsu
   o.model="articulated";
   o.LfMeters=0;
   REQUIRE_THROWS_AS(demo::runArticulated(o),std::invalid_argument);
-  o.LfMeters=.5;
+  o.LfMeters=1.0;
   o.articulatedFront.halfWidth=0;
   REQUIRE_THROWS_AS(demo::runArticulated(o),std::invalid_argument);
-  o.articulatedFront.halfWidth=.15;
+  o.articulatedFront.halfWidth=.30;
   o.goalGammaDegrees=120;
   REQUIRE_THROWS_AS(demo::runArticulated(o),std::invalid_argument);
   o.goalGammaDegrees=0;
@@ -109,8 +115,8 @@ TEST_CASE("Planning Lab articulated adapter uses immutable edited map and inflat
   REQUIRE(demo::articulatedToJson(result).find(
     "\"footprintInflationMeters\":0.05")!=std::string::npos);
   // Built-in open map starts empty; edit only the cell containing the
-  // front carriage reference at x=11, y=15 and verify a start rejection.
-  o.edits.push_back({std::size_t(60)*200+44,100});
+  // front carriage reference at x=12, y=15 and verify a start rejection.
+  o.edits.push_back({std::size_t(60)*200+48,100});
   o.editGeneration=1;
   result=demo::runArticulated(o);
   REQUIRE(result.result.status==art::Status::StartInCollision);
