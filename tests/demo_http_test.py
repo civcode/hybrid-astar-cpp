@@ -66,6 +66,10 @@ def main(exe):
             "TwoCarriageIndependentAdaptiveSampled"
         )
         assert art["original"]["actuatorFeasible"] is False
+        assert art["original"]["precomputedAnalyticDriveTemplates"] > 0
+        assert art["original"]["precomputedStationaryRk4Templates"] > 0
+        assert art["original"]["appliedPrecomputedTemplates"] > 0
+        assert art["original"]["precomputedSampleCount"] > 0
         assert art["articulatedGeometry"]["Lf"] == 0.5
         assert art["articulatedGeometry"]["Lr"] == 0.5
         assert art["articulatedGeometry"]["front"] == [-0.3, 0.3, 0.15]
