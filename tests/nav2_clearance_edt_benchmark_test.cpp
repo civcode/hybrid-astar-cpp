@@ -184,6 +184,26 @@ int main(int argc,char** argv) {
         }
         if(!measurements[0]||!measurements[1]||!measurements[2])
           throw std::runtime_error("Missing clearance experiment variant");
+        // Pinned replay routes must succeed without the optional objective.
+        // A positive clearance weight MUST actually exercise clearance
+        // scoring. Invalid input or zero-work "Other" rows previously passed
+        // the exact/EDT equivalence gate and gave misleading microsecond times.
+        if(measurements[0]->raw.status!=PlanStatus::Success)
+          throw std::runtime_error("Baseline warehouse replay did not succeed: case "+
+                                   std::to_string(scenario.id));
+        for(std::size_t i=1;i<3;++i) {
+          const auto& planResult=measurements[i]->raw;
+          if(planResult.status==PlanStatus::InvalidRequest ||
+             planResult.status==PlanStatus::InvalidMap ||
+             planResult.status==PlanStatus::InternalError ||
+             planResult.status==PlanStatus::RejectedUnknownMap ||
+             planResult.diagnostics.clearanceDistanceQueries==0)
+            throw std::runtime_error(
+                std::string("Clearance mode ")+label(variants[i])+
+                " failed before evaluating the objective on case "+
+                std::to_string(scenario.id)+": "+
+                pipe::statusName(planResult.status));
+        }
         checkEquivalent(*measurements[1],*measurements[2]);
         for(std::size_t i=0;i<3;++i) {
           const auto variant=variants[i];
