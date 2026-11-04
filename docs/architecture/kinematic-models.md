@@ -70,7 +70,7 @@ the planner as a supported fourth model.
 
 Let \(\mathbf q=(x_f,y_f,\Theta_f,\Theta_r,\gamma)\),
 \(u=(v,u_\gamma)\), \(u_\gamma=\dot\gamma\),
-and \(D(\gamma)=L_1\cos\gamma+L_2\).
+and \(D(\gamma)=L_f\cos\gamma+L_r\).
 
 \[
 \frac{d}{dt}
@@ -79,8 +79,8 @@ and \(D(\gamma)=L_1\cos\gamma+L_2\).
 \begin{bmatrix}
 \cos\Theta_f & 0\\
 \sin\Theta_f & 0\\
-\dfrac{\sin\gamma}{D(\gamma)} & \dfrac{L_2}{D(\gamma)}\\
-\dfrac{\sin\gamma}{D(\gamma)} & -\dfrac{L_1\cos\gamma}{D(\gamma)}\\
+\dfrac{\sin\gamma}{D(\gamma)} & \dfrac{L_r}{D(\gamma)}\\
+\dfrac{\sin\gamma}{D(\gamma)} & -\dfrac{L_f\cos\gamma}{D(\gamma)}\\
 0 & 1
 \end{bmatrix}
 \begin{bmatrix}v\\u_\gamma\end{bmatrix}.
@@ -95,7 +95,7 @@ Equivalently:
 
 \[
 \dot\Theta_f=\frac{v\sin\gamma+L_2u_\gamma}{D(\gamma)},\qquad
-\dot\Theta_r=\frac{v\sin\gamma-L_1\cos\gamma\,u_\gamma}{D(\gamma)},
+\dot\Theta_r=\frac{v\sin\gamma-L_f\cos\gamma\,u_\gamma}{D(\gamma)},
 \qquad
 \dot\gamma=u_\gamma.
 \]
@@ -106,7 +106,7 @@ Subtracting the two heading derivatives gives
 
 \[
 \dot\Theta_f-\dot\Theta_r
-=\frac{(L_1\cos\gamma+L_2)u_\gamma}{D(\gamma)}
+=\frac{(L_f\cos\gamma+L_r)u_\gamma}{D(\gamma)}
 =u_\gamma=\dot\gamma.
 \]
 
@@ -146,7 +146,7 @@ Angle wrap must not introduce discontinuous physical integration.
 | \(\gamma\) | On the aligned-zero state manifold, \(\Theta_f-\Theta_r\) | Confirmation of zero-angle alignment and angle wrapping |
 | \(v\) | Signed longitudinal velocity of the **front reference point** | Wheel, driveline and control-speed limits |
 | \(u_\gamma=\dot\gamma\) | Articulation angular-rate control/input | Positive actuator direction, joint-angle and rate limits |
-| \(L_1,L_2\) | Positive geometric lengths in the kinematic coupling | Physical endpoints and exact collision-body offsets |
+| \(L_f,L_r\) | Positive geometric lengths in the kinematic coupling | Physical endpoints and exact collision-body offsets |
 
 A **conventional no-side-slip axle geometry that reproduces these
 equations**, but is **not yet author-confirmed**, is:
@@ -154,8 +154,8 @@ equations**, but is **not yet author-confirmed**, is:
 - \(F=(x_f,y_f)\), the midpoint of the front axle, heading \(\Theta_f\);
 - articulation pivot \(H=F-L_1e(\Theta_f)\);
 - rear axle midpoint \(R=H-L_2e(\Theta_r)\);
-- \(e(\theta)=(\cos\theta,\sin\theta)\), so \(L_1\) measures
-  front-axle-to-hinge and \(L_2\) hinge-to-rear-axle distance
+- \(e(\theta)=(\cos\theta,\sin\theta)\), so \(L_f\) measures
+  front-axle-to-hinge and \(L_r\) hinge-to-rear-axle distance
   along the respective chassis axes.
 
 With front no-slip \(\dot F=v e(\Theta_f)\), rear no-slip
@@ -173,7 +173,7 @@ The author's `OdeSimulation` source implements **exactly** the five-state
 ODE above with `x_[0]=x_f`, `x_[1]=y_f`,
 `theta1=x_[2]=Theta_f`, `theta2=x_[3]=Theta_r`,
 `x_[4]=gamma`, `v_linear_=v`, and
-`gamma_dot_=u_gamma`. For that simulator `L1_=L2_=0.5 m`.
+`gamma_dot_=u_gamma`. The supplied ROS 2 source names these parameters `L1_` and `L2_`; in the planner specification these correspond to `L_f=L_r=0.5 m`.
 The `/cmd_vel` fields `linear.x` and `angular.z`
 supply the two controls.
 
@@ -181,8 +181,8 @@ The simulator explicitly calculates the **rear base pose** from the
 front-integrated state:
 
 \[
-x_r=x_f-L_1\cos\Theta_f-L_2\cos\Theta_r,\qquad
-y_r=y_f-L_1\sin\Theta_f-L_2\sin\Theta_r.
+x_r=x_f-L_f\cos\Theta_f-L_r\cos\Theta_r,\qquad
+y_r=y_f-L_f\sin\Theta_f-L_r\sin\Theta_r.
 \]
 
 It broadcasts `odom -> base_link` with translation
@@ -194,8 +194,8 @@ The initial state is all zero, consistent with
 \(\gamma=\Theta_f-\Theta_r\).
 
 **Therefore the user's interpretation matches the source code**:
-\((x_f,y_f)\) is the front point; travel \(L_1\) backward along
-the front heading to the hinge and \(L_2\) backward along
+\((x_f,y_f)\) is the front point; travel \(L_f\) backward along
+the front heading to the hinge and \(L_r\) backward along
 the rear heading to the rear reference, whose pose is emitted as
 `base_link`. The source **encodes** those geometric offsets but
 does not independently prove that either point is the actual
@@ -209,15 +209,15 @@ Differentiating that exact transformation yields
 \[
 \dot x_r=v_r\cos\Theta_r,\quad
 \dot y_r=v_r\sin\Theta_r,\quad
-v_r=\frac{v(L_1+L_2\cos\gamma)+
+v_r=\frac{v(L_f+L_r\cos\gamma)+
           L_1L_2\sin\gamma\,u_\gamma}
-         {L_1\cos\gamma+L_2},
+         {L_f\cos\gamma+L_r},
 \]
 
 \[
 \dot\Theta_r=
-\frac{v\sin\gamma-L_1\cos\gamma\,u_\gamma}
-{L_1\cos\gamma+L_2},\qquad
+\frac{v\sin\gamma-L_f\cos\gamma\,u_\gamma}
+{L_f\cos\gamma+L_r},\qquad
 \dot\gamma=u_\gamma .
 \]
 
@@ -235,8 +235,8 @@ under the confirmed heading relation.
 message spacing; `joint_state.velocity[0]` is always sent as 0
 instead of `gamma_dot_`; `/ode_pose` does not set a
 meaningful orientation quaternion; and it does not check
-\(|L_1\cos\gamma+L_2|\) against zero or enforce
-mechanical joint bounds. In particular with `L1_=L2_=0.5`,
+\(|L_f\cos\gamma+L_r|\) against zero or enforce
+mechanical joint bounds. In particular with the supplied source values `L1_=L2_=0.5`,
 the denominator vanishes at \(\gamma=\pi\).
 These are **integration/telemetry and numerical guards** to
 address before using this simulator as an independent physical
@@ -246,7 +246,7 @@ reference or deploying a fourth planner model.
 
 - At \(v=0\), the **front reference stays stationary**, but
   \(\dot\Theta_f=L_2u_\gamma/D\) and
-  \(\dot\Theta_r=-L_1\cos\gamma\,u_\gamma/D\); the front/rear
+  \(\dot\Theta_r=-L_f\cos\gamma\,u_\gamma/D\); the front/rear
   rigid bodies can rotate and sweep obstacles. **Do not** describe
   this as a stationary **rear** reference point.
 - With \(u_\gamma=0\) and \(\gamma\ne0\), both headings change
@@ -258,7 +258,7 @@ reference or deploying a fourth planner model.
   \(\Theta_f-\Theta_r-\gamma\) invariant.
 - At \(v\ne0\), the spatial turning relationship is
   \(d\Theta_f/ds=\sin\gamma/D+
-  L_2(u_\gamma/v)/D\) for **signed front-point travel**
+  L_r(u_\gamma/v)/D\) for **signed front-point travel**
   \(ds/dt=v\). Never divide by \(v\) when modeling
   articulation-only motion or passing through zero speed.
 - An articulated primitive must retain or reconstruct **both body
@@ -282,16 +282,16 @@ struct ArticulatedControl { double frontSpeed, gammaRate; };
 
 ArticulatedState derivative(const ArticulatedState& q,
                             const ArticulatedControl& u,
-                            double L1, double L2) {
-  const double D = L1*std::cos(q.gamma) + L2;
+                            double L_f, double L_r) {
+  const double D = L_f*std::cos(q.gamma) + L_r;
   // Validate physical parameters, |D| >= safety threshold, finite
   // inputs/states and joint/control limits before evaluating.
   const double driveYaw = u.frontSpeed*std::sin(q.gamma) / D;
   return {
     u.frontSpeed*std::cos(q.thetaFront),
     u.frontSpeed*std::sin(q.thetaFront),
-    driveYaw + L2*u.gammaRate/D,
-    driveYaw - L1*std::cos(q.gamma)*u.gammaRate/D,
+    driveYaw + L_r*u.gammaRate/D,
+    driveYaw - L_f*std::cos(q.gamma)*u.gammaRate/D,
     u.gammaRate
   };
 }
@@ -299,7 +299,7 @@ ArticulatedState derivative(const ArticulatedState& q,
 
 **Next confirmation:** The author's simulator corroborates the
 front-to-rear offsets and `base_link` at the rear reference,
-using `L1_=L2_=0.5` as example geometry. Still confirm
+using `L_f=L_r=0.5` as example geometry. Still confirm
 physical **axle midpoint locations**, the precise front/rear
 collision-body dimensions and offsets, mechanical joint-angle
 and speed/rate limits, and start/goal articulation semantics
@@ -350,12 +350,12 @@ Time is the canonical derivative variable for these ODEs because it works for in
 
 Here \(\sigma\) is **primitive-local progress**, not a global execution schedule. A downstream MPC still chooses timing, but any rate-constrained property verified at a specific nominal duration must be rechecked if the motion is retimed.
 
-**Accepted OQ-002 (ADR-0012): spatial extent for translation, model-specific configuration extent for stationary maneuvers.** Translating primitives can be generated using an explicit traveled length and a spatially parameterized control; a constant nominal speed is not required. For example, bicycle curvature is \(d\theta/ds=\tan\delta/L\) for **signed** traveled distance \(ds/dt=v\). For the supplied articulated model with \(D(\gamma)=L_1\cos\gamma+L_2\), the **front reference** speed \(v\ne0\) gives:
+**Accepted OQ-002 (ADR-0012): spatial extent for translation, model-specific configuration extent for stationary maneuvers.** Translating primitives can be generated using an explicit traveled length and a spatially parameterized control; a constant nominal speed is not required. For example, bicycle curvature is \(d\theta/ds=\tan\delta/L\) for **signed** traveled distance \(ds/dt=v\). For the supplied articulated model with \(D(\gamma)=L_f\cos\gamma+L_r\), the **front reference** speed \(v\ne0\) gives:
 
 \[
 \frac{d\gamma}{ds}=\frac{u_\gamma}{v},\qquad
 \frac{d\Theta_f}{ds}=\frac{\sin\gamma}{D(\gamma)}
-+\frac{L_2}{D(\gamma)}\frac{u_\gamma}{v}.
++\frac{L_r}{D(\gamma)}\frac{u_\gamma}{v}.
 \]
 
 The spatial control \(d\gamma/ds\) may be chosen directly for translating primitives; a realizable articulation rate then depends on the eventual longitudinal speed. This division is **singular when \(v=0\)** even though the original time-domain dynamics remain valid. Consequently, zero-translation articulation changes and pure rotations use their own angular/configuration extent (with time-domain integration available when appropriate). Geometric length alone cannot specify execution duration; absent a speed profile there is no unique \(dt\). The accepted primitive design is recorded in [ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md).
