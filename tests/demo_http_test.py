@@ -42,6 +42,50 @@ def main(exe):
         assert code == 200 and isinstance(json.loads(payload)["ompl"], bool)
         assert json.loads(payload)["differential"] is True
         assert json.loads(payload)["mecanum"] is True
+        assert json.loads(payload)["articulated"] is True
+        # Articulated Planning Lab is a separate four-DOF backend branch.
+        # These are illustrative two-carriage dimensions, not deployment
+        # geometry. Only independently sampled/collision-checked routes
+        # may report Success in the UI.
+        art_query = (
+            "scenario=open&model=articulated"
+            "&startx=10&starty=15&startyaw=0"
+            "&goalx=11&goaly=15&goalyaw=0"
+            "&artStartGamma=0&artGoalGamma=0"
+            "&artLf=0.5&artLr=0.5"
+            "&artFrontRearX=-0.3&artFrontFrontX=0.3&artFrontHalfWidth=0.15"
+            "&artRearRearX=-0.3&artRearFrontX=0.3&artRearHalfWidth=0.15"
+            "&budget=1000"
+        )
+        art_code, _, art_body = get(base + "/api/plan?" + art_query)
+        art = json.loads(art_body)
+        assert art_code == 200 and art["model"] == "articulated", art_body
+        assert art["original"]["status"] == "Success", art_body
+        assert art["original"]["validated"] is True, art_body
+        assert art["original"]["collisionEvidence"] == (
+            "TwoCarriageIndependentAdaptiveSampled"
+        )
+        assert art["original"]["actuatorFeasible"] is False
+        assert art["articulatedGeometry"]["Lf"] == 0.5
+        assert art["articulatedGeometry"]["Lr"] == 0.5
+        assert art["articulatedGeometry"]["front"] == [-0.3, 0.3, 0.15]
+        assert art["articulatedGeometry"]["rear"] == [-0.3, 0.3, 0.15]
+        assert art["refinement"] is None
+        assert art["original"]["sections"], art_body
+        assert all("articulatedPoints" in sec and sec["articulatedPoints"]
+                   for sec in art["original"]["sections"])
+        assert all(len(p) == 4 for sec in art["original"]["sections"]
+                   for p in sec["articulatedPoints"])
+        for rejected in (
+            art_query + "&artUnsupported=1",
+            "scenario=open&model=articulated&artLf=0",
+            "scenario=open&model=articulated&artStartGamma=90",
+            "scenario=open&model=articulated&artFrontHalfWidth=0",
+            "scenario=open&model=articulated&refine=1",
+            "scenario=open&model=ackermann&artLf=0.5",
+        ):
+            status, _, bad_body = get(base + "/api/plan?" + rejected)
+            assert status == 400 and "error" in json.loads(bad_body), rejected
         caps = json.loads(payload)
         assert isinstance(caps["nav2WarehouseFull"], bool)
         assert isinstance(caps["nav2Warehouse344128"], bool)
