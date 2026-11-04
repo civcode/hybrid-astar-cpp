@@ -132,6 +132,12 @@ function. Do not silently enable an automatic rule.
 See [the four-way sweep protocol](label_reserve_sweep_benchmark.md)
 and `tools/analyze_nav2_label_reserve_sweep.py` for reproducibility.
 
+The subsequent [offline, map-stratified label reservation calibration](map_specific_label_reserve_calibration.md)
+provides a seeded C++ function and manual CLI for estimating the smallest
+no-rehash tier on **sampled routes for a particular map and configuration**.
+It returns both an integer tier index and label capacity. It does not
+supersede the measurements above or guarantee no rehash on unseen routes.
+
 ## 2. EDT-assisted capped clearance: route quality versus computational cost
 
 **Input file:** `nav2-clearance-edt-smoke.csv` (12 rows; 2 routes x 2
