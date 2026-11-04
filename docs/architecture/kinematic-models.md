@@ -4,11 +4,11 @@ The mathematical definition is a **controlled system of differential equations**
 
 ## Formal model
 
-$$
+```math
 \dot{\mathbf q}(t)=f(\mathbf q(t),\mathbf u(t);\mathbf p),\qquad
 \mathbf q\in\mathcal Q_{\mathrm{valid}},\qquad
 \mathbf u\in\mathcal U(\mathbf q;\mathbf p).
-$$
+```
 
 - **State** $\mathbf q$: all variables needed to predict motion and locate collision bodies. Initially mostly configuration variables; extended models may include internal rates.
 - **Control** $\mathbf u$: independently commanded inputs under explicit idealizations.
@@ -23,39 +23,39 @@ State is not necessarily a Euclidean array: yaw and articulation angles have cir
 
 ### Differential drive
 
-$$
+```math
 \mathbf q=(x,y,\theta),\quad \mathbf u=(v,\omega),\quad
 \dot{\mathbf q}=(v\cos\theta,\ v\sin\theta,\ \omega).
-$$
+```
 
 No-side-slip constraint:
-$$
+```math
 -\sin\theta\,\dot x+\cos\theta\,\dot y=0.
-$$
+```
 
 It is nonholonomic despite in-place rotation ($v=0,\omega\ne0$). Optionally relate chassis commands to wheel angular rates by $v=r(\omega_R+\omega_L)/2$ and $\omega=r(\omega_R-\omega_L)/b$ for wheel radius $r$ and track $b$.
 
 ### Geometric bicycle / Ackermann
 
-$$
+```math
 \mathbf q=(x,y,\theta),\quad \mathbf u=(v,\delta),\quad
 \dot{\mathbf q}=(v\cos\theta,\ v\sin\theta,\ v\tan\delta/L).
-$$
+```
 
 **Accepted Ackermann baseline (ADR-0014):** use three-state $\mathbf q=(x,y,\theta)$ and a finite catalog of constant-curvature forward/reverse arcs, including straight and maximum left/right turns (optional intermediate curvatures). The fixed-curvature geometric model limits turning radius but does not guarantee steering-angle continuity or finite steering rate between primitives. For steering-rate constraints, introduce a distinct model with state $\mathbf q=(x,y,\theta,\delta)$ and control $\mathbf u=(v,\dot\delta)$, or separately validate an actual smoothing/steering connector. Dubins/Reeds–Shepp paths do not automatically respect finite steering rate.
 
 ### Ideal mecanum / omnidirectional chassis
 
-$$
+```math
 \mathbf q=(x,y,\theta),\quad \mathbf u=(v_x^b,v_y^b,\omega),
-$$
-$$
+```
+```math
 \dot{\mathbf q}=\begin{bmatrix}
 \cos\theta\,v_x^b-\sin\theta\,v_y^b\\
 \sin\theta\,v_x^b+\cos\theta\,v_y^b\\
 \omega
 \end{bmatrix}.
-$$
+```
 
 The ideal chassis controls independent forward, lateral and yaw velocities, but wheel-speed saturation may couple input limits. This is a chassis-level holonomic abstraction, not an assertion about detailed roller-contact or slip behavior. Sideways travel at fixed yaw is allowed: **body heading is not travel tangent**.
 
@@ -72,7 +72,7 @@ Let $\mathbf q=(x_f,y_f,\Theta_f,\Theta_r,\gamma)$,
 $u=(v,u_\gamma)$, $u_\gamma=\dot\gamma$,
 and $D(\gamma)=L_f\cos\gamma+L_r$.
 
-$$
+```math
 \frac{d}{dt}
 \begin{bmatrix}x_f\\y_f\\\Theta_f\\\Theta_r\\\gamma\end{bmatrix}
 =
@@ -84,35 +84,35 @@ $$
 0 & 1
 \end{bmatrix}
 \begin{bmatrix}v\\u_\gamma\end{bmatrix}.
-$$
+```
 
 Equivalently:
 
-$$
+```math
 \dot x_f=v\cos\Theta_f,\qquad
 \dot y_f=v\sin\Theta_f,
-$$
+```
 
-$$
+```math
 \dot\Theta_f=\frac{v\sin\gamma+L_ru_\gamma}{D(\gamma)},\qquad
 \dot\Theta_r=\frac{v\sin\gamma-L_f\cos\gamma\,u_\gamma}{D(\gamma)},
 \qquad
 \dot\gamma=u_\gamma.
-$$
+```
 
 #### Exact relationship to the previous four-state model
 
 Subtracting the two heading derivatives gives
 
-$$
+```math
 \dot\Theta_f-\dot\Theta_r
 =\frac{(L_f\cos\gamma+L_r)u_\gamma}{D(\gamma)}
 =u_\gamma=\dot\gamma.
-$$
+```
 
 Thus $\Theta_f-\Theta_r-\gamma$ is constant. **If** articulation
 zero denotes aligned chassis and the initial state satisfies
-$\gamma=\operatorname{wrap}(\Theta_f-\Theta_r)$, then that
+$\gamma=\text{wrap}(\Theta_f-\Theta_r)$, then that
 identity holds throughout a valid trajectory. The **five values
 contain only four independent configuration degrees of freedom**.
 
@@ -120,13 +120,13 @@ Eliminating $\Theta_r$ yields the previously documented four-state
 equations **exactly** on the constraint manifold, but with
 $(x,y,\Theta)=(x_f,y_f,\Theta_f)$, **not** a rear reference pose:
 
-$$
+```math
 \dot x_f=v\cos\Theta_f,\quad
 \dot y_f=v\sin\Theta_f,\quad
 \dot\Theta_f=\frac{v\sin\gamma+L_ru_\gamma}{D(\gamma)},\quad
 \dot\gamma=u_\gamma,\quad
-\Theta_r=\operatorname{wrap}(\Theta_f-\gamma).
-$$
+\Theta_r=\text{wrap}(\Theta_f-\gamma).
+```
 
 For model-facing documentation and outputs, retaining the explicit
 $\Theta_r$ is useful. For an eventual efficient planner state
@@ -180,10 +180,10 @@ supply the two controls.
 The simulator explicitly calculates the **rear base pose** from the
 front-integrated state:
 
-$$
+```math
 x_r=x_f-L_f\cos\Theta_f-L_r\cos\Theta_r,\qquad
 y_r=y_f-L_f\sin\Theta_f-L_r\sin\Theta_r.
-$$
+```
 
 It broadcasts `odom -> base_link` with translation
 $(x_r,y_r,z=0.25)$ and yaw $\Theta_r$, **not** the integrated
@@ -207,20 +207,20 @@ before attaching collision polygons.
 
 Differentiating that exact transformation yields
 
-$$
+```math
 \dot x_r=v_r\cos\Theta_r,\quad
 \dot y_r=v_r\sin\Theta_r,\quad
 v_r=\frac{v(L_f+L_r\cos\gamma)+
           L_fL_r\sin\gamma\,u_\gamma}
          {L_f\cos\gamma+L_r},
-$$
+```
 
-$$
+```math
 \dot\Theta_r=
 \frac{v\sin\gamma-L_f\cos\gamma\,u_\gamma}
 {L_f\cos\gamma+L_r},\qquad
 \dot\gamma=u_\gamma .
-$$
+```
 
 This rear-position, rear-heading, articulation state is a
 **four-independent-variable alternative** to the front-based
@@ -345,19 +345,19 @@ concept KinematicModel = requires(
 
 Time is the canonical derivative variable for these ODEs because it works for in-place rotation and simultaneous holonomic translation/rotation. A primitive of nominal duration $\Delta t$, with constant input, may be evaluated over a local parameter $\sigma\in[0,1]$:
 
-$$
+```math
 \frac{d\mathbf q}{d\sigma}=\Delta t\,f(\mathbf q,\mathbf u).
-$$
+```
 
 Here $\sigma$ is **primitive-local progress**, not a global execution schedule. A downstream MPC still chooses timing, but any rate-constrained property verified at a specific nominal duration must be rechecked if the motion is retimed.
 
 **Accepted OQ-002 (ADR-0012): spatial extent for translation, model-specific configuration extent for stationary maneuvers.** Translating primitives can be generated using an explicit traveled length and a spatially parameterized control; a constant nominal speed is not required. For example, bicycle curvature is $d\theta/ds=\tan\delta/L$ for **signed** traveled distance $ds/dt=v$. For the supplied articulated model with $D(\gamma)=L_f\cos\gamma+L_r$, the **front reference** speed $v\ne0$ gives:
 
-$$
+```math
 \frac{d\gamma}{ds}=\frac{u_\gamma}{v},\qquad
 \frac{d\Theta_f}{ds}=\frac{\sin\gamma}{D(\gamma)}
 +\frac{L_r}{D(\gamma)}\frac{u_\gamma}{v}.
-$$
+```
 
 The spatial control $d\gamma/ds$ may be chosen directly for translating primitives; a realizable articulation rate then depends on the eventual longitudinal speed. This division is **singular when $v=0$** even though the original time-domain dynamics remain valid. Consequently, zero-translation articulation changes and pure rotations use their own angular/configuration extent (with time-domain integration available when appropriate). Geometric length alone cannot specify execution duration; absent a speed profile there is no unique $dt$. The accepted primitive design is recorded in [ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md).
 
