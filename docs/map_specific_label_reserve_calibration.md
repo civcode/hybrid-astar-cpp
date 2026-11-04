@@ -114,7 +114,8 @@ capacity estimate for the same map.
   `ceil(484534 * 1.20) = 581441`. The **original v1** calibration
   returned **v1 tier 5 = 1,048,576** reserved labels. With **v2**,
   the same observed maximum returns **v2 tier 14 = 655,360**.
-  The *new tier 14* has not yet been speed-benchmarked. Two of 32 samples
+  The new tier 14 has now been benchmarked on the same 32 routes
+  (see the timed results below). Two of 32 samples
   (indices **3** and **24**) exceed
   `floor(524288 / 1.20) = 436906`, pushing the headroom
   target beyond tier 4.
@@ -134,12 +135,34 @@ measured latency winner. Both originally verified numeric capacities
 (524,288 and 1,048,576) preserved identical work and outcomes on
 all 32 sampled requests.
 
-This establishes **no tier's runtime superiority**: the calibration
-CSV contains no timed search measurements or peak RSS. The new
-[matched four-way benchmark](refined_label_reserve_tiers_benchmark.md)
-compares **524,288 / 655,360 / 786,432 / 1,048,576** on the
-same seeded routes. Results are pending. The newer tier sequence
-limits the rounding overhead without requiring non-tier reservations.
+The calibration CSV alone establishes **no runtime superiority**
+because it contains no timed search measurements or peak RSS. A subsequent
+[completed matched four-way speed benchmark](refined_label_reserve_tiers_benchmark.md)
+now compares **524,288 / 655,360 / 786,432 / 1,048,576** on
+those same seeded routes:
+
+- **128/128 successful benchmark rows**; all four tiers produced
+  identical search-work results and no rehashes in all 32 cases.
+- **v2 tier 13 = 524,288:** 176.562 ms median search p50,
+  4.29 MiB median bucket-array estimate.
+- **v2 tier 14 = 655,360:** 176.708 ms median search p50,
+  5.03 MiB median bucket-array estimate. It won **16/32**
+  paired searches against tier 13; median paired speed change was
+  ~0.00%. This is **+0.73 MiB** in bucket arrays, not total RAM.
+- **v2 tier 15 = 786,432:** 177.667 ms median; 6.36 MiB buckets.
+  **v2 tier 17 = 1,048,576:** 178.551 ms median; 8.06 MiB buckets.
+  Tier 17 lost to tier 14 in **27/32** comparisons.
+
+**Updated deployment guidance for this measured profile:** continue
+recommending **v2 tier 14 (655,360 labels)** at the default 20%
+calibration headroom; unlike the much larger old v1 recommendation,
+it shows **no meaningful paired-latency penalty versus the minimum
+verified no-rehash tier 13** and requires only 0.73 MiB more
+estimated bucket memory. Tier 13 is also supported if the user
+prioritizes lower memory and accepts only 8.2% nominal slack
+relative to the observed maximum. Larger tiers do not improve
+observed median speed. Neither this benchmark nor the calibration
+proves no rehash on unseen routes, or measures peak process RSS.
 
 The result applies only to the tested large footprint and 500k/2M
 work budgets. Run the corresponding 32-route calibration for
