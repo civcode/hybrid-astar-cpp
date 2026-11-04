@@ -9,17 +9,30 @@ namespace hybrid_astar::ackermann {
 class ClearanceScorer {
 public:
   ClearanceScorer(const MapSnapshot& map,OccupancyPolicy occupancy,Footprint footprint,
-                  double weight,double influenceRadiusMeters);
-  double poseClearanceMeters(const Pose2D& pose) const;
+                  double weight,double influenceRadiusMeters,
+                  bool useDistanceTransform=false,double inflationMeters=0.0);
+  double poseClearanceMeters(const Pose2D& pose,
+                             PlanDiagnostics* diagnostics=nullptr) const;
   // Trapezoidal nonnegative cost over evaluable section's true arc progress.
   // Throws invalid_argument for incomplete required sample budget.
   double sectionCost(const MotionSection& section,double referenceSpacing,
                      double maxBodyMotion,std::size_t maxSamples,
-                     std::size_t& samples) const;
+                     std::size_t& samples,PlanDiagnostics* diagnostics=nullptr) const;
+  std::size_t distanceTransformBytes() const noexcept {
+    return blockedCenterDistanceSquared_.size()*sizeof(double);
+  }
+  double distanceTransformBuildMilliseconds() const noexcept {return buildMs_;}
 private:
+  double exactPoseClearanceMeters(const Pose2D& pose) const;
+  void buildDistanceTransform();
+  bool edtProvesZeroCost(const Pose2D& pose) const;
   const MapSnapshot& map_;
   OccupancyPolicy occupancy_;
   Footprint footprint_;
-  double lambda_,influence_,bodyRadius_;
+  double lambda_,influence_,bodyRadius_,inflationMeters_;
+  bool useDistanceTransform_;
+  double buildMs_=0.0;
+  // Squared nearest blocked-cell center distance in grid-cell units.
+  std::vector<double> blockedCenterDistanceSquared_;
 };
 } // namespace hybrid_astar::ackermann
