@@ -45,7 +45,45 @@ function worldPoint(px,py,g) {
   const lx=(px-g.ox)/g.scale,ly=g.mh-(py-g.oy)/g.scale;
   return MapGeometry.toWorld(lx,ly,activeOrigin());
 }
+// Draw the real model-specific rectangular body at ANY pose, including
+// editable start/goal poses before a successful planning response exists.
+function drawFootprint(p,color,g) {
+  const isCompact=$('model').value==='differential'||$('model').value==='mecanum';
+  // Never draw a stale result's footprint after a model/route change.
+  const footprint=(routeValid && snapshot?.model===$('model').value &&
+                   Array.isArray(snapshot.footprint) &&
+                   snapshot.footprint.length===3)
+      ?snapshot.footprint:(isCompact?[-.35,.35,.25]:[-1,3.6,.9]);
+  const [rear,frontX,halfWidth]=footprint;
+  const c=Math.cos(p[2]),s=Math.sin(p[2]);
+  const corners=[[rear,-halfWidth],[frontX,-halfWidth],
+                 [frontX,halfWidth],[rear,halfWidth]];
+  ctx.save();
+  ctx.beginPath();
+  corners.forEach(([u,v],i)=>{
+    const [sx,sy]=mapPoint(p[0]+c*u-s*v,p[1]+s*u+c*v,g);
+    if(!i)ctx.moveTo(sx,sy);else ctx.lineTo(sx,sy);
+  });
+  ctx.closePath();
+  // Render a round-joined metric inflation stroke when selected. The
+  // inflated outline is a display aid; the C++ checker owns validity.
+  const inflation=routeValid && snapshot?.model===$('model').value
+      ?Number(snapshot.footprintInflationMeters||0)
+      :($('inflate').checked?Number($('inflationMeters').value):0);
+  if(inflation>0 && Number.isFinite(inflation)) {
+    ctx.save();
+    ctx.lineJoin='round';ctx.lineWidth=2*inflation*g.scale;
+    ctx.strokeStyle='rgba(255,188,102,.45)';
+    ctx.stroke();ctx.restore();
+  }
+  ctx.fillStyle=color;ctx.globalAlpha=.18;ctx.fill();
+  ctx.globalAlpha=.92;ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.restore();
+}
 function drawPose(p,color,g,body=false) {
+  if(body)drawFootprint(p,color,g);
+  // Marker and yaw ray belong on top of the body, retaining the existing
+  // start/goal visual encoding and making the reference point unambiguous.
   const [x,y]=mapPoint(p[0],p[1],g);
   ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2.5;
   ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);ctx.fill();
@@ -53,31 +91,6 @@ function drawPose(p,color,g,body=false) {
   const headLength=isCompact ? 0.35 : 1.6;
   const [tx,ty]=mapPoint(p[0]+headLength*Math.cos(p[2]),p[1]+headLength*Math.sin(p[2]),g);
   ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
-  if(!body)return;
-  const [rear,frontX,halfWidth]=(snapshot?.model===$('model').value
-      ? snapshot.footprint : null) ||
-      (isCompact?[-.35,.35,.25]:[-1,3.6,.9]);
-  const corners=[[rear,-halfWidth],[frontX,-halfWidth],
-                 [frontX,halfWidth],[rear,halfWidth]];
-  ctx.fillStyle='rgba(91,221,206,.16)';ctx.strokeStyle='#70e5d5';ctx.lineWidth=1.5;
-  ctx.beginPath();corners.forEach(([u,v],i)=>{
-    const xx=p[0]+Math.cos(p[2])*u-Math.sin(p[2])*v;
-    const yy=p[1]+Math.sin(p[2])*u+Math.cos(p[2])*v;
-    const [sx,sy]=mapPoint(xx,yy,g);if(!i)ctx.moveTo(sx,sy);else ctx.lineTo(sx,sy);
-  });ctx.closePath();
-  // Stroke the physical polygon boundary by +/- the requested continuous
-  // distance. Round joins visualize the true Minkowski offset, unlike
-  // drawing a larger axis-aligned rectangle.
-  const inflation=snapshot&&routeValid
-      ?Number(snapshot.footprintInflationMeters||0)
-      :($('inflate').checked?Number($('inflationMeters').value):0);
-  if(inflation>0 && Number.isFinite(inflation)) {
-    ctx.save();ctx.lineJoin='round';
-    ctx.lineWidth=2*inflation*g.scale;
-    ctx.strokeStyle='rgba(255,188,102,.45)';
-    ctx.stroke();ctx.restore();
-  }
-  ctx.fill();ctx.stroke();
 }
 function drawSections(path,g,muted=false) {
   if(!path)return;
@@ -137,8 +150,8 @@ function draw() {
   if(path)drawSections(path,g);
   const start=['startx','starty','startyaw'].map(id=>Number($(id).value));
   const goal=['goalx','goaly','goalyaw'].map(id=>Number($(id).value));
-  if(start.every(Number.isFinite))drawPose([start[0],start[1],start[2]*Math.PI/180],'#5dd5ff',g);
-  if(goal.every(Number.isFinite))drawPose([goal[0],goal[1],goal[2]*Math.PI/180],'#eac47d',g);
+  if(start.every(Number.isFinite))drawPose([start[0],start[1],start[2]*Math.PI/180],'#5dd5ff',g,true);
+  if(goal.every(Number.isFinite))drawPose([goal[0],goal[1],goal[2]*Math.PI/180],'#eac47d',g,true);
   const samples=allPositions(path);
   if(samples.length)drawPose(samples[Math.min(samples.length-1,Math.round(Number($('position').value)/1000*(samples.length-1)))],'#6ce8d3',g,true);
 }
