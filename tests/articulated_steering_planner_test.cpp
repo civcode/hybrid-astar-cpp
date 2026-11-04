@@ -164,8 +164,8 @@ TEST_CASE("Articulated planner enforces joint limits, cancellation and work budg
   r.goal.xr=18.;
   r.options.maxExpansions=2;
   auto limited=as::plan(r);
-  REQUIRE(limited.status==as::Status::ValidationIncomplete ||
-          limited.status==as::Status::BudgetExceeded);
+  REQUIRE((limited.status==as::Status::ValidationIncomplete ||
+           limited.status==as::Status::BudgetExceeded));
 }
 
 TEST_CASE("Stationary articulation detects an obstacle hit only between endpoints",
