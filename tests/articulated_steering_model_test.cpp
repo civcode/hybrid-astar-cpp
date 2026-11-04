@@ -97,3 +97,36 @@ TEST_CASE("Articulated model rejects invalid geometry, controls, states and budg
   REQUIRE_THROWS_AS(m.trajectory({}, {0,0},1,.01,10),std::length_error);
   REQUIRE(m.trajectory({}, {0,0},0).size()==1);
 }
+TEST_CASE("Constant articulation follows analytic circular motion in both gears", "[articulated][rk4][oracle]") {
+  Model m(example());
+  constexpr double gamma=.35;
+  const State initial{1.2,-.7,.85,.5,gamma};
+  const double D=.5*std::cos(gamma)+.5;
+  for(const double v : {.8,-.8}) {
+    const double duration=.9;
+    const double omega=v*std::sin(gamma)/D;
+    const auto q=m.propagate(initial,{v,0},duration,.02);
+    const double wantX=initial.xf+v*(std::sin(initial.thetaFront+omega*duration)-
+                                      std::sin(initial.thetaFront))/omega;
+    const double wantY=initial.yf-v*(std::cos(initial.thetaFront+omega*duration)-
+                                      std::cos(initial.thetaFront))/omega;
+    REQUIRE(near(q.xf,wantX,1e-9));
+    REQUIRE(near(q.yf,wantY,1e-9));
+    REQUIRE(near(q.thetaFront,initial.thetaFront+omega*duration,1e-11));
+    REQUIRE(near(q.thetaRear,initial.thetaRear+omega*duration,1e-11));
+    REQUIRE(near(q.gamma,gamma,1e-12));
+  }
+}
+TEST_CASE("Rear-reference instantaneous speed has no lateral component", "[articulated][frames]") {
+  Model m(example());
+  const State initial{1.2,-.7,.85,.5,.35};
+  const Control u{.7,.3};
+  const auto before=m.toRear(initial);
+  constexpr double dt=1e-5;
+  const auto after=m.toRear(m.propagate(initial,u,dt,dt));
+  const double dx=(after.xr-before.xr)/dt,dy=(after.yr-before.yr)/dt;
+  const double vr=m.rearSpeed(initial,u);
+  REQUIRE(near(dx,vr*std::cos(initial.thetaRear),1e-5));
+  REQUIRE(near(dy,vr*std::sin(initial.thetaRear),1e-5));
+  REQUIRE(near(-dx*std::sin(initial.thetaRear)+dy*std::cos(initial.thetaRear),0,1e-5));
+}
