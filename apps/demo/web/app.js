@@ -47,13 +47,13 @@ function worldPoint(px,py,g) {
 }
 // Draw the real model-specific rectangular body at ANY pose, including
 // editable start/goal poses before a successful planning response exists.
-function drawFootprint(p,color,g) {
+function drawFootprint(p,color,g,customFootprint=null) {
   const isCompact=$('model').value==='differential'||$('model').value==='mecanum';
   // Never draw a stale result's footprint after a model/route change.
-  const footprint=(routeValid && snapshot?.model===$('model').value &&
+  const footprint=customFootprint || ((routeValid && snapshot?.model===$('model').value &&
                    Array.isArray(snapshot.footprint) &&
                    snapshot.footprint.length===3)
-      ?snapshot.footprint:(isCompact?[-.35,.35,.25]:[-1,3.6,.9]);
+      ?snapshot.footprint:(isCompact?[-.35,.35,.25]:[-1,3.6,.9]));
   const [rear,frontX,halfWidth]=footprint;
   const c=Math.cos(p[2]),s=Math.sin(p[2]);
   const corners=[[rear,-halfWidth],[frontX,-halfWidth],
@@ -80,7 +80,50 @@ function drawFootprint(p,color,g) {
   ctx.globalAlpha=.92;ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.stroke();
   ctx.restore();
 }
+// Front reference F = rear base_link R + Lr*heading(thetaRear)
+//                  + Lf*heading(thetaRear + gamma).
+// Each collision body uses its OWN reference, yaw and configured rectangle.
+function articulatedGeometry() {
+  if(routeValid && snapshot?.model==='articulated' &&
+     snapshot.articulatedGeometry)return snapshot.articulatedGeometry;
+  const n=id=>Number($(id).value);
+  return {Lf:n('artLf'),Lr:n('artLr'),
+    front:[n('artFrontRearX'),n('artFrontFrontX'),n('artFrontHalfWidth')],
+    rear:[n('artRearRearX'),n('artRearFrontX'),n('artRearHalfWidth')]};
+}
+function drawArticulatedPose(p,color,g) {
+  const [xr,yr,thetaRear,gamma]=p, geometry=articulatedGeometry();
+  if(![xr,yr,thetaRear,gamma,geometry.Lf,geometry.Lr,
+       ...geometry.front,...geometry.rear].every(Number.isFinite) ||
+     geometry.Lf<=0 || geometry.Lr<=0 ||
+     geometry.front[1]<=geometry.front[0] ||
+     geometry.rear[1]<=geometry.rear[0] ||
+     geometry.front[2]<=0 || geometry.rear[2]<=0)return;
+  const thetaFront=thetaRear+gamma;
+  const hx=xr+geometry.Lr*Math.cos(thetaRear);
+  const hy=yr+geometry.Lr*Math.sin(thetaRear);
+  const fx=hx+geometry.Lf*Math.cos(thetaFront);
+  const fy=hy+geometry.Lf*Math.sin(thetaFront);
+  drawFootprint([xr,yr,thetaRear],color,g,geometry.rear);
+  drawFootprint([fx,fy,thetaFront],color,g,geometry.front);
+  const [rx,ry]=mapPoint(xr,yr,g),[jx,jy]=mapPoint(hx,hy,g);
+  const [sx,sy]=mapPoint(fx,fy,g);
+  ctx.save();
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;
+  ctx.setLineDash([3,4]);ctx.beginPath();
+  ctx.moveTo(rx,ry);ctx.lineTo(jx,jy);ctx.lineTo(sx,sy);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#ffc77b';ctx.beginPath();ctx.arc(jx,jy,4,0,2*Math.PI);ctx.fill();
+  ctx.restore();
+  // Rear is the interactive start/goal reference; show both yaw rays.
+  drawPose([xr,yr,thetaRear],color,g,false);
+  drawPose([fx,fy,thetaFront],color,g,false);
+}
 function drawPose(p,color,g,body=false) {
+  if(body && $('model').value==='articulated') {
+    drawArticulatedPose(p,color,g);
+    return;
+  }
   if(body)drawFootprint(p,color,g);
   // Marker and yaw ray belong on top of the body, retaining the existing
   // start/goal visual encoding and making the reference point unambiguous.
@@ -88,7 +131,7 @@ function drawPose(p,color,g,body=false) {
   ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2.5;
   ctx.beginPath();ctx.arc(x,y,5.5,0,Math.PI*2);ctx.fill();
   const isCompact=$('model').value==='differential'||$('model').value==='mecanum';
-  const headLength=isCompact ? 0.35 : 1.6;
+  const headLength=isCompact||$('model').value==='articulated' ? 0.35 : 1.6;
   const [tx,ty]=mapPoint(p[0]+headLength*Math.cos(p[2]),p[1]+headLength*Math.sin(p[2]),g);
   ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();
 }
@@ -112,7 +155,7 @@ function drawSections(path,g,muted=false) {
     ctx.beginPath();section.points.forEach((p,i)=>{
       const [x,y]=mapPoint(p[0],p[1],g);if(!i)ctx.moveTo(x,y);else ctx.lineTo(x,y);
     });
-    ctx.strokeStyle=muted?'rgba(155,177,204,.5)':section.kind==='holonomic'?'#7db2ff':section.gear==='reverse'?'#e4ac70':'#55dac6';
+    ctx.strokeStyle=muted?'rgba(155,177,204,.5)':section.kind==='articulation'?'#b69eff':section.kind==='holonomic'?'#7db2ff':section.gear==='reverse'?'#e4ac70':'#55dac6';
     ctx.lineWidth=muted?2:3.5;ctx.setLineDash(muted?[5,6]:[]);ctx.stroke();ctx.setLineDash([]);
   }
 }
@@ -121,7 +164,10 @@ function activePath() {
   return snapshot.refinement?.path||snapshot.original;
 }
 function allPositions(path) {
-  return path?.sections.flatMap((sec,i)=>i?sec.points.slice(1):sec.points)||[];
+  return path?.sections.flatMap((sec,i)=>{
+    const points=snapshot?.model==='articulated' ? (sec.articulatedPoints||[]) : sec.points;
+    return i?points.slice(1):points;
+  })||[];
 }
 function draw() {
   const g=canvasGeometry();ctx.clearRect(0,0,g.w,g.h);
@@ -150,8 +196,13 @@ function draw() {
   if(path)drawSections(path,g);
   const start=['startx','starty','startyaw'].map(id=>Number($(id).value));
   const goal=['goalx','goaly','goalyaw'].map(id=>Number($(id).value));
-  if(start.every(Number.isFinite))drawPose([start[0],start[1],start[2]*Math.PI/180],'#5dd5ff',g,true);
-  if(goal.every(Number.isFinite))drawPose([goal[0],goal[1],goal[2]*Math.PI/180],'#eac47d',g,true);
+  const art=$('model').value==='articulated';
+  if(art) {
+    start.push(Number($('artStartGamma').value)*Math.PI/180);
+    goal.push(Number($('artGoalGamma').value)*Math.PI/180);
+  }
+  if(start.every(Number.isFinite))drawPose([start[0],start[1],start[2]*Math.PI/180,...(art?[start[3]]:[])],'#5dd5ff',g,true);
+  if(goal.every(Number.isFinite))drawPose([goal[0],goal[1],goal[2]*Math.PI/180,...(art?[goal[3]]:[])],'#eac47d',g,true);
   const samples=allPositions(path);
   if(samples.length)drawPose(samples[Math.min(samples.length-1,Math.round(Number($('position').value)/1000*(samples.length-1)))],'#6ce8d3',g,true);
 }
@@ -188,7 +239,9 @@ function stats(result) {
        +', goal '+(result.original.strictRejectedGoalMismatch||0)+')')
     :(exhausted?' · search work budget exhausted'
        :' · search exhaustion is not a proof of continuous-space infeasibility');
-  $('message').textContent=valid?('Validated geometric path · '+status+(refinement?' · refinement: '+refinement+acceptedLabel:'')+' · sampled footprint checking'):
+  $('message').textContent=valid?(result.model==='articulated'
+    ?'Experimental articulated path · '+status+' · two-carriage independently sampled checks · not swept certified'
+    :'Validated geometric path · '+status+(refinement?' · refinement: '+refinement+acceptedLabel:'')+' · sampled footprint checking'):
     ('No validated path · '+status+failureDetail+
      (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions':''));
   $('cost').textContent=valid?path.cost.toFixed(2)+' m':'—';
@@ -197,6 +250,15 @@ function stats(result) {
   $('expanded').textContent=result.original.expanded.toLocaleString();
   $('limit').textContent=limit?limit.maxExpansions.toLocaleString():'—';
   $('elapsed').textContent=result.milliseconds.toFixed(1)+' ms';
+  $('curvatureVariationLabel').textContent=result.model==='articulated'?'GOAL γ ERROR':'CURVATURE VARIATION';
+  $('steeringReversalsLabel').textContent=result.model==='articulated'?'ARTICULATION MOVES':'STEERING REVERSALS';
+  if(result.model==='articulated') {
+    $('curvatureVariation').textContent=valid?
+      (path.goalGammaErrorRadians*180/Math.PI).toFixed(2)+'°':'—';
+    $('steeringReversals').textContent=valid?
+      String(path.sections.filter(sec=>sec.kind==='articulation').length):'—';
+    return;
+  }
   const before=steeringMetrics(result.original),after=steeringMetrics(path);
   const compare=!!result.refinement?.path;
   $('curvatureVariation').textContent=valid?
@@ -209,6 +271,20 @@ let modelCapabilities={ompl:false};
 function syncModelOptions() {
   const model=$('model').value;
   const ackermann=model==='ackermann';
+  const articulated=model==='articulated';
+  $('articulatedControls').hidden=!articulated;
+  if(articulated) {
+    // These features are built for rigid three-state paths. Never send an
+    // unsupported RS/refinement/heuristic request to the 4D planner.
+    for(const id of ['ompl','rsDistance','refine','curved',
+                     'steeringSmooth','improve','performance'])
+      {$(id).checked=false;$(id).disabled=true;}
+    $('maxAccepted').disabled=true;
+    $('steeringWeight').disabled=true;
+    return;
+  }
+  $('performance').disabled=false;
+  $('improve').disabled=false;
   const mecanum=model==='mecanum';
   // OMPL stays Ackermann-only. Strict native refinement supports all three
   // models; CSC is not a mecanum candidate (holonomic twists replace it).
@@ -271,11 +347,19 @@ async function replan() {
   if(pending)pending.abort();pending=new AbortController();
   routeValid=false;draw();
   $('exportButton').disabled=true;
-  $('planButton').disabled=true;$('overlay').classList.remove('hidden');$('overlay').textContent='Computing an exact-arc route…';
+  $('planButton').disabled=true;$('overlay').classList.remove('hidden');
+  $('overlay').textContent=$('model').value==='articulated'?
+    'Computing a two-carriage RK4 route…':'Computing an exact-arc route…';
   animation=false;$('playButton').textContent='▶';
   const keys=['scenario','startx','starty','startyaw','goalx','goaly','goalyaw'];
   const params=new URLSearchParams();for(const key of keys)params.set(key,$(key).value);
   params.set('model',$('model').value);
+  if($('model').value==='articulated') {
+    for(const key of ['artStartGamma','artGoalGamma','artLf','artLr',
+                      'artFrontRearX','artFrontFrontX','artFrontHalfWidth',
+                      'artRearRearX','artRearFrontX','artRearHalfWidth'])
+      params.set(key,$(key).value.trim());
+  }
   if($('refine').checked)
     params.set('maxAccepted',$('maxAccepted').value);
   for(const key of ['ompl','rsDistance','refine','curved','performance','improve'])params.set(key,$(key).checked?'1':'0');
@@ -332,7 +416,10 @@ $('position').addEventListener('input',()=>{$('travel').textContent=(Number($('p
 $('showOriginal').addEventListener('change',draw);
 // Numeric start/goal edits must update the footprint preview immediately,
 // before the next explicit Plan click. The previous path is now stale.
-for(const key of ['startx','starty','startyaw','goalx','goaly','goalyaw'])
+for(const key of ['startx','starty','startyaw','goalx','goaly','goalyaw',
+  'artStartGamma','artGoalGamma','artLf','artLr',
+  'artFrontRearX','artFrontFrontX','artFrontHalfWidth',
+  'artRearRearX','artRearFrontX','artRearHalfWidth'])
   $(key).addEventListener('input',invalidateRoute);
 $('scenario').addEventListener('change',()=>{if(pending)pending.abort();resetEditor();resetScenario();replan();});
 $('planButton').addEventListener('click',replan);
@@ -396,6 +483,7 @@ new ResizeObserver(draw).observe(canvas);
   resetScenario();$('curved').disabled=true;
   try {const caps=await (await fetch('/api/capabilities')).json();
     modelCapabilities=caps;
+    $('articulatedOption').hidden=!caps.articulated;
     // OMPL-equipped Ackermann Planning Lab defaults to grid + adaptive RS;
     // RS distance remains a separate, unchecked quality/compute trade-off.
     $('ompl').checked=!!caps.ompl&&$('model').value==='ackermann';
