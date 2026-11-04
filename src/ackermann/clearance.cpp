@@ -193,10 +193,16 @@ double ClearanceScorer::sectionCost(const MotionSection& part,double step,double
                                      std::size_t limit,std::size_t& samples,
                                      PlanDiagnostics* diagnostics) const {
   const double len=part.lengthMeters;
-  // Inflation increases the maximum motion of a clearance-relevant body
-  // point along a curved section; use it in the integration sampling bound.
-  const double factor=1.0+(bodyRadius_+inflationMeters_)*std::abs(part.curvature);
-  const double divisions=std::max(len/step,len*factor/bodyStep);
+  // This objective is an integral per metre of translational path length.
+  // Stationary spins have zero translational length and therefore zero
+  // clearance penalty; their entire swept footprint is still collision checked.
+  // This matches refinement's treatment of stationary spins.
+  if(part.kind==MotionKind::RotateInPlace && len==0.0)return 0.0;
+  const double radius=bodyRadius_+inflationMeters_;
+  const double swept=part.kind==MotionKind::HolonomicTwist?
+      len+radius*std::abs(part.turnRadians):
+      len*(1.0+radius*std::abs(part.curvature));
+  const double divisions=std::max(len/step,swept/bodyStep);
   if(!std::isfinite(divisions)||divisions>double(limit-1))
     throw std::invalid_argument("Clearance integration sample limit reached");
   const auto count=std::max<std::size_t>(1,static_cast<std::size_t>(std::ceil(divisions)));
