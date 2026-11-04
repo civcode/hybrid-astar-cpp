@@ -132,8 +132,9 @@ transitions and independently validating the final path**.
   are not lengths `L_f`/`L_r`. The geometric inflation
   checkbox offsets both collision bodies.
 - The UI initially shows **illustrative**, *unapproved* settings:
-  `L_f=L_r=0.5 m`; each body has local X extent
-  `[-0.3,+0.3]` m and half-width `0.15 m`. The
+  `L_f=L_r=1.0 m`; each body is a **filled rectangle** with
+  local X extent `[-0.5,+0.5]` m and half-width `0.30 m`
+  (**1.0 m long × 0.6 m wide**). The
   demo-only joint range is ±1.2 rad, front-reference
   driving speed cap 1 m/s, and articulation-rate cap 0.8 rad/s.
   **Do not use these defaults on a physical robot without
@@ -157,9 +158,12 @@ transitions and independently validating the final path**.
   Reeds–Shepp connector, rigid post-path smoothing, the
   improvement policy or obstacle-grid heuristic. Those controls
   are disabled when articulated steering is selected.
-  The single-threaded demo caps this model's expansion budget
-  at 50,000 even if the general budget field requests more.
-  The UI reports goal-γ error and number of joint-only moves.
+  Articulated planning honors the same user-configurable
+  **1,000,000-expansion ceiling** as the three rigid models;
+  its separate generated-node budget is four times the selected
+  expansion budget (up to **4,000,000 nodes**). Large searches
+  may require substantial memory and time. The UI reports
+  goal-γ error and number of joint-only moves.
 
 To run the browser regression and the focused C++ tests **manually**:
 
