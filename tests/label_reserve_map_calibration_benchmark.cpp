@@ -51,7 +51,7 @@ void help() {
       "[--geometry large|small-inflated] [--samples 32] [--seed 20261104] "
       "[--strata-x N --strata-y N] [--pose-attempts 48] "
       "[--pair-attempts 32] [--min-distance 0=auto] [--headroom 0.2] "
-      "[--max-expansions 120000] [--max-generated 480000] "
+      "[--max-expansions 500000] [--max-generated 2000000] "
       "[--grid-settlements 100000] [--fast-empty-aabb] "
       "[--no-verify] [--summary-json FILE]\n"
     <<"The output is empirical; re-run after map or planner option changes.\n";
@@ -63,7 +63,7 @@ int main(int argc,char** argv) {
     std::string yaml="apps/demo/maps/nav2_warehouse_full.yaml";
     std::string model="differential",geometry="large",summaryPath;
     bool fastAabb=false;
-    std::size_t maxExpansions=120000,maxGenerated=480000,gridSettlements=100000;
+    std::size_t maxExpansions=500000,maxGenerated=2000000,gridSettlements=100000;
     LabelReserveCalibrationOptions settings;
     for(int i=1;i<argc;++i) {
       const std::string arg=argv[i];
