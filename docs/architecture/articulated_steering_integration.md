@@ -305,6 +305,31 @@ edge in search.
   if hard safety claims are needed. Adaptive samples alone do **not**
   mathematically prove continuous collision freedom.
 
+### Planning Lab demonstration geometry and configurable search budget
+
+The current experimental Planning Lab defaults have been deliberately
+updated to **`L_f=L_r=1.0 m`**. This is a new demonstration configuration,
+not the ROS simulator's independent `L1_=L2_=0.5 m` example documented
+earlier. Both carriages are **filled rectangles**, each centered on its
+own reference point with local X extent `[-0.5,+0.5] m`
+and half-width `0.30 m` (**1.0 × 0.6 m**). The geometry fields
+remain separately editable for each body and affect **both** live
+footprint rendering and collision checks. The rectangle lengths are
+**not** the front/rear link distances `L_f/L_r` and do not assert
+actual production axle positions or hull overhangs.
+
+The user-configurable **1,000,000 expansion ceiling** now applies
+to this fourth model as to the other three. Previously,
+`apps/demo/articulated_demo.cpp` silently truncated the selected
+budget to 50,000 expansions and 200,000 generated nodes.
+That override has been removed: the articulated API defaults to
+**1,000,000 expansions**, and the demo uses **four times the
+selected expansion budget for generated nodes** (up to
+**4,000,000**). These are independent ceilings; running near
+either limit may require substantial memory and CPU time.
+RK4 sampling budgets, collision validation and failure statuses
+remain separately bounded and unchanged.
+
 ### Stage D — UI, performance and real-robot readiness — pending
 
 - [ ] Confirm `L_f`, `L_r`, both chassis collision shapes/offsets,
