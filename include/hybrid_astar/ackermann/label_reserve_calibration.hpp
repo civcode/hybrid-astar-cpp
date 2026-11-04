@@ -52,6 +52,7 @@ struct LabelReserveCalibrationResult {
   std::size_t mapWidth = 0, mapHeight = 0;
   std::size_t strataX = 0, strataY = 0, validStrata = 0;
   std::size_t coveredStartStrata = 0, coveredGoalStrata = 0;
+  std::size_t coveredEitherStrata = 0; // unique occupied start-or-goal strata
   std::size_t requestedRoutes = 0, evaluatedRoutes = 0, successfulRoutes = 0;
   std::size_t budgetLimitedRoutes = 0;
   std::size_t maxObservedPeakLabels = 0;
