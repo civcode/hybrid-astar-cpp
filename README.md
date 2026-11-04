@@ -18,6 +18,7 @@ Start at [Architecture documentation](docs/architecture/README.md), then review:
 - [Open decisions](docs/architecture/open-questions.md)
 - [**Current implementation roadmap: articulated steering and footprint UI prerequisites before smoothing**](docs/TODO.md#current-priorities--2026-11-04)
 - [**Articulated-steering kinematic model and conventions — owner-review draft**](docs/architecture/articulated_steering_kinematic_model_review.md)
+- [**Standalone articulated-steering C++ kinematic model (in-house RK4; not yet a fourth planning mode)**](include/hybrid_astar/articulated_steering/model.hpp)
 - [Articulated-steering implementation plan (after model sign-off)](docs/architecture/articulated_steering_integration.md)
 - [Historical implementation checklist](docs/TODO.md#historical-implementation-checklists-preserved-for-traceability)
 - [Architecture Decision Records](docs/adr/README.md)
