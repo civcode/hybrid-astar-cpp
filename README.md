@@ -18,6 +18,7 @@ Start at [Architecture documentation](docs/architecture/README.md), then review:
 - [Open decisions](docs/architecture/open-questions.md)
 - [Implementation checklist](docs/TODO.md)
 - [Architecture Decision Records](docs/adr/README.md)
+- [**Planning options how-to: ordinary paths, extra clearance, EDT, inflation and performance combinations**](docs/planning_clearance_and_performance_howto.md)
 - [Measured Nov 2026 warehouse performance findings (EDT clearance and label reservation)](docs/warehouse_performance_findings_2026-11-04.md)
 - [Manual four-size A* label-reserve benchmark](docs/label_reserve_sweep_benchmark.md)
 - [Map-specific, seeded label-reserve calibration (versioned tier + no-rehash replay)](docs/map_specific_label_reserve_calibration.md)
@@ -47,6 +48,8 @@ the demo); its JSON exports carry the effective value. The currently
 supported collision primitive is a rectangle; a shared convex-polygon versus
 square distance utility is ready for other convex geometries later.
 This **does not** establish full swept-volume or tracking guarantees.
+For when to combine this hard-margin option with soft clearance scoring
+and EDT acceleration, see the [planning-options how-to](docs/planning_clearance_and_performance_howto.md).
 See [Planning Lab usage](apps/demo/README.md#continuous-metric-footprint-inflation)
 and the focused `footprint_inflation_test` regressions.
 
