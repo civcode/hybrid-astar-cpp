@@ -87,6 +87,69 @@ validated kinematic model independently without taking on ROS 2.
 Once confirmed, capture the frame diagram and numerical
 forward/reverse/joint-only motion test fixtures.
 
+## Zero-longitudinal-speed articulation: both bodies rotate
+
+The desired behavior from the robot owner is **joint steering at zero
+commanded longitudinal speed**, updating the orientation and swept
+collision geometry of **both** front and rear carriages. In the ROS 2
+simulator, the ODE control `v=0` means the **front reference point**
+does not translate; it does not mean the rear `base_link` point or
+either body stays motionless.
+
+For `v=0`, the authoritative ODE gives
+
+\[
+\dot\Theta_f=\frac{L_2}{D(\gamma)}u_\gamma,\qquad
+\dot\Theta_r=-\frac{L_1\cos\gamma}{D(\gamma)}u_\gamma,\qquad
+D(\gamma)=L_1\cos\gamma+L_2.
+\]
+
+These add up to the required
+\(\dot\Theta_f-\dot\Theta_r=u_\gamma=\dot\gamma\).
+For `L1=L2` and \(\gamma=0\), the front and rear initially
+turn by **equal and opposite half angles**:
+\(\dot\Theta_f=\frac12u_\gamma\),
+\(\dot\Theta_r=-\frac12u_\gamma\).
+
+**Recommended design:** Use the equal split as a convenient initial
+intuition or small-angle approximation; **generate planner motion
+samples with the exact angle-dependent ODE**. At finite articulation
+the split is not constant. For the simulator's `L1=L2=0.5m`,
+the front/rear shares of \(\dot\gamma\) are 50%/−50% at
+0°, about 53.6%/−46.4% at 30°, and 66.7%/−33.3%
+at 60°. A globally fixed 50/50 split would violate the
+author-supplied no-slip kinematics for finite joint angles.
+
+To distinguish *orientation* from *physical rotation of the bodies*,
+define the mean heading \(\psi=(\Theta_f+\Theta_r)/2\). Then
+\(\Theta_f=\psi+\gamma/2\) and
+\(\Theta_r=\psi-\gamma/2\) are **exact identities** for consistent
+states, but at `v=0` the mean heading itself generally evolves:
+
+\[
+\dot\psi=\frac{L_2-L_1\cos\gamma}{2D(\gamma)}u_\gamma.
+\]
+
+Holding \(\psi\) constant while commanding a large joint change
+would be a **different motion model**. It would require new
+physical control semantics and validation of front/rear axle
+translations rather than silently replacing the existing ODE.
+
+**Regression requirement:** For both positive and negative
+`u_gamma` (and after reverse traversal where relevant), the
+four-state integrator must reproduce the five-state ODE,
+preserve \(\Theta_f-\Theta_r-\gamma\) after angle wrap,
+reconstruct the rear-base position, and collision-check **both
+carriages at every sampled articulation state**, including when
+`v=0`. Reject invalid joint ranges or near-zero `D`;
+no differential-drive `RotateInPlace` shortcut may be substituted
+for the articulated movement.
+
+**Terminology warning:** The simulator names the denominator
+`c=L1*cos(gamma)+L2`. The steering mode discussed above
+is `v=0`, **never** literal `c=0`, which makes
+the ODE undefined.
+
 ## Implementation stages and acceptance checks
 
 ### Stage A — validated model, no planner integration yet
