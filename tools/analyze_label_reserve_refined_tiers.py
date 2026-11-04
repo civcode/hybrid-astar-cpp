@@ -16,8 +16,8 @@ WORK = (
     "label_finds", "label_find_hits", "label_insertions", "label_updates",
     "pruned_by_key", "exact_pose_calls", "search_motion_calls",
 )
-FIXED = ("model", "geometry", "seed", "repeats", "fast_empty_aabb",
-         "map_fingerprint", "tier_series_version")
+FIXED = ("model", "geometry", "seed", "repeats", "profile_enabled",
+         "fast_empty_aabb", "map_fingerprint", "tier_series_version")
 
 
 def number(row, field):
@@ -38,6 +38,9 @@ def analyze(filename, expected_routes):
         rows = list(csv.DictReader(stream))
     if not rows:
         raise ValueError("No benchmark data")
+    if any(int(row["profile_enabled"]) != 0 for row in rows):
+        raise ValueError("Run benchmark with PROFILE_HOTPATHS=OFF; "
+                         "instrumented timings are not production speed data")
     if len(rows) != expected_routes * len(CAPACITIES):
         raise ValueError(f"Expected {expected_routes*len(CAPACITIES)} rows, "
                          f"got {len(rows)}")
