@@ -103,11 +103,11 @@ either body stays motionless.
 
 For `v=0`, the authoritative ODE gives
 
-$$
+```math
 \dot\Theta_f=\frac{L_r}{D(\gamma)}u_\gamma,\qquad
 \dot\Theta_r=-\frac{L_f\cos\gamma}{D(\gamma)}u_\gamma,\qquad
 D(\gamma)=L_f\cos\gamma+L_r.
-$$
+```
 
 These add up to the required
 $\dot\Theta_f-\dot\Theta_r=u_\gamma=\dot\gamma$.
@@ -131,9 +131,9 @@ $\Theta_f=\psi+\gamma/2$ and
 $\Theta_r=\psi-\gamma/2$ are **exact identities** for consistent
 states, but at `v=0` the mean heading itself generally evolves:
 
-$$
+```math
 \dot\psi=\frac{L_r-L_f\cos\gamma}{2D(\gamma)}u_\gamma.
-$$
+```
 
 Holding $\psi$ constant while commanding a large joint change
 would be a **different motion model**. It would require new
