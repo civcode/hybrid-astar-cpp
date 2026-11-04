@@ -44,34 +44,46 @@ implemented; regression review pending):
   pre-plan loading, stale routes and failed searches. Do not require
   planning success for either footprint to appear.
 
-**P0-B — Articulated-steering kinematic model** (kinematic ODE already
-supplied; **physical conventions and planner integration pending**).
-See [articulated-steering integration stages and open conventions](architecture/articulated_steering_integration.md):
+**P0-B — Articulated-steering kinematic model** (the author has
+now supplied the full **five-variable front/rear-heading ODE**;
+**physical conventions and planner integration pending**).
+See [articulated-steering integration stages and remaining physical questions](architecture/articulated_steering_integration.md):
 
-- [x] Locate the author-supplied four-state rear-chassis ODE in
-  [kinematic-models](architecture/kinematic-models.md). State is
-  `(x, y, Theta, gamma)`, inputs provisionally `(v, u_gamma)`;
-  the denominator is `l1*cos(gamma)+l2`. **Do not guess the
-  front-body transform from the ODE alone.**
-- [ ] **Confirm OQ-022 with the robot owner:** exact rear reference
-  point, physical distances `l1/l2`, positive articulation-angle
-  sign and zero convention, front/rear body and joint transforms,
-  actuator input definitions, articulation limits and rate bounds.
-  Capture a simple physical frame diagram and representative
-  dimensions; distinguish which are invariant versus per-robot.
-- [ ] Introduce a standalone validated four-state model with
-  finite-parameter/denominator safeguards, angle-aware integration,
-  admissible controls and deterministic time-domain tests including
-  `v=0`, finite articulation rate and reverse.
-- [ ] Integrate the **full** state with model-specific primitive
-  generation, `gamma`-aware search indexing/goal acceptance, exact
+- [x] Confirm the supplied five-variable state
+  `(xf,yf,Theta_f,Theta_r,gamma)` in
+  [kinematic-models](architecture/kinematic-models.md) and its
+  `(v,u_gamma)` input matrix with `D=L1*cos(gamma)+L2`.
+  **Correct the earlier "rear-reference" label:** the four-state
+  ODE is exactly the **front-reference** reduction when
+  `gamma=wrap(Theta_f-Theta_r)`, initialized consistently.
+  Do not misrepresent five reported states as five independent
+  configuration degrees of freedom.
+- [x] Derive a physically consistent candidate frame interpretation:
+  `F=(xf,yf)`, `H=F-L1*heading(Theta_f)`,
+  `R=H-L2*heading(Theta_r)`, with front/rear axle no-slip.
+  This algebra is established; its **identification with the real
+  robot geometry is still provisional**.
+- [ ] **Confirm OQ-022 with the robot owner:** whether the front
+  reference really is the front axle midpoint, the physical
+  endpoints for `L1/L2`, zero/positive articulation convention,
+  front/rear collision-body dimensions and offsets, input meaning,
+  articulation/speed bounds and joint-angle goal semantics.
+- [ ] Introduce a standalone validated model retaining **both
+  reported headings** for diagnostics and checking the invariant;
+  use a four-independent-state reduction for search if the robot
+  geometry confirms it. Require finite-parameter/denominator
+  safeguards, angle-aware integration, admissible controls and
+  deterministic time-domain tests, including `v=0`,
+  finite articulation rate and reverse.
+- [ ] Integrate the **full physical configuration** with model-specific
+  primitive generation, `gamma`-aware search indexing/goal acceptance, exact
   interpolation and full-state path reconstruction. Never shoehorn
   articulation into the existing three-state Ackermann/differential
   `Pose2D` keys or use standard RS connectors without proof.
 - [ ] Attach independently defined front/rear collision bodies
   to the model's confirmed `SE(2)` transforms; validate both at
   **every sampled configuration**, including articulation motion
-  when the rear reference point does not move. Verify swept-motion
+  when the **front reference point** does not move. Verify swept-motion
   assumptions, map boundaries, unknown occupancy, inflation,
   start/goal and strict final checks before accepting route success.
 - [ ] Expose only genuinely supported articulated UI/CLI controls
