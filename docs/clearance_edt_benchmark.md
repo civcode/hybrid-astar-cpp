@@ -100,7 +100,9 @@ docker compose --profile test run --rm test \
   -R '^(clearance_test|hotpath_test|footprint_inflation_test|w10_differential_search_test|w12_mecanum_test)$'
 ```
 
-Try a short manual run first:
+Try a short manual run first. The fixture has 10 routes, so `--cases 10`
+must match it; `--replay-limit 2` runs only the first two **after the whole
+fixture has been validated**. Omitting the limit runs all 10 routes.
 
 ```bash
 docker compose --profile test run --rm test \
@@ -109,7 +111,7 @@ docker compose --profile test run --rm test \
   --clearance-weight 0.15 --clearance-radius 0.40 \
   --map apps/demo/maps/nav2_warehouse_full.yaml \
   --replay-csv bench/fixtures/nav2_full_10_seed20261029.csv \
-  --cases 2 --repeats 1 --grid-settlements 100000 \
+  --cases 10 --replay-limit 2 --repeats 1 --grid-settlements 100000 \
   > nav2-clearance-edt-smoke.csv
 ```
 
