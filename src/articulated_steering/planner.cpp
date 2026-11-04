@@ -210,8 +210,11 @@ BodyCollisionChecker::BodyCollisionChecker(const ackermann::MapSnapshot& map,
    rear_(map,occupancy,g.rear,g.inflationMeters,true) {}
 bool BodyCollisionChecker::clear(const Model& m,const State& s) const {
   if(!m.validState(s))return false;
-  return front_.check(m.frontPose(s))==ackermann::PoseCollision::Clear &&
-         rear_.check(m.rearPose(s))==ackermann::PoseCollision::Clear;
+  // Check BOTH independently, including when the front body is blocked.
+  // Each accepted sample therefore performs exactly two body checks.
+  const bool frontClear=front_.check(m.frontPose(s))==ackermann::PoseCollision::Clear;
+  const bool rearClear=rear_.check(m.rearPose(s))==ackermann::PoseCollision::Clear;
+  return frontClear&&rearClear;
 }
 double BodyCollisionChecker::maxFrontBodyRadius() const noexcept {
   return front_.maxBodyRadius();
@@ -264,7 +267,6 @@ Result plan(const Request& r) {
     open.push({heuristic(r.start,r.goal,r.options),0});
     const auto primitives=catalog(r.options);
     bool sampledIncomplete=false;
-    bool strictIncomplete=false;
     while(!open.empty()) {
       if(cancelled(r)){out.status=Status::Cancelled;return out;}
       const auto top=open.top();open.pop();
@@ -282,7 +284,12 @@ Result plan(const Request& r) {
         const auto verdict=strictValidate(r,model,*body,nodes,top.node,out);
         if(verdict==StrictResult::Accept)return out;
         if(verdict==StrictResult::Cancelled){out.status=Status::Cancelled;return out;}
-        if(verdict==StrictResult::Incomplete)strictIncomplete=true;
+        if(verdict==StrictResult::Incomplete) {
+          // A feasible-looking candidate must never be reported as a safe
+          // path when the independent final validation budget is exhausted.
+          out.status=Status::ValidationIncomplete;
+          return out;
+        }
         ++out.diagnostics.strictRejected;
       }
       for(const auto& primitive:primitives) {
@@ -326,7 +333,7 @@ Result plan(const Request& r) {
         }
       }
     }
-    out.status=strictIncomplete||sampledIncomplete ? Status::ValidationIncomplete :
+    out.status=sampledIncomplete ? Status::ValidationIncomplete :
                out.diagnostics.strictRejected ? Status::StrictValidationFailed :
                Status::NoPath;
     return out;
