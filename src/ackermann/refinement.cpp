@@ -339,7 +339,7 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
        req.options.model!=PlanOptions::Model::DifferentialDrive &&
        req.options.model!=PlanOptions::Model::Mecanum)||
       (req.options.model!=PlanOptions::Model::Ackermann &&
-       (req.analyticConnector||req.analyticDistance||req.options.clearanceWeight>0))||
+       (req.analyticConnector||req.analyticDistance))||
       (req.options.model==PlanOptions::Model::Mecanum &&
        (!std::isfinite(req.options.mecanumStationarySpinPenaltyMeters)||
         req.options.mecanumStationarySpinPenaltyMeters<0))||
@@ -362,7 +362,8 @@ RefinementResult refinePath(const PlanRequest& req,const PlanResult& original,
     std::unique_ptr<ClearanceScorer> clearance;
     if(req.options.clearanceWeight>0)
       clearance=std::make_unique<ClearanceScorer>(*req.map,req.occupancy,req.footprint,
-                   req.options.clearanceWeight,req.options.clearanceInfluenceRadiusMeters);
+                   req.options.clearanceWeight,req.options.clearanceInfluenceRadiusMeters,
+                   false,req.options.footprintInflationMeters);
     Evaluated baseline;
     const auto initial=validate(req,original.sections,checker,clearance.get(),
                                 options,result.exactPoseChecks,options.maxTotalPoseChecks,baseline);
