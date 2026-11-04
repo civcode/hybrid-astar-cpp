@@ -70,7 +70,7 @@ struct Motion {
 struct Request {
   std::shared_ptr<const ackermann::MapSnapshot> map;
   ackermann::OccupancyPolicy occupancy;
-  Parameters parameters;
+  Parameters parameters{}; // invalid until real robot dimensions/limits supplied
   BodyGeometry bodies;
   RearState start, goal; // both include gamma; goal gamma is constrained
   SearchOptions options;
