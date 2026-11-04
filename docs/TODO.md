@@ -52,28 +52,29 @@ See [articulated-steering integration stages and remaining physical questions](a
 - [x] Confirm the supplied five-variable state
   `(xf,yf,Theta_f,Theta_r,gamma)` in
   [kinematic-models](architecture/kinematic-models.md) and its
-  `(v,u_gamma)` input matrix with `D=L1*cos(gamma)+L2`.
+  `(v,u_gamma)` input matrix with `D=L_f*cos(gamma)+L_r`.
   **Correct the earlier "rear-reference" label:** the four-state
   ODE is exactly the **front-reference** reduction when
   `gamma=wrap(Theta_f-Theta_r)`, initialized consistently.
   Do not misrepresent five reported states as five independent
   configuration degrees of freedom.
 - [x] Derive a physically consistent candidate frame interpretation:
-  `F=(xf,yf)`, `H=F-L1*heading(Theta_f)`,
-  `R=H-L2*heading(Theta_r)`, with front/rear axle no-slip.
+  `F=(xf,yf)`, `H=F-L_f*heading(Theta_f)`,
+  `R=H-L_r*heading(Theta_r)`, with front/rear axle no-slip.
   The newly supplied ROS 2 simulator **confirms these exact
   front-to-rear offsets**, with `base_link` at the computed
-  rear reference and `L1_=L2_=0.5 m` in that example.
+  rear reference and `L_f=L_r=0.5 m` in that example
+  (the simulator source still spells these `L1_` and `L2_`).
   Whether these points are physical axle midpoints and the
   full collision-body dimensions remain **unconfirmed**.
 - [ ] **Confirm OQ-022 with the robot owner:** whether the front
   reference really is the front axle midpoint, the physical
-  endpoints for `L1/L2`, zero/positive articulation convention,
+  endpoints for `L_f/L_r`, zero/positive articulation convention,
   front/rear collision-body dimensions and offsets, input meaning,
   articulation/speed bounds and joint-angle goal semantics.
 - [x] Clarify owner intent for **zero-longitudinal-speed
   articulation**: both front and rear carriage headings must change.
-  For `L1=L2` and initially aligned chassis the shares start
+  For `L_f=L_r` and initially aligned chassis the shares start
   **+50% front/−50% rear**; for nonzero `gamma` use the
   geometry-dependent ODE, not a fixed half-angle shortcut.
   See [stationary joint steering model](architecture/articulated_steering_integration.md#zero-longitudinal-speed-articulation-both-bodies-rotate).
