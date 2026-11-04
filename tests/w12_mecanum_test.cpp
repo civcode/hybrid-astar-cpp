@@ -239,8 +239,11 @@ TEST_CASE("Incompatible mecanum connectors and impossible wheels fail closed","[
   r.analyticDistance=[](const Pose2D&,const Pose2D&){return 1.0;};
   REQUIRE(a::plan(r).status==a::PlanStatus::InvalidRequest);
   r=request();
-  r.options.clearanceWeight=1.0;
-  REQUIRE(a::plan(r).status==a::PlanStatus::InvalidRequest);
+  r.options.clearanceWeight=.15;
+  const auto withClearance=a::plan(r);
+  REQUIRE(withClearance.status==a::PlanStatus::Success);
+  REQUIRE(withClearance.diagnostics.clearanceDistanceQueries==
+          withClearance.diagnostics.clearanceSamples);
   r=request();
   r.options.mecanumPrimitives.translationMeters=0;
   REQUIRE(a::plan(r).status==a::PlanStatus::InvalidRequest);
