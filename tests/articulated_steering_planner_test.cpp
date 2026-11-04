@@ -47,6 +47,11 @@ TEST_CASE("Articulation and incoming drive mode are explicit search key dimensio
   REQUIRE_FALSE(a==as::makeSearchKey(s,0,r.options,r.parameters));
   REQUIRE_FALSE(a==as::makeSearchKey(q,1,r.options,r.parameters));
   REQUIRE_FALSE(a==as::makeSearchKey(q,-1,r.options,r.parameters));
+  auto qPlus=q,qMinus=q;
+  qPlus.thetaRear=std::numbers::pi_v<double>;
+  qMinus.thetaRear=-std::numbers::pi_v<double>;
+  REQUIRE(as::makeSearchKey(qPlus,0,r.options,r.parameters)==
+          as::makeSearchKey(qMinus,0,r.options,r.parameters));
 }
 
 TEST_CASE("Articulated search succeeds on a full-body-checked straight route",
@@ -191,4 +196,14 @@ TEST_CASE("Stationary articulation detects an obstacle hit only between endpoint
   const auto result=as::plan(r);
   REQUIRE(result.status!=as::Status::Success);
   REQUIRE(result.diagnostics.rejectedSearchCollision>0);
+}
+
+TEST_CASE("Missing independent final validation budget cannot produce Success",
+          "[articulated][strict][budget]") {
+  auto r=example();
+  r.goal=endpoint(r,{.5,0},1.0);
+  r.options.maxFinalSamplesPerPrimitive=2;
+  auto result=as::plan(r);
+  REQUIRE(result.status!=as::Status::Success);
+  REQUIRE_FALSE(result.independentlySampledBodyValidated);
 }
