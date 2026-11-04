@@ -63,7 +63,7 @@ The ideal chassis controls independent forward, lateral and yaw velocities, but 
 
 The project author has now supplied the following **five-variable** system
 explicitly identifying **front** and **rear** chassis headings. This
-supersedes the older description that called the four-state \`(x,y,Theta)\`
+supersedes the older description that called the four-state `(x,y,Theta)`
 model a **rear** reference pose: that earlier wording was incorrect for
 the equations shown. The equations have not yet been integrated into
 the planner as a supported fourth model.
@@ -199,7 +199,7 @@ limits still require the robot owner's input** (OQ-022).
 
 **Illustrative five-variable derivative (not production-integrated):**
 
-\`\`\`cpp
+```cpp
 struct ArticulatedState {
   double xf, yf, thetaFront, thetaRear, gamma;
 };
@@ -220,7 +220,7 @@ ArticulatedState derivative(const ArticulatedState& q,
     u.gammaRate
   };
 }
-\`\`\`
+```
 
 **Next confirmation:** Is the front reference \(F\) the **front axle
 midpoint**, \(L_1\) its distance to the articulation pivot, and
@@ -278,7 +278,7 @@ Here \(\sigma\) is **primitive-local progress**, not a global execution schedule
 
 \[
 \frac{d\gamma}{ds}=\frac{u_\gamma}{v},\qquad
-\frac{d\Theta}{ds}=\frac{\sin\gamma}{D(\gamma)}
+\frac{d\Theta_f}{ds}=\frac{\sin\gamma}{D(\gamma)}
 +\frac{L_2}{D(\gamma)}\frac{u_\gamma}{v}.
 \]
 
