@@ -7,18 +7,31 @@
 
 using namespace hybrid_astar::ackermann;
 
-TEST_CASE("Label reserve tier index maps to exact power-of-two label capacities",
+TEST_CASE("Versioned label tiers use four steps per doubling with legacy decode",
           "[labels][calibration]") {
-  REQUIRE(labelReserveForTier(0)==0);
-  REQUIRE(labelReserveForTier(1)==65536);
-  REQUIRE(labelReserveForTier(2)==131072);
-  REQUIRE(labelReserveForTier(3)==262144);
-  REQUIRE(labelReserveForTier(4)==524288);
-  REQUIRE(labelReserveForTier(5)==1048576);
+  REQUIRE(LabelReserveTierSeriesVersion==2);
+  const std::size_t expected[]{
+      0,65536,81920,98304,114688,131072,163840,196608,229376,
+      262144,327680,393216,458752,524288,655360,786432,917504,
+      1048576,1310720};
+  for(std::size_t tier=0;tier<sizeof(expected)/sizeof(expected[0]);++tier)
+    REQUIRE(labelReserveForTier(tier)==expected[tier]);
+  // Previously persisted v1 numeric tiers are never interpreted as v2
+  // when the stored series-version tag is supplied.
+  REQUIRE(labelReserveForTier(0,1)==0);
+  REQUIRE(labelReserveForTier(3,1)==262144);
+  REQUIRE(labelReserveForTier(4,1)==524288);
+  REQUIRE(labelReserveForTier(5,1)==1048576);
+  REQUIRE_THROWS_AS(labelReserveForTier(1,3),std::invalid_argument);
+  REQUIRE_THROWS_AS(labelReserveForTier(std::size_t(-1)),std::out_of_range);
   REQUIRE(labelReserveTierForPeak(40000,0.20,100000)==1);
   REQUIRE(labelReserveTierForPeak(65000,0.20,150000)==2);
-  REQUIRE(labelReserveTierForPeak(120000,0.20,300000)==3);
-  REQUIRE(labelReserveTierForPeak(200000,0.20,300000)==3);
+  REQUIRE(labelReserveTierForPeak(120000,0.20,300000)==6);
+  REQUIRE(labelReserveTierForPeak(200000,0.20,300000)==9);
+  REQUIRE(labelReserveTierForPeak(484534,.20,2000000)==14);
+  REQUIRE(labelReserveTierForPeak(484534,0.0,2000000)==13);
+  REQUIRE(labelReserveTierForPeak(655360,0.0,2000000)==14);
+  REQUIRE(labelReserveTierForPeak(655361,0.0,2000000)==15);
   REQUIRE_THROWS_AS(labelReserveTierForPeak(0,.2,300000),std::invalid_argument);
   REQUIRE_THROWS_AS(labelReserveTierForPeak(200000,.3,200000),std::out_of_range);
   REQUIRE_THROWS_AS(labelReserveTierForPeak(1,0.,10000),std::out_of_range);
@@ -66,6 +79,7 @@ TEST_CASE("Seeded rotated-map calibration covers multiple map strata and verifie
   REQUIRE(first.coveredEitherStrata>=first.coveredGoalStrata);
   REQUIRE(first.coveredEitherStrata<=first.validStrata);
   REQUIRE(first.recommendedTierIndex>=1);
+  REQUIRE(first.tierSeriesVersion==LabelReserveTierSeriesVersion);
   REQUIRE(first.recommendedReserveLabels==labelReserveForTier(first.recommendedTierIndex));
   REQUIRE(first.maxObservedPeakLabels>0);
   REQUIRE(first.mapRevision==52);
