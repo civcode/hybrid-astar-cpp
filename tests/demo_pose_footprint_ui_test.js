@@ -37,7 +37,8 @@ function element(id) {
   if (!elements.has(id)) elements.set(id, {
     value: '', checked: false, disabled: false, textContent: '',
     className: '',
-    addEventListener() {},
+    listeners: {},
+    addEventListener(name, handler) { this.listeners[name] = handler; },
     classList: { add() {}, remove() {} },
   });
   return elements.get(id);
@@ -78,7 +79,10 @@ near(Math.hypot(a.goal[0][0]-a.goal[1][0], a.goal[0][1]-a.goal[1][1])/a.g.scale,
 
 // Editable yaw rotates the footprint immediately, without planning success.
 element('startyaw').value = '90';
-vm.runInContext('draw()', sandbox);
+const beforeEdit = polygons.length;
+assert.equal(typeof element('startyaw').listeners.input, 'function');
+element('startyaw').listeners.input(); // Simulate actual browser edit event.
+assert.ok(polygons.length >= beforeEdit + 2, 'numeric edit redraws both footprints');
 a = measure();
 near(a.length, 4.6);
 assert.ok(Math.abs(a.start[0][0]-a.start[1][0]) < 1e-9,
