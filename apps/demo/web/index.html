@@ -11,7 +11,7 @@
 <select id="model"><option value="ackermann">Ackermann steering</option>
 <option value="differential">Differential drive (in-place rotation)</option>
 <option value="mecanum">Mecanum (sideways + rotation)</option>
-<option value="articulated">Articulated steering (two carriages · experimental)</option></select>
+<option value="articulated" id="articulatedOption">Articulated steering (two carriages · experimental)</option></select>
 <label class="label" for="scenario">Environment</label><select id="scenario">
 <option value="open">Open field</option><option value="reverse">Reverse maneuver</option>
 <option value="parking">Parking approach</option><option value="warehouse">Warehouse obstacles</option>
@@ -100,7 +100,7 @@
 <div><span>REVERSE</span><strong id="reverseLen">—</strong></div><div><span>EXPANSIONS</span><strong id="expanded">—</strong></div>
 <div><span>EXPANSION LIMIT</span><strong id="limit">—</strong></div>
 <div><span>PLANNING TIME</span><strong id="elapsed">—</strong></div>
-<div><span>CURVATURE VARIATION</span><strong id="curvatureVariation">—</strong></div>
-<div><span>STEERING REVERSALS</span><strong id="steeringReversals">—</strong></div></div>
+<div><span id="curvatureVariationLabel">CURVATURE VARIATION</span><strong id="curvatureVariation">—</strong></div>
+<div><span id="steeringReversalsLabel">STEERING REVERSALS</span><strong id="steeringReversals">—</strong></div></div>
 </section></div><footer>Hybrid A* Planning Lab · Geometric path planning · No actuator or swept-volume safety claim</footer></main>
 <script src="/map_geometry.js" defer></script><script src="/map_editor.js" defer></script><script src="/app.js" defer></script></body></html>
