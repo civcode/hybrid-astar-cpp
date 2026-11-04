@@ -64,15 +64,73 @@ for warehouse-sized planning workloads. The original default remains
 `0`, meaning no pre-reserve. A universal fixed allocation is not yet
 justified for small maps, low node counts or short searches.
 
-Next compare **0, 65,536, 131,072 and 262,144** labels with the same
-full map and both geometries. Record search speed, rehashes, bucket-array
-memory and equivalence. Then repeat with smaller/shorter workloads
-before choosing a possibly adaptive reserve policy. A cache-friendlier
+The **0 / 65,536 / 131,072 / 262,144** follow-up is now complete
+on the same full map (results immediately below). Repeat it on
+smaller/shorter workloads before choosing a possibly adaptive reserve
+policy. A cache-friendlier
 hash table or faster key hash is a separate future experiment, not
 assumed beneficial without a measured comparison.
 
 See the manual four-way instructions in
 [`label_reserve_sweep_benchmark.md`](label_reserve_sweep_benchmark.md).
+
+### 2026-11-04 follow-up: four-way reservation sweep COMPLETED
+
+**New input files:** `nav2-label-reserve-sweep.csv` (80 rows, 10 routes x
+2 footprints x 4 sizes, 5 timed repetitions per variant,
+`PROFILE_HOTPATHS=OFF`) and `nav2-label-reserve-sweep-smoke.csv`
+(16 rows, first 2 routes, 1 repetition). The new full run preserved
+**Success**, path geometry, exact collision calls, expansion counts,
+label/queue decisions and refinement results for all 20 matched
+four-way comparisons. The experiment isolates reservation with the
+fast empty-AABB shortcut enabled and clearance scoring disabled.
+
+| Reserved labels | Median search p50 | Median paired search saving vs 0 | Wins vs 0 | Median rehashes | Median bucket estimate |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 231.995 ms | baseline | — | 14.0 | 1.32 MiB |
+| 65,536 | 228.479 ms | **2.06%** | 20/20 | 1.5 | 1.58 MiB |
+| 131,072 | 226.000 ms | **3.54%** | 20/20 | 0.5 | 1.58 MiB |
+| **262,144** | **221.622 ms** | **4.86%** | **20/20** | **0** | **2.12 MiB** |
+
+**262,144 is faster than 131,072 in 20/20**, with **1.32% median
+paired additional speedup** (median **2.99 ms/search**). It is also
+faster than 65,536 and the baseline in all 20 matched routes. The
+original 262,144-versus-zero result (**4.85%**) is replicated at
+**4.86%** in the new independent full sweep.
+
+- Median **paired** estimated bucket-array difference versus baseline:
+  65,536 **-0.14 MiB**, 131,072 **+0.39 MiB**, 262,144 **+0.80 MiB**.
+  These are medians of *paired differences* and need not equal the
+  differences between median bucket footprints in the table.
+- Median bucket-array cost of 262,144 versus 131,072: **+0.54 MiB**.
+  Ten of twenty larger runs grew the 131,072 table to the *same*
+  277,261 buckets as 262,144, but incurred one rehash to get there.
+  Smaller runs avoided that rehash yet 262,144 still edged out 131,072,
+  consistent with a lower table load factor improving hot-path lookup
+  costs. This explanation is plausible, not a separately isolated
+  causal benchmark.
+- 131,072 had **0 rehashes in 10/20** cases and **1 in 10/20**.
+  65,536 had 0 in 4/20, 1 in 6/20 and 2 in 10/20.
+  The 262,144 setting had **0 in all 20**.
+- Peak distinct state labels ranged from **42,700 to 179,519**.
+  In the 10 smaller comparisons with at most 131,072 labels, the
+  262,144-versus-131,072 median saving shrank to about **0.64 ms**
+  (0.79% paired). In the 10 larger comparisons it was about
+  **4.62 ms** (1.64% paired). A fixed large reservation therefore
+  has a smaller payoff on shorter/light searches.
+
+**Updated decision:** For the tested large warehouse, **262,144 is
+the clearly fastest measured pre-reserve** and remains a good
+*explicit* configuration. Retain `searchLabelReserve=0` as the
+default pending short-route/small-map memory-and-latency tests;
+do **not** claim a universal or validated adaptive reserve rule
+from this single warehouse. Further options include an adaptive
+rule informed by earlier runs or actual estimated search complexity,
+and a separately benchmarked cache-friendly hash table or hash
+function. Do not silently enable an automatic rule.
+
+See [the four-way sweep protocol](label_reserve_sweep_benchmark.md)
+and `tools/analyze_nav2_label_reserve_sweep.py` for reproducibility.
 
 ## 2. EDT-assisted capped clearance: route quality versus computational cost
 
