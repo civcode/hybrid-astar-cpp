@@ -1,5 +1,17 @@
 # Exact empty-region prefix-sum benchmark
 
+## Confirmed state-label reservation result and next sweep
+
+The unprofiled warehouse replay yielded **20/20 faster searches** with
+`PlanOptions.searchLabelReserve=262144`, **4.85% median paired savings**,
+**14 to 0 median label rehashes**, and **+0.80 MiB** estimated median
+bucket-array memory, without changing search decisions or paths.
+This remains **opt-in**, not a universal default. The next manual comparison
+checks **0 / 65,536 / 131,072 / 262,144** labels with matched routes:
+[Four-size reservation sweep](label_reserve_sweep_benchmark.md).
+See [measured performance findings](warehouse_performance_findings_2026-11-04.md).
+
+
 The collision checker uses an occupancy integral image to prove that the
 axis-aligned grid box enclosing the complete rotated and inflated footprint
 contains zero blocked cells. Such a box is collision-free without scanning
