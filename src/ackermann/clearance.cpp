@@ -16,7 +16,8 @@ bool isBlocked(std::int8_t value,OccupancyPolicy policy) {
 }
 }
 // Exact squared Euclidean distance transform in 1D (lower envelope of
-// squared-distance parabolas). INF entries are non-seeds. Reuse scratch space
+// squared-distance parabolas; Felzenszwalb and Huttenlocher, 2012).
+// INF entries are non-seeds. Reuse scratch space
 // across rows/columns to avoid O(width*height) transient allocations.
 void edt1d(const std::vector<double>& f,std::size_t n,
            std::vector<double>& out,std::vector<std::size_t>& sites,
