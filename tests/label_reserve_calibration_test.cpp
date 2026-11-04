@@ -62,6 +62,9 @@ TEST_CASE("Seeded rotated-map calibration covers multiple map strata and verifie
   REQUIRE(first.validStrata>=6);
   REQUIRE(first.coveredStartStrata>=3);
   REQUIRE(first.coveredGoalStrata>=2);
+  REQUIRE(first.coveredEitherStrata>=first.coveredStartStrata);
+  REQUIRE(first.coveredEitherStrata>=first.coveredGoalStrata);
+  REQUIRE(first.coveredEitherStrata<=first.validStrata);
   REQUIRE(first.recommendedTierIndex>=1);
   REQUIRE(first.recommendedReserveLabels==labelReserveForTier(first.recommendedTierIndex));
   REQUIRE(first.maxObservedPeakLabels>0);
