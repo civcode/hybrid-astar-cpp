@@ -172,7 +172,8 @@ double ClearanceScorer::exactPoseClearanceMeters(const Pose2D& pose) const {
   const auto highx=static_cast<std::size_t>(std::min(double(map_.width-1),std::floor((maxx+physicalCutoff)/r)));
   const auto highy=static_cast<std::size_t>(std::min(double(map_.height-1),std::floor((maxy+physicalCutoff)/r)));
   if(lowx>highx||lowy>highy)
-    return std::max(0.0,best-inflationMeters_);
+    return best>=physicalCutoff?influence_:
+        std::max(0.0,best-inflationMeters_);
   double bestSq=best*best;
   for(std::size_t y=lowy;y<=highy;++y) for(std::size_t x=lowx;x<=highx;++x) {
     if(!isBlocked(map_.cells[y*map_.width+x],occupancy_)) continue;
@@ -181,6 +182,9 @@ double ClearanceScorer::exactPoseClearanceMeters(const Pose2D& pose) const {
          geometry::separatedConvexPolygonSquareDistanceSquared(poly,lx,ly,r));
     if(bestSq<=0) return 0;
   }
+  // Canonicalize the saturated value so exact and EDT-certified samples
+  // return bit-for-bit identical zero penalties even when sqrt rounds.
+  if(bestSq>=physicalCutoff*physicalCutoff)return influence_;
   return std::max(0.0,std::sqrt(bestSq)-inflationMeters_);
 }
 double ClearanceScorer::sectionCost(const MotionSection& part,double step,double bodyStep,
