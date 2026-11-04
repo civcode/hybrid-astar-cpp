@@ -15,6 +15,41 @@ bool isBlocked(std::int8_t value,OccupancyPolicy policy) {
   return value==-1 ? policy.unknown!=UnknownPolicy::Free : value>policy.maxTraversableOccupancy;
 }
 }
+// Exact squared Euclidean distance transform in 1D (lower envelope of
+// squared-distance parabolas). INF entries are non-seeds. Reuse scratch space
+// across rows/columns to avoid O(width*height) transient allocations.
+void edt1d(const std::vector<double>& f,std::size_t n,
+           std::vector<double>& out,std::vector<std::size_t>& sites,
+           std::vector<double>& intersections) {
+  constexpr double inf=std::numeric_limits<double>::infinity();
+  std::size_t count=0;
+  for(std::size_t q=0;q<n;++q) {
+    if(!std::isfinite(f[q]))continue;
+    double split=-inf;
+    while(count>0) {
+      const auto p=sites[count-1];
+      const double dq=static_cast<double>(q),dp=static_cast<double>(p);
+      split=((f[q]+dq*dq)-(f[p]+dp*dp))/(2.0*(dq-dp));
+      if(split>intersections[count-1])break;
+      --count;
+    }
+    if(count==0)split=-inf;
+    sites[count]=q;
+    intersections[count]=split;
+    ++count;
+    intersections[count]=inf;
+  }
+  if(count==0) {
+    std::fill_n(out.begin(),n,inf);
+    return;
+  }
+  std::size_t k=0;
+  for(std::size_t q=0;q<n;++q) {
+    while(k+1<count && intersections[k+1]<static_cast<double>(q))++k;
+    const double d=static_cast<double>(q)-static_cast<double>(sites[k]);
+    out[q]=d*d+f[sites[k]];
+  }
+}
 ClearanceScorer::ClearanceScorer(const MapSnapshot& m,OccupancyPolicy p,Footprint f,
                                  double weight,double influence,bool useDistanceTransform,double inflationMeters)
     :map_(m),occupancy_(p),footprint_(f),lambda_(weight),influence_(influence),
