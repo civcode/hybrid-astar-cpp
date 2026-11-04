@@ -51,8 +51,9 @@ target_compile_features(hybrid_astar_mecanum PUBLIC cxx_std_20)
 target_include_directories(hybrid_astar_mecanum PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
 add_library(hybrid_astar::mecanum ALIAS hybrid_astar_mecanum)
-# Explicitly separate articulated five-state kinematics from the existing
-# rigid SE(2) search; the fourth planner mode is NOT yet supported.
+# Keep articulated four-dimensional search separate from the existing
+# rigid SE(2) planner and its three-model selector. The standalone typed
+# articulated planner API is experimental and requires real robot geometry.
 # Uses our own header-only classical RK4, with no Boost/ROS dependency.
 add_library(hybrid_astar_articulated_steering STATIC
   src/articulated_steering/model.cpp src/articulated_steering/planner.cpp)
