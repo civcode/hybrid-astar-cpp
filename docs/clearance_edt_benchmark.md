@@ -7,6 +7,29 @@ and it does not change the default planner objective.
 
 ## What changes
 
+### Important benchmark correction
+
+The initial full-map A/B/C CSV contained **20 successful OFF rows but 40
+invalid clearance-enabled requests**. Both native differential and mecanum
+policy validators previously disallowed `clearanceWeight>0`, and refinement
+had an equivalent restriction. The original CSV's `Other` status masked
+`InvalidRequest` and its sub-millisecond exact/EDT times did not represent
+planning work.
+
+This branch now enables the nonnegative, capped translational-clearance
+objective for these native models, including near-goal terminal connections
+and independent exact-footprint refinement. Pure stationary spins retain
+zero extra clearance penalty because the objective integrates *per metre of
+translational motion*, while their complete rotated footprint continues to
+receive exact collision validation. Holonomic turning arcs include angular
+body-point motion when choosing clearance-cost integration samples.
+
+The manual benchmark now **fails** if clearance-enabled modes are rejected,
+raise internal errors or perform zero clearance queries. CSV statuses also
+distinguish `InvalidRequest`, `InternalError`, and other failure types;
+the analyzer likewise rejects zero-work input. **Re-run the benchmark after
+updating the branch; do not interpret the previous CSV as an EDT speed test.**
+
 The existing clearance objective integrates a nonnegative quadratic penalty
 over every accepted motion section:
 
