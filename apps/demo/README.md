@@ -111,7 +111,9 @@ The **Kinematic model → Articulated steering** selector now invokes
 `/api/plan` backend. It is **not** an approximation using the
 single-rectangle Ackermann planner. It searches rear `base_link`
 `(x_r,y_r,Theta_r,gamma)` configurations and generates
-front/rear motion using the project's own RK4.
+front/rear motion with **precomputed analytic constant-articulation arcs**,
+and the project's own **RK4 only for precomputing stationary steering
+transitions and independently validating the final path**.
 
 - **Start/goal X, Y and yaw** are rear `base_link` poses; dedicated
   **Start γ** and **Goal γ** controls (degrees) are additional
@@ -136,12 +138,18 @@ front/rear motion using the project's own RK4.
   driving speed cap 1 m/s, and articulation-rate cap 0.8 rad/s.
   **Do not use these defaults on a physical robot without
   measured carriage and pivot geometry and actuator limits.**
-- Eight finite-control primitives include forward/reverse and
-  joint-only motion with `v=0`. The front point can stay
-  fixed while both chassis change heading and the rear
-  `base_link` moves. Both collision bodies are tested at
-  sampled full configurations and the returned candidate is
-  independently replayed at finer sampling before success.
+- A **request-local, precomputed articulated motion library**
+  replaces repeated RK4 integration at every search node.
+  At each articulation-angle bin it provides **forward and reverse
+  analytic circular arcs** with constant `gamma`; changing
+  `gamma` happens **only through stationary steering transitions**
+  (`v=0`) precomputed once with our RK4. Exact start/goal
+  articulation angles are inserted into the library rather than
+  silently snapped. The front point remains fixed during stationary
+  steering while both headings and the rear `base_link` change.
+  Both collision bodies are checked along every transformed template,
+  and each accepted route is independently replayed using finer RK4
+  sampling before success.
   This is **sampled collision evidence, not a continuous
   swept-volume, body–body self-collision or control-feasibility
   certificate**.
