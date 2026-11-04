@@ -88,6 +88,10 @@ void pathJson(std::ostream& os,const art::Result& r) {
     <<",\"strictGoalCandidates\":"<<r.diagnostics.strictGoalCandidates
     <<",\"strictRejected\":"<<r.diagnostics.strictRejected
     <<",\"searchBodyChecks\":"<<r.diagnostics.searchBodyChecks
+    <<",\"precomputedAnalyticDriveTemplates\":"<<r.diagnostics.precomputedAnalyticDriveTemplates
+    <<",\"precomputedStationaryRk4Templates\":"<<r.diagnostics.precomputedStationaryRk4Templates
+    <<",\"precomputedSampleCount\":"<<r.diagnostics.precomputedSampleCount
+    <<",\"appliedPrecomputedTemplates\":"<<r.diagnostics.appliedPrecomputedTemplates
     <<",\"finalChecks\":"<<r.diagnostics.finalBodyChecks
     <<",\"goalXYErrorMeters\":"<<r.goalXYErrorMeters
     <<",\"goalYawErrorRadians\":"<<r.goalYawErrorRadians
