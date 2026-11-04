@@ -8,7 +8,7 @@ pose as a rear reference pose**. This correction is captured in the
 Physical axle/joint locations, collision-body geometry and operating
 limits still need author confirmation before fourth-model integration.
 
-**Use the [dedicated kinematic model and frame-conventions review draft](articulated_steering_kinematic_model_review.md) for the owner's physical-robot sign-off.** It covers the exact ODE, front/rear frames, L_f/L_r, stationary steering and undecided conventions. The dependency-free mathematical Stage A is now implemented, but do not integrate articulated search, multi-body collision or real-robot execution until those physical assumptions and limits are confirmed.
+**Use the [dedicated kinematic model and frame-conventions review draft](articulated_steering_kinematic_model_review.md) for the owner's physical-robot sign-off.** It covers the exact ODE, front/rear frames, L_f/L_r, stationary steering and undecided conventions. Stages A–C and the experimental Planning Lab interface have been implemented using example-only geometry. Do not deploy them on a physical robot until its body frames, collision extents, joints and actuation limits have been confirmed.
 
 **Implementation status (2026-11-04):** The five-variable C++ kinematic
 model uses the project-owned RK4 integrator. A **separate experimental
@@ -24,11 +24,12 @@ accepted paths at a finer collision-sampling resolution.
 The front/rear collision bodies, link geometry, joint limits and
 actuator semantics are caller supplied and must match the actual robot.
 Self-collision, continuous swept-volume certification, dynamic-obstacle
-prediction, and timed actuator feasibility are not provided. The
-legacy Ackermann/differential/mecanum planners and Planning Lab
-model selector are unchanged. Full-repository C++/Docker compilation
-and end-to-end robot tests for this new search entry point remain
-unverified in this environment.
+prediction, and timed actuator feasibility are not provided. The existing Ackermann/differential/mecanum planning behavior is
+unchanged. Planning Lab now offers an **experimental articulated model**
+that selects this separate 4D backend, with dedicated `gamma` controls,
+`L_f/L_r`, two footprint definitions and full-state replay. The
+complete C++/Docker build, live-browser visual review and end-to-end
+real-robot testing remain **unverified in this environment**.
 
 ## Canonical author-supplied five-variable model
 
@@ -241,9 +242,16 @@ the ODE undefined.
 - [ ] Run complete Catch2/CTest and regression tests in the real
   Docker checkout; measure reachable hard maps, cancellation,
   memory, sampling overhead and failed-final-validation outcomes.
-- [ ] Expose articulated start/goal `gamma`, two footprints and pivot
-  in Planning Lab, only once the backend is proven and input validation
-  is wired through end-to-end.
+- [x] Expose experimental articulated model selection, start/goal
+  rear-reference pose and `gamma`, `L_f/L_r`, independent front/rear
+  carriage rectangles and joint markers in Planning Lab.
+- [x] Route the loopback-only `/api/plan` endpoint to
+  `articulated_steering::plan` for this model, preserving all
+  existing rigid-model routes.
+- [x] Add headless JavaScript rendering/form regression, dedicated
+  C++ demo-adapter tests and HTTP smoke coverage of the same path.
+- [ ] Run full local Docker/CMake/Catch2/HTTP tests and inspect
+  the articulated UI visually in a real browser before relying on it.
 - [ ] Develop model-specific refinement, steering-rate continuity,
   velocity profiling, self-collision checks and controller tracking.
 - [ ] Keep independent real-robot supervisory collision and motion
@@ -308,7 +316,8 @@ Catch2/Docker build; no GitHub Actions were dispatched or modified.
 
 ## Roadmap relationship
 
-Stage A and experimental Stages B/C have code and regression tests;
-Stage D and physical-robot geometry approval remain blocking.
+Stages A–C and experimental Planning Lab wiring have code and
+regression tests. Stage D still requires the full local build,
+browser checks and physical-robot geometry/actuator sign-off.
 See [P0-B in the active implementation roadmap](../TODO.md) and
 the [owner-review conventions](articulated_steering_kinematic_model_review.md).
