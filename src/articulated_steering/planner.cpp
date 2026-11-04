@@ -199,12 +199,16 @@ StrictResult strictValidate(const Request& r,const Model& model,
 
 SearchKey makeSearchKey(const RearState& rear,int gear,
                         const SearchOptions& o,const Parameters& p) {
-  if(!finiteRear(rear)||!validOptions(o)||!std::isfinite(p.minGammaRadians)||
+  if(!finiteRear(rear)||!validOptions(o)||
+     !std::isfinite(p.minGammaRadians)||!std::isfinite(p.maxGammaRadians)||
+     p.minGammaRadians>=p.maxGammaRadians||
+     rear.gamma<p.minGammaRadians||rear.gamma>p.maxGammaRadians||
      gear<-1||gear>1)
     throw std::invalid_argument("Invalid articulated search key request");
-  const double angle=std::remainder(rear.thetaRear,2*pi);
+  // Canonical [0, 2pi) yaw: -pi and +pi must map to the SAME key.
+  const double angle=std::fmod(std::remainder(rear.thetaRear,2*pi)+2*pi,2*pi);
   return {bin(rear.xr,o.xyBinMeters),bin(rear.yr,o.xyBinMeters),
-          bin(angle+pi,o.yawBinRadians),
+          bin(angle,o.yawBinRadians),
           bin(rear.gamma-p.minGammaRadians,o.gammaBinRadians),gear};
 }
 BodyCollisionChecker::BodyCollisionChecker(const ackermann::MapSnapshot& map,
