@@ -2,9 +2,8 @@
 
 **Status: FOR OWNER REVIEW — not approved for implementation.**
 
-*GitHub math formatting:* Inline expressions use `$...# Articulated-steering kinematic model and frame conventions — review draft
+*Rendering note:* Multi-line equations use GitHub-supported fenced `math` blocks.
 
-; multiline equations use fenced `math` blocks to preserve LaTeX row separators.  
 **Date:** 2026-11-04  
 **Scope:** two rigid carriages joined by one articulation joint; planar,
 ideal no-side-slip kinematics. This document records the equation and
