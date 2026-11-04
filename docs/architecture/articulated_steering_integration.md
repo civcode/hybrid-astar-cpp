@@ -235,7 +235,7 @@ the ODE undefined.
 ### Primitive library invariants and cost
 
 The grid's articulation spacing is configured by
-\`SearchOptions::articulationPrimitiveRadians\` (default 0.2 rad).
+`SearchOptions::articulationPrimitiveRadians` (default 0.2 rad).
 Values $\gamma_{\min},\gamma_{\max}$, the **exact request start
 angle** and the **exact request goal angle** are retained. Each
 angle state has two analytic drive templates ($\dot\gamma=0$,
