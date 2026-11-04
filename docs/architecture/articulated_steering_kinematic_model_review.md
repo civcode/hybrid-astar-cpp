@@ -1,6 +1,10 @@
 # Articulated-steering kinematic model and frame conventions — review draft
 
-**Status: FOR OWNER REVIEW — not approved for implementation.**  
+**Status: FOR OWNER REVIEW — not approved for implementation.**
+
+*GitHub math formatting:* Inline expressions use `$...# Articulated-steering kinematic model and frame conventions — review draft
+
+; multiline equations use fenced `math` blocks to preserve LaTeX row separators.  
 **Date:** 2026-11-04  
 **Scope:** two rigid carriages joined by one articulation joint; planar,
 ideal no-side-slip kinematics. This document records the equation and
@@ -30,7 +34,7 @@ in the sign-off checklist in §11. Statements are tagged:
 | $\Theta_f$ | Front carriage heading | rad | [FROM EQUATIONS] |
 | $x_r,y_r$ | Rear carriage reference position $R$, published as `base_link` in the supplied simulator | m | [FROM ROS SIMULATOR] |
 | $\Theta_r$ | Rear carriage heading and `base_link` yaw | rad | [FROM ROS SIMULATOR] |
-| $\gamma$ | Articulation angle; with aligned initial angles, $\gamma=\operatorname{wrap}(\Theta_f-\Theta_r)$ | rad | [FROM EQUATIONS]; physical encoder sign and zero need [TO CONFIRM] |
+| $\gamma$ | Articulation angle; with aligned initial angles, $\gamma=\text{wrap}(\Theta_f-\Theta_r)$ | rad | [FROM EQUATIONS]; physical encoder sign and zero need [TO CONFIRM] |
 | $L_f$ | Distance between the front reference point $F$ and the articulation joint $H$ | m | Frame formula [FROM ROS SIMULATOR]; physical endpoints [TO CONFIRM] |
 | $L_r$ | Distance between the articulation joint $H$ and the rear reference point $R$ | m | Frame formula [FROM ROS SIMULATOR]; physical endpoints [TO CONFIRM] |
 | $v$ | Signed longitudinal velocity **at $F$**, not at rear `base_link` | m/s | [FROM EQUATIONS] / [FROM ROS SIMULATOR] `/cmd_vel.linear.x` |
@@ -55,14 +59,14 @@ planar convention. Confirm it against the robot's frames.
 
 **Front-to-hinge-to-rear construction [FROM ROS SIMULATOR]:**
 
-$$
+```math
 \begin{aligned}
 F&=(x_f,y_f)^T,\\
 H&=F-L_f\,e(\Theta_f),\\
 R&=H-L_r\,e(\Theta_r)
   =F-L_f e(\Theta_f)-L_r e(\Theta_r).
 \end{aligned}
-$$
+```
 
 Here $L_f$ and $L_r$ are **nonnegative scalar distances**. The minus signs in the coordinate equations specify the displacement directions relative to the chosen heading axes; they are not signs or directional qualifiers on the lengths themselves.
 
@@ -72,19 +76,19 @@ front reference $F$** along their forward longitudinal axis.
 For a nonzero articulation angle, the two link offsets have
 **different headings**. The reverse transform is
 
-$$
+```math
 \begin{aligned}
 H&=R+L_r\,e(\Theta_r),\\
 F&=R+L_r\,e(\Theta_r)+L_f\,e(\Theta_f).
 \end{aligned}
-$$
+```
 
 The corresponding planar body reference transforms are
 
-$$
+```math
 T^W_F=SE(2)(x_f,y_f,\Theta_f),\quad
 T^W_R=SE(2)(x_r,y_r,\Theta_r).
-$$
+```
 
 **[FROM ROS SIMULATOR]** The published `odom -> base_link`
 transform is $T^W_R$, i.e., the **rear** reference pose, even
@@ -109,20 +113,20 @@ the full front/rear body dimensions, overhangs, wheels, or loads.
 
 **[FROM EQUATIONS]** The coupled headings obey
 
-$$
+```math
 \dot\Theta_f-\dot\Theta_r=\dot\gamma.
-$$
+```
 
 Therefore $\Theta_f-\Theta_r-\gamma$ is a constant of motion.
 When initialized with aligned chassis and $\gamma=0$, the
 consistent convention is
 
-$$
-\boxed{\gamma=\operatorname{wrap}(\Theta_f-\Theta_r)},\qquad
-\Theta_f=\operatorname{wrap}(\Theta_r+\gamma).
-$$
+```math
+\boxed{\gamma=\text{wrap}(\Theta_f-\Theta_r)},\qquad
+\Theta_f=\text{wrap}(\Theta_r+\gamma).
+```
 
-Here $\operatorname{wrap}$ means equality of physical angles
+Here $\text{wrap}$ means equality of physical angles
 modulo $2\pi$; use continuous/unwrapped angles internally where
 necessary to avoid numerical jumps. **[TO CONFIRM]** Verify
 that the physical `steering_joint` encoder uses this sign and
@@ -151,7 +155,7 @@ $\mathbf q_5=(x_f,y_f,\Theta_f,\Theta_r,\gamma)^T$,
 controls $\mathbf u=(v,u_\gamma)^T$, and
 $D(\gamma)=L_f\cos\gamma+L_r$:
 
-$$
+```math
 \frac{d}{dt}
 \begin{bmatrix}
 x_f \\ y_f \\ \Theta_f \\ \Theta_r \\ \gamma
@@ -169,11 +173,11 @@ x_f \\ y_f \\ \Theta_f \\ \Theta_r \\ \gamma
 \begin{bmatrix}
 v \\ \dot\gamma
 \end{bmatrix}.
-$$
+```
 
 Scalar form:
 
-$$
+```math
 \begin{aligned}
 \dot x_f&=v\cos\Theta_f,\\
 \dot y_f&=v\sin\Theta_f,\\
@@ -181,7 +185,7 @@ $$
 \dot\Theta_r&=\frac{v\sin\gamma-L_f\cos\gamma\,u_\gamma}{D(\gamma)},\\
 \dot\gamma&=u_\gamma.
 \end{aligned}
-$$
+```
 
 The matrix above reproduces the author-supplied five-variable ODE using the agreed $L_f$ and $L_r$ names consistently. The two `L_1` occurrences in the message's typed matrix were interpreted as $L_f$, consistent with the previously supplied equations and simulator.
 
@@ -194,11 +198,11 @@ track widths, wheel radii, or physical speed/rate limits.
 
 Subtracting the two yaw equations gives exactly
 
-$$
+```math
 \dot\Theta_f-\dot\Theta_r
 =\frac{(L_f\cos\gamma+L_r)u_\gamma}{D(\gamma)}
 =u_\gamma=\dot\gamma.
-$$
+```
 
 Consequently, **when the initial headings are consistent**,
 the five reported coordinates contain only four independent
@@ -206,10 +210,10 @@ configuration variables. The two equivalent choices are:
 
 - **Front-based state**
   $\mathbf q_F=(x_f,y_f,\Theta_f,\gamma)$,
-  with $\Theta_r=\operatorname{wrap}(\Theta_f-\gamma)$.
+  with $\Theta_r=\text{wrap}(\Theta_f-\gamma)$.
 - **Rear-based state**
   $\mathbf q_R=(x_r,y_r,\Theta_r,\gamma)$,
-  with $\Theta_f=\operatorname{wrap}(\Theta_r+\gamma)$.
+  with $\Theta_f=\text{wrap}(\Theta_r+\gamma)$.
 
 **[PROPOSED FOR PLANNER]** Prefer the **rear-based**
 $\mathbf q_R$ as the public pose/state reference, matching
@@ -225,7 +229,7 @@ than silently discarding inconsistent input values.
 Differentiate the frame conversion in §2 and substitute
 the original five-variable ODE. The rear reference then obeys
 
-$$
+```math
 \begin{aligned}
 \dot x_r &= v_r\cos\Theta_r,\\
 \dot y_r &= v_r\sin\Theta_r,\\
@@ -233,11 +237,11 @@ $$
  \frac{v\sin\gamma-L_f\cos\gamma\,u_\gamma}{D(\gamma)},\\
 \dot\gamma &= u_\gamma,
 \end{aligned}
-$$
+```
 
 where the **derived rear longitudinal velocity** is
 
-$$
+```math
 \boxed{
 v_r=
 \frac{
@@ -245,7 +249,7 @@ v\bigl(L_f+L_r\cos\gamma\bigr)
 +L_fL_r\sin\gamma\,u_\gamma
 }{L_f\cos\gamma+L_r}.
 }
-$$
+```
 
 This is the **same physical motion** as the front-based ODE,
 not a new control model. $v$ continues to mean **front
@@ -267,12 +271,12 @@ rear carriages change orientation when articulating at $v=0$**,
 not that only the joint angle changes. The supplied ODE already
 encodes that behavior:
 
-$$
+```math
 \dot x_f=\dot y_f=0,\quad
 \dot\Theta_f=\frac{L_r}{D(\gamma)}u_\gamma,\quad
 \dot\Theta_r=-\frac{L_f\cos\gamma}{D(\gamma)}u_\gamma,\quad
 \dot\gamma=u_\gamma.
-$$
+```
 
 The **front reference position stays fixed**. The **rear**
 `base_link` position need not stay fixed; both rigid bodies
@@ -281,23 +285,23 @@ configurations.
 
 At **zero articulation**, the instantaneous yaw-rate shares are
 
-$$
+```math
 \frac{\dot\Theta_f}{u_\gamma}
 =\frac{L_r}{L_f+L_r},\qquad
 \frac{\dot\Theta_r}{u_\gamma}
 =-\frac{L_f}{L_f+L_r}.
-$$
+```
 
 Thus for **equal lengths** $L_f=L_r$, they are **+50% and −50%**
 initially, which matches the owner's intuitive starting split.
 At a finite joint angle, however, the exact shares are
 
-$$
+```math
 \frac{\dot\Theta_f}{u_\gamma}
 =\frac{L_r}{L_f\cos\gamma+L_r},\qquad
 \frac{\dot\Theta_r}{u_\gamma}
 =-\frac{L_f\cos\gamma}{L_f\cos\gamma+L_r}.
-$$
+```
 
 For the sample equal lengths:
 
@@ -317,18 +321,18 @@ finite $\gamma$ would be a *different* kinematic assumption.
 For clarity, define the mean heading
 $\psi=(\Theta_f+\Theta_r)/2$. The representation
 
-$$
+```math
 \Theta_f=\psi+\gamma/2,\qquad
 \Theta_r=\psi-\gamma/2
-$$
+```
 
 is an **identity**, but $\psi$ is not generally constant
 during steering. At $v=0$:
 
-$$
+```math
 \dot\psi=
 \frac{L_r-L_f\cos\gamma}{2D(\gamma)}u_\gamma.
-$$
+```
 
 For equal links, the 50/50 instantaneous split applies only
 at $\gamma=0$. **Literal $D(\gamma)=0$ is a singularity,
@@ -341,7 +345,7 @@ not a steering mode.** The zero-speed scenario is $v=0$.
 - Kinematic parameters $L_f,L_r>0$ must be finite.
   Configure a physical joint range
   $[\gamma_{\min},\gamma_{\max}]$ and a minimum denominator
-  margin $ |D(\gamma)|\ge D_{\min}>0$ over **every
+  margin $|D(\gamma)|\ge D_{\min}>0$ over **every
   generated/interpolated state**, not only endpoints. Actual
   allowed joint range and $D_{\min}$ remain [TO CONFIRM].
 - Model controls need explicit signed driving-speed limits,
