@@ -226,3 +226,76 @@ TEST_CASE("Articulated planning rejects missing geometry and occupied goals",
   r.occupancy.unknown=ac::UnknownPolicy::Reject;
   REQUIRE(as::plan(r).status==as::Status::RejectedUnknownMap);
 }
+
+TEST_CASE("Articulated precomputed primitives separate fixed-gamma driving and stationary steering",
+          "[articulated][search][precomputed]") {
+  auto r=example();
+  r.goal=endpoint(r,{.5,0},1.0);
+  const auto result=as::plan(r);
+  REQUIRE(result.status==as::Status::Success);
+  REQUIRE(result.independentlySampledBodyValidated);
+  REQUIRE(result.diagnostics.precomputedAnalyticDriveTemplates>0);
+  REQUIRE(result.diagnostics.precomputedStationaryRk4Templates>0);
+  REQUIRE(result.diagnostics.precomputedSampleCount>
+          result.diagnostics.precomputedAnalyticDriveTemplates+
+          result.diagnostics.precomputedStationaryRk4Templates);
+  REQUIRE(result.diagnostics.appliedPrecomputedTemplates>0);
+  for(const auto& motion:result.motions) {
+    // Steering never changes while driving in this primitive library.
+    if(motion.control.frontSpeedMetersPerSecond!=0.0) {
+      REQUIRE(motion.control.gammaRateRadiansPerSecond==0.0);
+      REQUIRE(close(motion.start.gamma,motion.end.gamma,1e-12));
+    } else {
+      REQUIRE(motion.control.gammaRateRadiansPerSecond!=0.0);
+    }
+  }
+}
+
+TEST_CASE("Precomputed stationary steering reaches exact non-grid start and goal gamma",
+          "[articulated][search][precomputed][joint]") {
+  auto r=example();
+  r.start.gamma=.13; // not a multiple of the 0.2-radian lattice step
+  as::Model m(r.parameters);
+  const auto q0=m.fromRear(r.start);
+  r.goal=m.toRear(m.propagate(q0,{0,.4},.5,.002));
+  REQUIRE(close(r.goal.gamma,.33,1e-12));
+  r.options.goalGammaToleranceRadians=.01;
+  r.options.goalYawToleranceRadians=.01;
+  r.options.goalXYToleranceMeters=.01;
+  r.options.maxExpansions=3000;
+  auto out=as::plan(r);
+  REQUIRE(out.status==as::Status::Success);
+  REQUIRE(close(out.reached.gamma,.33,1e-8));
+  REQUIRE(out.independentlySampledBodyValidated);
+  REQUIRE(out.motions.size()>=2); // actual stationary 0.13->...->0.33 edges
+  for(const auto& mtn:out.motions) {
+    REQUIRE(mtn.control.frontSpeedMetersPerSecond==0.0);
+    REQUIRE(mtn.control.gammaRateRadiansPerSecond!=0.0);
+    REQUIRE(close(mtn.start.xf,mtn.end.xf,1e-8));
+    REQUIRE(close(mtn.start.yf,mtn.end.yf,1e-8));
+    REQUIRE(mtn.samples.size()>1);
+  }
+}
+
+TEST_CASE("Precomputed analytic arcs preserve unequal-link kinematics",
+          "[articulated][search][precomputed][analytic]") {
+  auto r=example();
+  r.parameters.LfMeters=.7;
+  r.parameters.LrMeters=.45;
+  r.parameters.minDenominatorMeters=.1;
+  r.start.gamma=.4;
+  r.goal=endpoint(r,{.5,0},1.0);
+  auto result=as::plan(r);
+  REQUIRE(result.status==as::Status::Success);
+  REQUIRE(result.independentlySampledBodyValidated);
+  REQUIRE(result.diagnostics.precomputedAnalyticDriveTemplates>0);
+  REQUIRE(result.goalGammaErrorRadians<1e-9);
+  bool foundDrive=false;
+  for(const auto& motion:result.motions) {
+    if(motion.control.frontSpeedMetersPerSecond==0)continue;
+    foundDrive=true;
+    REQUIRE(motion.control.gammaRateRadiansPerSecond==0.0);
+    REQUIRE(close(motion.start.gamma,motion.end.gamma,1e-9));
+  }
+  REQUIRE(foundDrive);
+}
