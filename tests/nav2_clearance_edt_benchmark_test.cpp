@@ -127,6 +127,7 @@ int main(int argc,char** argv) {
   try {
     double weight=.15,radius=.4;
     bool fastAabb=false;
+    std::size_t replayLimit=0; // 0 means run every validated replay case
     std::vector<char*> forwarded{argv[0]};
     for(int i=1;i<argc;++i) {
       const std::string arg=argv[i];
@@ -135,7 +136,10 @@ int main(int argc,char** argv) {
         const double v=positiveReal(argv[++i]);
         if(arg=="--clearance-weight")weight=v;else radius=v;
       } else if(arg=="--fast-empty-aabb")fastAabb=true;
-      else forwarded.push_back(argv[i]);
+      else if(arg=="--replay-limit") {
+        if(i+1>=argc)throw std::invalid_argument("Missing value for --replay-limit");
+        replayLimit=pipeline::integer(argv[++i]);
+      } else forwarded.push_back(argv[i]);
     }
     const auto cfg=pipeline::parseArgs(
         static_cast<int>(forwarded.size()),forwarded.data());
@@ -144,8 +148,17 @@ int main(int argc,char** argv) {
       throw std::invalid_argument("Use native differential/mecanum, no collision-work mode");
     const auto map=hybrid_astar::demo::loadRosMapYaml(cfg.yamlPath);
     const auto base=pipeline::baseRequest(cfg,map);
-    const auto scenarios=cfg.replayCsv.empty()?
+    auto scenarios=cfg.replayCsv.empty()?
         pipeline::discover(cfg,base):pipeline::replayScenarios(cfg,base);
+    // Validate the entire pinned replay fixture against --cases first.
+    // Only then limit execution to a deterministic subset for smoke tests.
+    if(replayLimit) {
+      if(cfg.replayCsv.empty())
+        throw std::invalid_argument("--replay-limit requires --replay-csv");
+      if(replayLimit>scenarios.size())
+        throw std::invalid_argument("--replay-limit exceeds validated route count");
+      scenarios.resize(replayLimit);
+    }
     std::cerr<<"Nav2 clearance A/B/C: "<<scenarios.size()
              <<" routes; weight="<<weight<<", radius="<<radius
              <<", fastAABB="<<fastAabb
