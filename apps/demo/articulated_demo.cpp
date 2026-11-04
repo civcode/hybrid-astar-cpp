@@ -206,12 +206,15 @@ ArticulatedOutcome runArticulated(const Options& opt) {
   out.bodies.rear=opt.articulatedRear;
   out.bodies.inflationMeters=opt.footprintInflationEnabled?
                              opt.footprintInflationMeters:0.0;
-  // Keep the single-threaded demo responsive. The UI's million-node
-  // rigid budget does not silently authorize a million 4D expansions.
-  out.settings.maxExpansions=std::min<std::size_t>(
-      opt.maxExpansions.value_or(10000),50000);
-  out.settings.maxGenerated=std::min<std::size_t>(
-      out.settings.maxExpansions*4,200000);
+  // Honor the SAME 1M expansion ceiling advertised by the Planning Lab UI.
+  // The prior 50k / 200k special-case caps were temporary and have been
+  // removed now that articulated successor templates are precomputed.
+  // Four generated labels per permitted expansion is an independent
+  // search/memory budget; high budgets can still use substantial RAM.
+  constexpr std::size_t kMaxUiExpansions=1'000'000;
+  out.settings.maxExpansions=std::min(
+      opt.maxExpansions.value_or(kMaxUiExpansions),kMaxUiExpansions);
+  out.settings.maxGenerated=out.settings.maxExpansions*4;
   art::Request request;
   request.map=out.map;
   request.parameters=out.parameters;
