@@ -129,8 +129,9 @@ int main(int argc,char** argv) {
       if(settings.verifyNoRehash)std::cout<<t.verifiedRehashes;
       std::cout<<'\n';
     }
-    std::cerr<<"Map calibration result (empirical): tier="
-             <<result.recommendedTierIndex
+    std::cerr<<"Map calibration result (empirical): tier_series_version="
+             <<result.tierSeriesVersion
+             <<", tier="<<result.recommendedTierIndex
              <<", reserve_labels="<<result.recommendedReserveLabels
              <<", max_observed_labels="<<result.maxObservedPeakLabels
              <<", map_fingerprint="<<result.mapFingerprint
@@ -167,6 +168,7 @@ int main(int argc,char** argv) {
           <<"  \"successful_routes\": "<<result.successfulRoutes<<",\n"
           <<"  \"budget_limited_routes\": "<<result.budgetLimitedRoutes<<",\n"
           <<"  \"max_observed_peak_labels\": "<<result.maxObservedPeakLabels<<",\n"
+          <<"  \"tier_series_version\": "<<result.tierSeriesVersion<<",\n"
           <<"  \"recommended_tier_index\": "<<result.recommendedTierIndex<<",\n"
           <<"  \"recommended_reserve_labels\": "<<result.recommendedReserveLabels<<",\n"
           <<"  \"verification_passed\": "<<(result.verificationPassed?"true":"false")
