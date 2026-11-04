@@ -10,24 +10,25 @@ limits still need author confirmation before fourth-model integration.
 
 **Use the [dedicated kinematic model and frame-conventions review draft](articulated_steering_kinematic_model_review.md) for the owner's physical-robot sign-off.** It covers the exact ODE, front/rear frames, L_f/L_r, stationary steering and undecided conventions. The dependency-free mathematical Stage A is now implemented, but do not integrate articulated search, multi-body collision or real-robot execution until those physical assumptions and limits are confirmed.
 
-**Implementation status (2026-11-04): Stage A kinematic library is
-implemented** in
-[`articulated_steering/model.hpp`](../../include/hybrid_astar/articulated_steering/model.hpp)
-and [`model.cpp`](../../src/articulated_steering/model.cpp), using the
-project-owned, dependency-free
-[`motion/rk4.hpp`](../../include/hybrid_astar/motion/rk4.hpp).
-The original five-variable ODE, explicit front/rear reference
-transforms, angle invariant, bounds, local deterministic RK4 sampling,
-reverse travel and stationary joint steering are implemented and have
-dedicated [tests](../../tests/articulated_steering_model_test.cpp).
-The model requires caller-supplied link lengths and joint/control
-limits rather than silently adopting the ROS simulator's values.
+**Implementation status (2026-11-04):** The five-variable C++ kinematic
+model uses the project-owned RK4 integrator. A **separate experimental
+articulated Hybrid A* entry point** has now been added in
+[`articulated_steering/planner.hpp`](../../include/hybrid_astar/articulated_steering/planner.hpp)
+and [`planner.cpp`](../../src/articulated_steering/planner.cpp).
+It carries rear `(x,y,yaw,gamma)` search states, generates
+eight RK4 constant-control primitives, checks two rigid collision bodies
+against the immutable occupancy map and separately re-integrates
+accepted paths at a finer collision-sampling resolution.
 
-**Search-stage, articulated primitives, four-DOF labels and two-body
-collision validation are not implemented yet.** The current planner
-remains a three-state rigid-body planner and must not advertise
-articulated motion as supported. Physical dimensions and limits
-still require real-robot confirmation.
+**This is not production-ready robotic motion validation.**
+The front/rear collision bodies, link geometry, joint limits and
+actuator semantics are caller supplied and must match the actual robot.
+Self-collision, continuous swept-volume certification, dynamic-obstacle
+prediction, and timed actuator feasibility are not provided. The
+legacy Ackermann/differential/mecanum planners and Planning Lab
+model selector are unchanged. Full-repository C++/Docker compilation
+and end-to-end robot tests for this new search entry point remain
+unverified in this environment.
 
 ## Canonical author-supplied five-variable model
 
@@ -173,190 +174,140 @@ the ODE undefined.
 
 ## Implementation stages and acceptance checks
 
-### Stage A — standalone kinematics implemented; physical calibration pending
+### Stage A — five-state kinematic model and own RK4 — implemented
 
-- [x] Implement five-variable ODE and four-independent-state rear
-  projection with explicit geometry and control constraints.
-- [x] Add classical `motion::rk4Step` without Boost, ROS or external
-  integrator dependencies; record complete front and rear states.
-- [x] Validate finite inputs, aligned-heading invariant, joint
-  range, positive denominator margin and bounded RK4 steps.
-- [x] Add deterministic forward/reverse, zero-speed articulation,
-  geometry round-trip and convergence tests.
-- [ ] Match production link lengths, joint limits and body reference
-  origins to the actual robot's mechanical definition before declaring
-  deployment readiness.
+- [x] Preserve the author-provided five-variable ODE
+  `(xf,yf,Theta_f,Theta_r,gamma)` with invariant
+  `Theta_f-Theta_r=gamma` modulo `2*pi`.
+- [x] Provide front/hinge/rear frame conversions and the rear
+  `base_link` reference configuration.
+- [x] Use classical C++20 `motion::rk4Step`, without Boost.Odeint or ROS.
+- [x] Validate supplied link distances, joint/control limits, denominator
+  bounds, finite states and finite integration-step budgets.
+- [x] Test analytic fixed-articulation arcs, reverse, joint-only turns,
+  RK4 convergence and front/rear frame consistency.
+- [ ] Confirm production frame locations, articulation encoder sign,
+  permissible inputs and mechanical limits with robot owner.
 
-- The current source API uses
-  `articulated_steering::State{xf,yf,thetaFront,thetaRear,gamma}`
-  for diagnostics and five-ODE fidelity, plus
-  `RearState{xr,yr,thetaRear,gamma}` for the four-independent-state
-  rear `base_link` representation. Keep this distinct from the
-  existing rigid `ackermann::Pose2D` search state.
-- Implement the time-domain derivative with finite-value tests,
-  denominator margin, valid joint range and control limits.
-- Provide a deterministic integrator respecting angle topology,
-  plus exact/independent oracle checks for `gamma=0`,
-  constant joint angle, reverse controls, `v=0`, and near-denominator
-  boundary rejection. Angle-only moves must not be divided by `v`.
-- Confirm the correct frame transforms of BOTH bodies and the
-  articulation pivot before binding to any collision geometry.
+### Stage B — four-dimensional bounded search — implemented experimentally
 
-### Standalone C++ usage and local tests
+- [x] Add `articulated_steering::plan(Request)` with **rear x/y/yaw
+  and articulation gamma** indexed independently; the incoming drive
+  direction is also part of the label key.
+- [x] Generate eight finite-length/finite-angle RK4 primitives:
+  forward/reverse with negative/zero/positive joint rate, plus
+  joint-only steering in both directions at `v=0`.
+- [x] Retain complete five-variable states, rear reference poses,
+  control, nominal duration and checked intermediate samples
+  on reconstructed motion sections.
+- [x] Add separate expansion, generated-node and integration-sample
+  budgets, cancellation and typed failure outcomes.
+- [x] Check four-state goal tolerances, **including gamma**, and
+  revalidate a candidate independently before reporting success.
+- [ ] Tune primitive times, key resolution, control families, label
+  pruning and search quality on representative articulated maps.
+- [ ] Integrate a compatible fourth model into the Planning Lab/browser
+  UI only after validating physical robot geometry; the rigid
+  `ackermann::PlanRequest` API deliberately cannot carry gamma.
 
-The new kinematic library is linked separately as
-`hybrid_astar::articulated_steering`. For example:
+### Stage C — front and rear sampled collision — implemented experimentally
+
+- [x] Require explicit front and rear filled-rectangle geometry in
+  their own carriage frames. No Ackermann geometry is silently reused.
+- [x] Use separate existing `ackermann::ExactCollisionChecker`
+  instances against the **same immutable map**, occupancy/unknown
+  policy, map-origin transform, boundary checks and metric inflation.
+- [x] Evaluate **both** collision bodies at each full state, including
+  joint-only steering where the front reference remains fixed.
+- [x] Bound the sampled motion of body points using conservative
+  reference-speed, yaw-rate and body-radius bounds; treat insufficient
+  sample budgets as incomplete rather than safe.
+- [x] For every candidate goal route, replay the complete control
+  history from the initial state using **denser RK4 samples**, check
+  both bodies at every sample, verify endpoint continuity and
+  goal tolerances, and set success only after this pass.
+- [ ] Add independently validated nonrectangular attachments, body-to-
+  body self-collision where relevant and mechanically accurate offsets.
+- [ ] Consider continuous swept checks or a certified motion envelope
+  if hard safety claims are needed. Adaptive samples alone do **not**
+  mathematically prove continuous collision freedom.
+
+### Stage D — UI, performance and real-robot readiness — pending
+
+- [ ] Confirm `L_f`, `L_r`, both chassis collision shapes/offsets,
+  joint-angle/rate limits and whether steering at rest is physically
+  achievable. These values remain **unapproved** for deployment.
+- [ ] Run complete Catch2/CTest and regression tests in the real
+  Docker checkout; measure reachable hard maps, cancellation,
+  memory, sampling overhead and failed-final-validation outcomes.
+- [ ] Expose articulated start/goal `gamma`, two footprints and pivot
+  in Planning Lab, only once the backend is proven and input validation
+  is wired through end-to-end.
+- [ ] Develop model-specific refinement, steering-rate continuity,
+  velocity profiling, self-collision checks and controller tracking.
+- [ ] Keep independent real-robot supervisory collision and motion
+  safety checks; successful geometric planning does not imply
+  actuator-feasible trajectories.
+
+## Standalone C++ planning usage
 
 ```cpp
-#include "hybrid_astar/articulated_steering/model.hpp"
+#include "hybrid_astar/articulated_steering/planner.hpp"
 using namespace hybrid_astar::articulated_steering;
 
-// Illustration ONLY: the ROS simulator's 0.5 m lengths plus example
-// angle/rate limits below are not confirmed production dimensions.
-Model model(Parameters{
+Request request;
+request.map = pinnedMap;  // shared_ptr<const ackermann::MapSnapshot>
+request.parameters = {
     .LfMeters = 0.5, .LrMeters = 0.5,
     .minGammaRadians = -1.2, .maxGammaRadians = 1.2,
-    .maxAbsFrontSpeedMetersPerSecond = 2.0,
-    .maxAbsGammaRateRadiansPerSecond = 1.0,
+    .maxAbsFrontSpeedMetersPerSecond = 1.0,
+    .maxAbsGammaRateRadiansPerSecond = 0.8,
     .minDenominatorMeters = 0.1
-});
-State start = model.fromRear(RearState{0.0, 0.0, 0.0, 0.0});
-auto checkpoints = model.trajectory(start,
-    Control{.frontSpeedMetersPerSecond = 0.0,
-            .gammaRateRadiansPerSecond = 0.2},
-    1.0, 0.01);
-auto rearBaseLink = checkpoints.back().rear;
+};
+// EXAMPLES ONLY: replace BOTH bodies and ALL parameters with real geometry.
+request.bodies.front = {-0.3, 0.3, 0.15};
+request.bodies.rear  = {-0.3, 0.3, 0.15};
+request.start = {10.0, 10.0, 0.0, 0.0};
+request.goal  = {12.0, 10.0, 0.0, 0.0};
+
+const Result result = plan(request);
+if (result.status == Status::Success &&
+    result.independentlySampledBodyValidated) {
+    // result.motions have full front/rear state checkpoints.
+    // Still NOT a continuous swept/actuator feasibility certificate.
+}
 ```
 
-This is a **kinematic trajectory with complete front/rear states**,
-not a collision-checked path. In particular, neither this API nor
-`trajectory()` currently performs articulated obstacle checking or
-makes a Hybrid A* planning request.
+The `Request` does **not** default to usable geometry or
+a calibrated robot: caller-supplied model parameters and both
+physical footprints are mandatory. A successful response contains
+independently re-integrated, denser-sampled collision checks, but
+still requires actuator and continuous swept-volume safety validation
+where applicable.
 
-To run the Catch2 test suite on the repository's normal Docker
-development setup, rebuild the test image and execute the new CTest
-registration manually:
+## Manual local verification
 
 ```bash
 docker compose build test
 docker compose --profile test run --rm test \
   ctest --test-dir build-docker --output-on-failure \
-  -R '^articulated_steering_model_test
-
-- Generate bounded, fully evaluable complete-state primitives with
-  stored `(xf,yf,thetaFront,gamma)` samples; preserve joint-velocity and
-  mechanical-limit constraints over each integration interval.
-- Extend model-specific index keys with articulation bins, while
-  testing how single-label pruning affects alternate joint arrivals.
-- Define goal semantics for `gamma` and complete-state path
-  reconstruction. Standard rigid Ackermann RS arcs do not enforce
-  this joint ODE and must not be silently reused as valid connectors.
-- Add finite search budgets, cancellation, provenance, explicit
-  unsupported states and diagnostics analogous to current native
-  three-model behavior.
-
-### Stage C — complete multi-body collision and validation
-
-- Place the front and rear collision shapes from independent
-  `SE(2)` model-frame transforms at each evaluated full state,
-  including map boundaries, occupied/unknown-cell policy and
-  user-selected geometric inflation.
-- Test articulated body sweeps when `v=0`; a front reference point
-  remaining clear/stationary does **not** establish clearance of
-  the moving body.
-- Independently validate the complete reconstructed path at
-  sufficiently dense state samples (or later certified swept
-  checks), preserving the current honest distinction between
-  sampled collision validation and continuous swept guarantees.
-- Retain the original validated-path fallback; only enable
-  articulation-aware refinement after the new model passes this
-  full-state gate.
-
-### Stage D — web UI and smoothing
-
-- Expose an articulated model selector and `gamma` start/goal
-  controls **only when supported by the C++ backend**.
-- Draw both frame-attached collision bodies and pivot at the
-  start/goal and during path replay, using the real transforms.
-  The two-body UI must never reuse the single-rectangle
-  Ackermann footprint as if it were an articulated body.
-- Expand the later smoothing-quality benchmark with joint angle,
-  joint-rate discontinuities, each body's sampled clearance,
-  stop/cusp handling and tracking/velocity feasibility.
-
-## Relation to the active roadmap
-
-This is **P0-B** in [the current implementation roadmap](../TODO.md).
-It comes **after** the smaller P0-A single-body start/goal footprint
-preview and **before** the proposed cross-model smoothing-quality
-benchmark. Prioritizing the model does not imply making it
-available to real robot deployment before collision and control
-assumptions have been verified.
-
-The existing planner default remains the previously supported
-Ackermann model; differential and mecanum planning are unchanged.
-No GitHub Actions or automatic benchmark execution are needed.
-
+  -R 'articulated_steering_.*_test'
 ```
 
-Local GCC 14 validation of the *exact committed model and test source*
-passed with strict warnings and both AddressSanitizer and
-UndefinedBehaviorSanitizer, using a small Catch-compatible test-macro
-harness. A separate local CMake/CTest test invocation also passed;
-the full repository/Catch2 Docker matrix remains unverified.
+The executable tests are
+[`articulated_steering_model_test.cpp`](../../tests/articulated_steering_model_test.cpp)
+and [`articulated_steering_planner_test.cpp`](../../tests/articulated_steering_planner_test.cpp).
+They cover kinematics, search-key gamma/gear separation,
+straight/reverse/joint-only planning, front-only and rear-only
+obstacle collisions, an obstacle struck *between* stationary-turn
+endpoints, cancellation and finite sampling/validation budgets.
 
-### Stage B — model-specific primitives, search and path
+This branch's new search entry point still needs a full local
+Catch2/Docker build; no GitHub Actions were dispatched or modified.
 
-- Generate bounded, fully evaluable complete-state primitives with
-  stored `(xf,yf,thetaFront,gamma)` samples; preserve joint-velocity and
-  mechanical-limit constraints over each integration interval.
-- Extend model-specific index keys with articulation bins, while
-  testing how single-label pruning affects alternate joint arrivals.
-- Define goal semantics for `gamma` and complete-state path
-  reconstruction. Standard rigid Ackermann RS arcs do not enforce
-  this joint ODE and must not be silently reused as valid connectors.
-- Add finite search budgets, cancellation, provenance, explicit
-  unsupported states and diagnostics analogous to current native
-  three-model behavior.
+## Roadmap relationship
 
-### Stage C — complete multi-body collision and validation
-
-- Place the front and rear collision shapes from independent
-  `SE(2)` model-frame transforms at each evaluated full state,
-  including map boundaries, occupied/unknown-cell policy and
-  user-selected geometric inflation.
-- Test articulated body sweeps when `v=0`; a front reference point
-  remaining clear/stationary does **not** establish clearance of
-  the moving body.
-- Independently validate the complete reconstructed path at
-  sufficiently dense state samples (or later certified swept
-  checks), preserving the current honest distinction between
-  sampled collision validation and continuous swept guarantees.
-- Retain the original validated-path fallback; only enable
-  articulation-aware refinement after the new model passes this
-  full-state gate.
-
-### Stage D — web UI and smoothing
-
-- Expose an articulated model selector and `gamma` start/goal
-  controls **only when supported by the C++ backend**.
-- Draw both frame-attached collision bodies and pivot at the
-  start/goal and during path replay, using the real transforms.
-  The two-body UI must never reuse the single-rectangle
-  Ackermann footprint as if it were an articulated body.
-- Expand the later smoothing-quality benchmark with joint angle,
-  joint-rate discontinuities, each body's sampled clearance,
-  stop/cusp handling and tracking/velocity feasibility.
-
-## Relation to the active roadmap
-
-This is **P0-B** in [the current implementation roadmap](../TODO.md).
-It comes **after** the smaller P0-A single-body start/goal footprint
-preview and **before** the proposed cross-model smoothing-quality
-benchmark. Prioritizing the model does not imply making it
-available to real robot deployment before collision and control
-assumptions have been verified.
-
-The existing planner default remains the previously supported
-Ackermann model; differential and mecanum planning are unchanged.
-No GitHub Actions or automatic benchmark execution are needed.
+Stage A and experimental Stages B/C have code and regression tests;
+Stage D and physical-robot geometry approval remain blocking.
+See [P0-B in the active implementation roadmap](../TODO.md) and
+the [owner-review conventions](articulated_steering_kinematic_model_review.md).
