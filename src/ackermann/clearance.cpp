@@ -66,6 +66,83 @@ ClearanceScorer::ClearanceScorer(const MapSnapshot& m,OccupancyPolicy p,Footprin
         std::chrono::steady_clock::now()-start).count();
   }
 }
+void ClearanceScorer::buildDistanceTransform() {
+  const std::size_t width=map_.width,height=map_.height;
+  const double inf=std::numeric_limits<double>::infinity();
+  const std::size_t longest=std::max(width,height);
+  // A completely free map has infinite obstacle distance everywhere; only
+  // the finite map boundary can produce a nonzero proximity penalty.
+  bool hasObstacles=false;
+  for(const auto cell:map_.cells) {
+    if(isBlocked(cell,occupancy_)) {hasObstacles=true;break;}
+  }
+  if(!hasObstacles)return;
+  std::vector<double> temporary(width*height);
+  std::vector<double> seed(longest,inf),transformed(longest,inf);
+  std::vector<std::size_t> sites(longest);
+  std::vector<double> intersections(longest+1);
+  for(std::size_t x=0;x<width;++x) {
+    for(std::size_t y=0;y<height;++y)
+      seed[y]=isBlocked(map_.cells[y*width+x],occupancy_)?0.0:inf;
+    edt1d(seed,height,transformed,sites,intersections);
+    for(std::size_t y=0;y<height;++y)
+      temporary[y*width+x]=transformed[y];
+  }
+  blockedCenterDistanceSquared_.resize(width*height);
+  for(std::size_t y=0;y<height;++y) {
+    for(std::size_t x=0;x<width;++x)seed[x]=temporary[y*width+x];
+    edt1d(seed,width,transformed,sites,intersections);
+    for(std::size_t x=0;x<width;++x)
+      blockedCenterDistanceSquared_[y*width+x]=transformed[x];
+  }
+}
+bool ClearanceScorer::edtProvesZeroCost(const Pose2D& pose) const {
+  // Convert the pose reference point to the same map-local coordinates as
+  // the exact polygon scorer. Never approximate exact collision decisions.
+  const double cs=std::cos(map_.origin.yaw),sn=std::sin(map_.origin.yaw);
+  const double dx=pose.x-map_.origin.x,dy=pose.y-map_.origin.y;
+  const double x0=cs*dx+sn*dy,y0=-sn*dx+cs*dy;
+  const double r=map_.resolutionMeters;
+  const double boundX=static_cast<double>(map_.width)*r;
+  const double boundY=static_cast<double>(map_.height)*r;
+  if(!std::isfinite(x0)||!std::isfinite(y0)||
+     x0<0||y0<0||x0>=boundX||y0>=boundY)return false;
+  const auto ix=static_cast<std::size_t>(std::floor(x0/r));
+  const auto iy=static_cast<std::size_t>(std::floor(y0/r));
+  if(ix>=map_.width||iy>=map_.height)return false;
+  // Any point of the rotated body is <= bodyRadius_ from the reference pose.
+  // Every blocked square lies within r/sqrt(2) of its center. The nearest
+  // blocked-cell-center EDT, minus these radii and the query offset, is a
+  // conservative LOWER bound on the true inflated-footprint clearance.
+  const double offset=std::hypot(x0-(static_cast<double>(ix)+0.5)*r,
+                                  y0-(static_cast<double>(iy)+0.5)*r);
+  const double centerDist=blockedCenterDistanceSquared_.empty()?
+      std::numeric_limits<double>::infinity():
+      std::sqrt(blockedCenterDistanceSquared_[iy*map_.width+ix])*r;
+  const double obstacleLower=centerDist-offset-
+      r*std::numbers::sqrt2_v<double>*0.5-bodyRadius_-inflationMeters_;
+  const double boundaryLower=std::min({x0,y0,boundX-x0,boundY-y0})-
+                             bodyRadius_-inflationMeters_;
+  // The guard also handles floating-point rounding of EDT roots, frame
+  // rotation, and the conservative disk-minus-square geometry bound.
+  const double guard=64*std::numeric_limits<double>::epsilon()*
+      (1.0+std::abs(pose.x)+std::abs(pose.y)+
+       std::abs(map_.origin.x)+std::abs(map_.origin.y)+
+       boundX+boundY+bodyRadius_+inflationMeters_+influence_);
+  return std::min(obstacleLower,boundaryLower)-guard>=influence_;
+}
+double ClearanceScorer::poseClearanceMeters(const Pose2D& pose,
+                                            PlanDiagnostics* diagnostics) const {
+  if(!std::isfinite(pose.x)||!std::isfinite(pose.y)||!std::isfinite(pose.yaw))
+    throw std::invalid_argument("Nonfinite clearance pose");
+  if(diagnostics)++diagnostics->clearanceDistanceQueries;
+  if(useDistanceTransform_ && edtProvesZeroCost(pose)) {
+    if(diagnostics)++diagnostics->clearanceEdtZeroCostBypasses;
+    return influence_;
+  }
+  if(diagnostics)++diagnostics->clearanceExactFallbacks;
+  return exactPoseClearanceMeters(pose);
+}
 double ClearanceScorer::exactPoseClearanceMeters(const Pose2D& pose) const {
   if(!std::isfinite(pose.x)||!std::isfinite(pose.y)||!std::isfinite(pose.yaw))
     throw std::invalid_argument("Nonfinite clearance pose");
