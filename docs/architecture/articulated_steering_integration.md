@@ -101,39 +101,39 @@ either body stays motionless.
 
 For `v=0`, the authoritative ODE gives
 
-\[
+$$
 \dot\Theta_f=\frac{L_r}{D(\gamma)}u_\gamma,\qquad
 \dot\Theta_r=-\frac{L_f\cos\gamma}{D(\gamma)}u_\gamma,\qquad
 D(\gamma)=L_f\cos\gamma+L_r.
-\]
+$$
 
 These add up to the required
-\(\dot\Theta_f-\dot\Theta_r=u_\gamma=\dot\gamma\).
-For `L_f=L_r` and \(\gamma=0\), the front and rear initially
+$\dot\Theta_f-\dot\Theta_r=u_\gamma=\dot\gamma$.
+For `L_f=L_r` and $\gamma=0$, the front and rear initially
 turn by **equal and opposite half angles**:
-\(\dot\Theta_f=\frac12u_\gamma\),
-\(\dot\Theta_r=-\frac12u_\gamma\).
+$\dot\Theta_f=\frac12u_\gamma$,
+$\dot\Theta_r=-\frac12u_\gamma$.
 
 **Recommended design:** Use the equal split as a convenient initial
 intuition or small-angle approximation; **generate planner motion
 samples with the exact angle-dependent ODE**. At finite articulation
 the split is not constant. For the simulator's `L_f=L_r=0.5m`,
-the front/rear shares of \(\dot\gamma\) are 50%/−50% at
+the front/rear shares of $\dot\gamma$ are 50%/−50% at
 0°, about 53.6%/−46.4% at 30°, and 66.7%/−33.3%
 at 60°. A globally fixed 50/50 split would violate the
 author-supplied no-slip kinematics for finite joint angles.
 
 To distinguish *orientation* from *physical rotation of the bodies*,
-define the mean heading \(\psi=(\Theta_f+\Theta_r)/2\). Then
-\(\Theta_f=\psi+\gamma/2\) and
-\(\Theta_r=\psi-\gamma/2\) are **exact identities** for consistent
+define the mean heading $\psi=(\Theta_f+\Theta_r)/2$. Then
+$\Theta_f=\psi+\gamma/2$ and
+$\Theta_r=\psi-\gamma/2$ are **exact identities** for consistent
 states, but at `v=0` the mean heading itself generally evolves:
 
-\[
+$$
 \dot\psi=\frac{L_r-L_f\cos\gamma}{2D(\gamma)}u_\gamma.
-\]
+$$
 
-Holding \(\psi\) constant while commanding a large joint change
+Holding $\psi$ constant while commanding a large joint change
 would be a **different motion model**. It would require new
 physical control semantics and validation of front/rear axle
 translations rather than silently replacing the existing ODE.
@@ -141,7 +141,7 @@ translations rather than silently replacing the existing ODE.
 **Regression requirement:** For both positive and negative
 `u_gamma` (and after reverse traversal where relevant), the
 four-state integrator must reproduce the five-state ODE,
-preserve \(\Theta_f-\Theta_r-\gamma\) after angle wrap,
+preserve $\Theta_f-\Theta_r-\gamma$ after angle wrap,
 reconstruct the rear-base position, and collision-check **both
 carriages at every sampled articulation state**, including when
 `v=0`. Reject invalid joint ranges or near-zero `D`;
