@@ -257,8 +257,8 @@ reference or deploying a fourth planner model.
   joint-angle/rate/speed bounds, and the initial
   $\Theta_f-\Theta_r-\gamma$ invariant.
 - At $v\ne0$, the spatial turning relationship is
-  $d\Theta_f/ds=\sin\gamma/D+
-  L_r(u_\gamma/v)/D$ for **signed front-point travel**
+  $d\Theta_f/ds=\sin\gamma/D+L_r(u_\gamma/v)/D$
+  for **signed front-point travel**
   $ds/dt=v$. Never divide by $v$ when modeling
   articulation-only motion or passing through zero speed.
 - An articulated primitive must retain or reconstruct **both body
