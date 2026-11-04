@@ -378,6 +378,10 @@ if(HYBRID_ASTAR_BUILD_APP)
     add_executable(hybrid_astar_demo_test tests/demo_test.cpp)
     target_link_libraries(hybrid_astar_demo_test PRIVATE hybrid_astar_demo_logic)
     add_test(NAME demo_test COMMAND hybrid_astar_demo_test)
+    add_executable(hybrid_astar_demo_articulated_test tests/demo_articulated_test.cpp)
+    target_link_libraries(hybrid_astar_demo_articulated_test PRIVATE
+      hybrid_astar_demo_logic Catch2::Catch2WithMain)
+    add_test(NAME demo_articulated_test COMMAND hybrid_astar_demo_articulated_test)
     add_executable(hybrid_astar_demo_map_io_test tests/demo_map_io_test.cpp)
     target_link_libraries(hybrid_astar_demo_map_io_test PRIVATE hybrid_astar_demo_logic Catch2::Catch2WithMain)
     add_test(NAME demo_map_io_test COMMAND hybrid_astar_demo_map_io_test)
@@ -397,6 +401,8 @@ if(HYBRID_ASTAR_BUILD_APP)
         ${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/web/map_editor.test.js)
       add_test(NAME demo_map_geometry_test COMMAND ${HYBRID_ASTAR_NODE_EXE}
         ${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/web/map_geometry.test.js)
+      add_test(NAME demo_articulated_ui_test COMMAND ${HYBRID_ASTAR_NODE_EXE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/demo_articulated_ui_test.js)
     endif()
     add_test(NAME demo_cli_open COMMAND hybrid_astar_demo --once --scenario open)
     add_test(NAME demo_cli_certified COMMAND hybrid_astar_demo
