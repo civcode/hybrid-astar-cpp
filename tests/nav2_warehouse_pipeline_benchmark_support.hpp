@@ -445,6 +445,10 @@ inline bool equivalentMeasurements(const Measurement& old,const Measurement& fas
 inline const char* statusName(PlanStatus status) {
   switch(status) {
     case PlanStatus::Success:return "Success";
+    case PlanStatus::InvalidRequest:return "InvalidRequest";
+    case PlanStatus::InvalidMap:return "InvalidMap";
+    case PlanStatus::RejectedUnknownMap:return "RejectedUnknownMap";
+    case PlanStatus::InternalError:return "InternalError";
     case PlanStatus::StartInCollision:return "StartInCollision";
     case PlanStatus::BudgetExceeded:return "BudgetExceeded";
     case PlanStatus::Cancelled:return "Cancelled";
