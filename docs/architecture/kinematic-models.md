@@ -125,7 +125,7 @@ ArticulatedState derivative(
 }
 ```
 
-A physical frame diagram and explicit kinematic sign conventions are required before accepting it as a production-ready robot model.
+A physical frame diagram and explicit kinematic sign conventions are required before accepting it as a production-ready robot model. **The current implementation gate, requested geometry/control confirmations and staged search + multi-body collision work are documented in [articulated-steering integration](articulated_steering_integration.md).** The ODE exists in the specification; a fourth production planner model is not yet implemented.
 
 ### General articulated extension
 
