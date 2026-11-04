@@ -130,3 +130,19 @@ TEST_CASE("Rear-reference instantaneous speed has no lateral component", "[artic
   REQUIRE(near(dy,vr*std::sin(initial.thetaRear),1e-5));
   REQUIRE(near(-dx*std::sin(initial.thetaRear)+dy*std::cos(initial.thetaRear),0,1e-5));
 }
+
+TEST_CASE("RK4 steering to an exact joint limit tolerates floating-point roundoff",
+          "[articulated][rk4][limits]") {
+  Model m(example());
+  for(const double sign:{-1.0,1.0}) {
+    const auto initial=m.fromRear({0,0,0,sign});
+    const auto states=m.trajectory(initial,{0,sign*.4},.5,.025);
+    REQUIRE(states.size()>2);
+    REQUIRE(std::abs(states.back().state.gamma-sign*1.2)<1e-12);
+    REQUIRE(m.validState(states.back().state));
+    const auto rear=m.toRear(states.back().state);
+    REQUIRE(std::isfinite(rear.xr));
+    REQUIRE(std::isfinite(rear.yr));
+  }
+  REQUIRE_FALSE(m.validState({0,0,1.20001,0,1.20001}));
+}
