@@ -1053,6 +1053,7 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
               ++result.diagnostics.terminalCandidates;
               bool valid=true;
               double cost=current.g;
+              double terminalClearance=current.clearanceCost;
               Pose2D endpoint=current.pose;
               for(const auto& section:tail) {
                 if(!finite(section.start)||!finite(section.end)||
@@ -1072,7 +1073,22 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
                   result.status=PlanStatus::ValidationIncomplete;return result;
                 }
                 if(status!=MotionStatus::Clear) {valid=false;break;}
-                endpoint=section.end;cost+=delta;
+                double extra=0.0;
+                if(clearance) {
+                  try {
+                    extra=clearance->sectionCost(section,opt.searchSampleSpacingMeters,
+                        opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
+                        result.diagnostics.clearanceSamples,&result.diagnostics);
+                  } catch(const std::invalid_argument&) {
+                    result.status=PlanStatus::ValidationIncomplete;return result;
+                  }
+                }
+                if(!std::isfinite(cost+delta+extra)) {
+                  result.status=PlanStatus::InternalError;return result;
+                }
+                endpoint=section.end;
+                cost+=delta+extra;
+                terminalClearance+=extra;
               }
               if(!valid||goalErrorXY(endpoint,r.goal)>opt.goalXYToleranceMeters+1e-9||
                  goalErrorYaw(endpoint,r.goal)>opt.goalYawToleranceRadians+1e-9) {
@@ -1119,7 +1135,7 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
               if(valid&&goalErrorXY(continuousEnd,r.goal)<=opt.goalXYToleranceMeters+1e-9&&
                  goalErrorYaw(continuousEnd,r.goal)<=opt.goalYawToleranceRadians+1e-9) {
                 ++result.diagnostics.terminalValidated;
-                saveCandidate(candidate,continuousEnd,current.gear,cost,current.clearanceCost);
+                saveCandidate(candidate,continuousEnd,current.gear,cost,terminalClearance);
                 if(opt.solutionPolicy==SolutionPolicy::FirstStrictlyValidated)
                   return finishIncumbent(TerminationReason::FirstValidated);
               } else {
