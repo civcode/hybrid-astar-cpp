@@ -842,9 +842,15 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
            *r.map,r.occupancy,model.footprint(),discCount,
            r.options.footprintInflationMeters);
     std::unique_ptr<ClearanceScorer> clearance;
-    if(r.options.clearanceWeight>0)
+    if(r.options.clearanceWeight>0) {
       clearance=std::make_unique<ClearanceScorer>(*r.map,r.occupancy,model.footprint(),
-                 r.options.clearanceWeight,r.options.clearanceInfluenceRadiusMeters);
+                 r.options.clearanceWeight,r.options.clearanceInfluenceRadiusMeters,
+                 r.options.useClearanceDistanceTransform,
+                 r.options.footprintInflationMeters);
+      result.diagnostics.clearanceEdtBuildMilliseconds=
+          clearance->distanceTransformBuildMilliseconds();
+      result.diagnostics.clearanceEdtBytes=clearance->distanceTransformBytes();
+    }
     result.diagnostics.collectCollisionWork=r.options.collectCollisionWork;
     const auto checkedPose=[&](const Pose2D& pose) {
       ++result.diagnostics.exactCollisionPoseCalls;
@@ -1230,7 +1236,7 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
             if(clearance) {
               try {extra=clearance->sectionCost(normalized,opt.searchSampleSpacingMeters,
                     opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
-                    result.diagnostics.clearanceSamples);}
+                    result.diagnostics.clearanceSamples,&result.diagnostics);}
               catch(const std::invalid_argument&) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
             result.status=PlanStatus::ValidationIncomplete;return result;}
             }
@@ -1329,7 +1335,7 @@ PlanResult planImpl(const PlanRequest& r,const Policy& model) {
           if (clearance) {
             try {extra=clearance->sectionCost(sec,opt.searchSampleSpacingMeters,
                       opt.searchMaxBodyPointMotionMeters,opt.maxSamplesPerSection,
-                      result.diagnostics.clearanceSamples);}
+                      result.diagnostics.clearanceSamples,&result.diagnostics);}
             catch(const std::invalid_argument&) {if(hasIncumbent) return finishIncumbent(TerminationReason::ValidationBudgetExhausted);
             result.status=PlanStatus::ValidationIncomplete;return result;}
           }
