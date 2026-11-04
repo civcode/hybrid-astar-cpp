@@ -6,10 +6,17 @@
 
 namespace hybrid_astar::ackermann {
 
-// The tier sequence is 0, 65536, 131072, 262144, 524288, ...
+// Tier series v2 has four capacity steps per doubling:
+// 0, 65536, 81920, 98304, 114688, 131072, ...,
+// 524288, 655360, 786432, 917504, 1048576, ...
+// v1 was 0, 65536, 131072, 262144, 524288, 1048576, ...
 // A zero reserve is the original growing-table behavior, NOT a
-// no-rehash certificate for a nonempty search.
-std::size_t labelReserveForTier(std::size_t tierIndex);
+// no-rehash certificate for a nonempty search. Persist BOTH version and
+// tier index; historical v1 indices must be decoded with seriesVersion=1.
+inline constexpr std::uint32_t LabelReserveTierSeriesVersion = 2;
+std::size_t labelReserveForTier(
+    std::size_t tierIndex,
+    std::uint32_t seriesVersion = LabelReserveTierSeriesVersion);
 
 // Returns the smallest nonzero tier able to hold observedPeakLabels with
 // headroom, or throws if that tier exceeds the planner's maxGeneratedNodes.
@@ -56,6 +63,7 @@ struct LabelReserveCalibrationResult {
   std::size_t requestedRoutes = 0, evaluatedRoutes = 0, successfulRoutes = 0;
   std::size_t budgetLimitedRoutes = 0;
   std::size_t maxObservedPeakLabels = 0;
+  std::uint32_t tierSeriesVersion = LabelReserveTierSeriesVersion;
   std::size_t recommendedTierIndex = 0;
   std::size_t recommendedReserveLabels = 0;
   bool sampleTargetMet = false;
