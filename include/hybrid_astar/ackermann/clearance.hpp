@@ -1,6 +1,7 @@
 #pragma once
 #include "hybrid_astar/ackermann/planner.hpp"
 #include <cstddef>
+#include <vector>
 namespace hybrid_astar::ackermann {
 // Optional exact-oriented-footprint-to-blocked-square clearance scorer.
 // A quality objective only: not a collision validator or swept certificate.
