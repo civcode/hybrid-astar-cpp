@@ -330,6 +330,10 @@ $('playButton').addEventListener('click',()=>{
 });
 $('position').addEventListener('input',()=>{$('travel').textContent=(Number($('position').value)/10).toFixed(0)+'%';draw();});
 $('showOriginal').addEventListener('change',draw);
+// Numeric start/goal edits must update the footprint preview immediately,
+// before the next explicit Plan click. The previous path is now stale.
+for(const key of ['startx','starty','startyaw','goalx','goaly','goalyaw'])
+  $(key).addEventListener('input',invalidateRoute);
 $('scenario').addEventListener('change',()=>{if(pending)pending.abort();resetEditor();resetScenario();replan();});
 $('planButton').addEventListener('click',replan);
 $('exportButton').addEventListener('click',()=>{
