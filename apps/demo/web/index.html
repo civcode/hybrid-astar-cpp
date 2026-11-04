@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Hybrid A* · Planning Lab</title><link rel="stylesheet" href="/style.css"/></head>
 <body><main class="shell">
-<header class="top"><div><div class="eyebrow">C++20 / ACKERMANN + DIFFERENTIAL + MECANUM / STATIC MAP</div>
+<header class="top"><div><div class="eyebrow">C++20 / ACKERMANN + DIFFERENTIAL + MECANUM + ARTICULATED / STATIC MAP</div>
 <h1>Planning <span>Lab</span></h1><p class="subtitle">Explore validated Hybrid A* paths and exact motion arcs.</p></div>
 <div class="status-chip" id="connection">LOCAL DEMO</div></header>
 <div class="layout"><aside class="panel controls">
@@ -10,7 +10,8 @@
 <label class="label" for="model">Kinematic model</label>
 <select id="model"><option value="ackermann">Ackermann steering</option>
 <option value="differential">Differential drive (in-place rotation)</option>
-<option value="mecanum">Mecanum (sideways + rotation)</option></select>
+<option value="mecanum">Mecanum (sideways + rotation)</option>
+<option value="articulated">Articulated steering (two carriages · experimental)</option></select>
 <label class="label" for="scenario">Environment</label><select id="scenario">
 <option value="open">Open field</option><option value="reverse">Reverse maneuver</option>
 <option value="parking">Parking approach</option><option value="warehouse">Warehouse obstacles</option>
@@ -23,6 +24,32 @@
 <div class="coords"><label>X (m)<input id="startx" type="number" step="0.25"/></label><label>Y (m)<input id="starty" type="number" step="0.25"/></label><label>Yaw (°)<input id="startyaw" type="number" step="5"/></label></div>
 <div class="section-label">GOAL POSE <small>Shift-click map to place</small></div>
 <div class="coords"><label>X (m)<input id="goalx" type="number" step="0.25"/></label><label>Y (m)<input id="goaly" type="number" step="0.25"/></label><label>Yaw (°)<input id="goalyaw" type="number" step="5"/></label></div>
+<div id="articulatedControls" hidden>
+<div class="divider"></div><div class="section-label">ARTICULATED STEERING <small>Experimental</small></div>
+<div class="hint">Start and goal coordinates are the <strong>rear carriage base_link</strong> pose. The joint angle γ = front heading − rear heading. All dimensions are editable example values, <strong>not a calibrated real robot</strong>.</div>
+<div class="coords coords-two">
+<label>Start γ (°)<input id="artStartGamma" type="number" min="-68" max="68" step="5" value="0"/></label>
+<label>Goal γ (°)<input id="artGoalGamma" type="number" min="-68" max="68" step="5" value="0"/></label>
+</div>
+<div class="section-label">LINK DISTANCES</div>
+<div class="coords coords-two">
+<label>L<sub>f</sub>: front ↔ hinge (m)<input id="artLf" type="number" min="0.01" max="20" step="0.05" value="0.50"/></label>
+<label>L<sub>r</sub>: hinge ↔ rear (m)<input id="artLr" type="number" min="0.01" max="20" step="0.05" value="0.50"/></label>
+</div>
+<div class="section-label">FRONT CARRIAGE FOOTPRINT <small>Local X / half-width</small></div>
+<div class="coords">
+<label>Rear X (m)<input id="artFrontRearX" type="number" step="0.05" value="-0.30"/></label>
+<label>Front X (m)<input id="artFrontFrontX" type="number" step="0.05" value="0.30"/></label>
+<label>Half-width (m)<input id="artFrontHalfWidth" type="number" min="0.01" step="0.05" value="0.15"/></label>
+</div>
+<div class="section-label">REAR CARRIAGE FOOTPRINT <small>Local X / half-width</small></div>
+<div class="coords">
+<label>Rear X (m)<input id="artRearRearX" type="number" step="0.05" value="-0.30"/></label>
+<label>Front X (m)<input id="artRearFrontX" type="number" step="0.05" value="0.30"/></label>
+<label>Half-width (m)<input id="artRearHalfWidth" type="number" min="0.01" step="0.05" value="0.15"/></label>
+</div>
+<div class="hint">Demo kinematic limits: |γ| ≤ 1.2 rad (68.75°), |front speed| ≤ 1 m/s, |joint rate| ≤ 0.8 rad/s. Planner checks both rectangular bodies at intermediate states. No self-collision, certified continuous swept volume, or actuator-feasibility claim.</div>
+</div>
 <div class="divider"></div><div class="section-label">MAP EDITING <small>Drag to paint cells</small></div>
 <label class="label" for="editMode">Map interaction</label>
 <select id="editMode">
