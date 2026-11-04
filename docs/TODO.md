@@ -44,13 +44,19 @@ implemented; regression review pending):
   pre-plan loading, stale routes and failed searches. Do not require
   planning success for either footprint to appear.
 
-**P0-B — Articulated-steering model** (**Stage A mathematical
-kinematics and in-house RK4 implemented; articulated planning pending**).
+**P0-B — Articulated-steering model** (**Stage A kinematics and
+RK4 implemented; experimental Stage B four-DOF search and Stage C
+two-body sampled collision implemented**).
 The standalone [model and conventions review](architecture/articulated_steering_kinematic_model_review.md)
-remains the physical-robot sign-off source. **Kinematic library code
-is now implemented and locally validated**, but physical frame origins,
-limits, articulated search and two-body collision checking are still
-unapproved/unimplemented. Follow [the staged integration plan](architecture/articulated_steering_integration.md):
+remains the **physical-robot sign-off** source. A new independent
+[`articulated_steering::plan`](../include/hybrid_astar/articulated_steering/planner.hpp)
+entry point now handles `(xr,yr,Theta_r,gamma)` labels, RK4
+controls, and separately checked carriage footprints. It has NOT
+replaced the rigid planner's API or been compiled in the full
+repository Docker/Catch2 matrix this turn. Production axle/body
+dimensions, control limits, self-collision/continuous swept checks,
+and actuator validation remain open. See
+[the integration plan](architecture/articulated_steering_integration.md):
 
 - [x] Confirm the supplied five-variable state
   `(xf,yf,Theta_f,Theta_r,gamma)` in
@@ -100,17 +106,26 @@ unapproved/unimplemented. Follow [the staged integration plan](architecture/arti
   Local GCC 14 sanitizer smoke and a test-macro harness passed;
   full-repository Catch2/CTest execution on a complete checkout
   remains to be verified. Search indexing is **not** yet extended.
-- [ ] Integrate the **full physical configuration** with model-specific
-  primitive generation, `gamma`-aware search indexing/goal acceptance, exact
-  interpolation and full-state path reconstruction. Never shoehorn
-  articulation into the existing three-state Ackermann/differential
-  `Pose2D` keys or use standard RS connectors without proof.
-- [ ] Attach independently defined front/rear collision bodies
-  to the model's confirmed `SE(2)` transforms; validate both at
-  **every sampled configuration**, including articulation motion
-  when the **front reference point** does not move. Verify swept-motion
-  assumptions, map boundaries, unknown occupancy, inflation,
-  start/goal and strict final checks before accepting route success.
+- [x] Add a **separate articulated four-state search kernel**
+  with `gamma` and incoming gear in the label key, eight bounded
+  RK4 motion primitives (including zero-speed joint steering),
+  complete five-variable path reconstruction and gamma-aware goal
+  acceptance. Preserve rigid three-state planners unchanged; rigid
+  Reeds-Shepp connectors are NOT silently used for articulated motion.
+- [ ] Benchmark and tune articulated search key sizes,
+  primitive families and independent geometry/goal tolerances on
+  representative maps. Full Catch2/Docker execution remains open.
+- [x] Require **two explicitly configured carriage
+  rectangles**, each checked independently by the existing exact
+  occupancy-map collision checker with shared unknown/map-boundary
+  policy and metric inflation. Body-point motion bounds determine
+  search sample density; accepted paths are re-integrated and
+  rechecked at independent finer resolution, including `v=0`
+  articulation that moves the rear carriage.
+- [ ] Validate physical front/rear body origins, joint/overhang
+  geometry and self-collision against the actual robot; evaluate
+  continuous swept-volume certification if needed. The new
+  validator is still sampled, not a physical safety certificate.
 - [ ] Expose only genuinely supported articulated UI/CLI controls
   (pose, `gamma`, speed/joint limits and body overlays) after
   state/collision integration, then test deterministic maps,
@@ -119,9 +134,11 @@ unapproved/unimplemented. Follow [the staged integration plan](architecture/arti
   until the full path pipeline is validated.
 
 **Acceptance gate to start smoothing-quality benchmarking:**
-P0-A is visually and functionally verified, and P0-B has a
-physics-consistent, independently checked planning path (not merely
-a derivative function). Define smoothing metrics that apply to
+P0-A still needs browser-level visual verification. P0-B now has an
+experimental 4-DOF search and independently sampled two-carriage
+collision check, but remains gated on owner-confirmed physical
+geometry/limits, full local C++ test execution and representative
+articulated planning evidence before cross-model smoothing benchmarks. Define smoothing metrics that apply to
 each supported robot: Ackermann curvature/steering rate, differential
 wheel-rate continuity, mecanum body twist, and articulated `gamma`,
 `u_gamma`, front/rear body clearance and joint-limit compliance.
