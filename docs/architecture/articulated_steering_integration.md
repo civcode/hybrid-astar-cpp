@@ -1,75 +1,78 @@
 # Articulated-steering integration gate and implementation plan
 
-**Status (2026-11-04): mathematical model previously supplied; incomplete
-physical geometry and actuation conventions require confirmation before
-production planner integration. This is a plan, not a supported fourth
-planner model.** The authoritative existing equation is also documented
-in [kinematic models](kinematic-models.md); open assumptions are tracked
-as [OQ-022](open-questions.md).
+**Status (2026-11-04): the author has supplied an explicit
+FIVE-variable front/rear chassis ODE.** The documented earlier four-state
+ODE was mathematically equivalent but **misidentified the front reference
+pose as a rear reference pose**. This correction is captured in the
+[canonical articulated kinematic specification](kinematic-models.md).
+Physical axle/joint locations, collision-body geometry and operating
+limits still need author confirmation before fourth-model integration.
 
-## Existing four-state model
+This is a design/integration plan, **not a claim that articulated
+search, full-body collision, or smoothing is implemented**.
 
-The project author previously supplied the rear-chassis equation
+## Canonical author-supplied five-variable model
 
 ```text
-q = (x, y, Theta, gamma)
-u = (v, u_gamma)
-D(gamma) = l1*cos(gamma) + l2
+q = (xf, yf, Theta_f, Theta_r, gamma)
+u = (v, u_gamma) where u_gamma = dgamma/dt
+D(gamma) = L1*cos(gamma) + L2
 
-dx/dt      = v*cos(Theta)
-dy/dt      = v*sin(Theta)
-dTheta/dt  = (v*sin(gamma) + l2*u_gamma) / D(gamma)
-dgamma/dt  = u_gamma
+dxf/dt      = v*cos(Theta_f)
+dyf/dt      = v*sin(Theta_f)
+dTheta_f/dt = (v*sin(gamma) + L2*u_gamma)/D(gamma)
+dTheta_r/dt = (v*sin(gamma) - L1*cos(gamma)*u_gamma)/D(gamma)
+dgamma/dt   = u_gamma
 ```
 
-**Confirmed from earlier author correspondence:** `(x,y,Theta)` is
-the pose of a reference point on the **rear chassis**. The specific
-location on that chassis remains unknown. `v` and `u_gamma`
-are the current documentation's **assumed** longitudinal rear
-reference-point speed and articulation angular rate. Neither the
-meaning of `l1`/`l2` nor the sign of `gamma` can be confidently
-inferred from the ODE alone.
+The heading derivatives imply
+`d(Theta_f - Theta_r - gamma)/dt = 0`. **If the chassis
+are aligned when `gamma=0` and start consistently**, then
+`Theta_r = wrap(Theta_f-gamma)`; hence the system has **four
+independent configuration variables**. The old four-state ODE is
+the resulting reduced system for `(xf,yf,Theta_f,gamma)` and
+`v` is the signed velocity of the **front reference point**.
+The previously written "rear reference stationary at `v=0`"
+assertion is **incorrect**. At zero speed the front reference
+stays fixed, while both chassis can rotate with articulation.
 
-A model with this ODE can change the rear heading while the rear
-reference point is stationary: for `v=0` and `u_gamma!=0`,
-`dTheta/dt=l2*u_gamma/D`. This is a **coupled articulation motion**,
-not an independently controlled differential-drive spin.
+A natural **provisional** two-axle no-slip frame construction is
+`H = F - L1*heading(Theta_f)` and
+`R = H - L2*heading(Theta_r)`, where `F=(xf,yf)` might be
+the front axle midpoint, `H` the hinge and `R` the rear
+axle midpoint. Those choices reproduce both author-supplied
+heading equations, but **do not yet establish the physical frame
+offsets of the actual robot**.
 
-## Required physical confirmation (OQ-022)
+## Remaining physical confirmation (OQ-022)
 
-Please supply or confirm the following as a labeled top-view diagram
-plus numbers/limits, or corrected equations:
+1. Does `(xf,yf)` represent the **front axle midpoint**,
+   and are `L1` and `L2` respectively front-axle-to-joint
+   and joint-to-rear-axle distances? If not, provide the
+   actual origin locations and signed distances.
+2. Is `gamma = wrap(Theta_f - Theta_r)` with **zero at aligned
+   chassis**, and are positive headings counterclockwise in the
+   world frame? Provide the mechanical joint sign and stop angles.
+3. Confirm the front and rear body dimensions and offsets
+   relative to `F` and `R`, and any wheel, cab, load or articulation
+   geometry extending beyond those references. These are essential
+   for two-body collision checking, not defined by the ODE.
+4. Does input `v` correspond to **signed front-axle longitudinal
+   velocity**, and is `u_gamma` directly the commanded articulation
+   angular rate? Supply admissible speed/joint-rate limits, including
+   allowed articulation-at-zero-speed behavior.
+5. Are start `gamma` and goal `gamma` constrained or measured?
+   A five-variable input must satisfy the heading-angle
+   invariant; invalid inputs need explicit rejection.
 
-1. **Rear reference origin:** rear axle midpoint, center of rear body,
-   hinge/joint, or another explicitly located point? Which way is
-   positive `Theta`?
-2. **Front and rear frames:** joint position relative to the rear
-   reference, front body reference/axle position relative to the joint,
-   each rigid collision body's length, width and offset.
-3. **Articulation definition:** whether `gamma = heading_front -
-   heading_rear` or the reverse, its positive rotation direction
-   and the zero-angle chassis alignment.
-4. **Physical lengths:** precise geometric meaning and measurement
-   directions of `l1` and `l2`, their allowed ranges, and the
-   singularity-free joint range satisfying
-   `abs(l1*cos(gamma)+l2) > epsilon`.
-5. **Inputs and limits:** whether `v` is rear axle speed or another
-   reference speed; whether `u_gamma` is commanded joint rate;
-   maximum forward/reverse speeds, joint angle/rate limits and any
-   steering/drive constraints or forbidden combinations.
-6. **Start and goal state:** whether the initial `gamma` is sensed
-   and compulsory, whether the desired final articulation is free,
-   restricted or an exact joint-angle goal, and any permitted
-   stationary articulation operation.
-
-Once confirmed, record a small forward/reverse/joint-only ground-truth
-motion fixture before enabling the model in the public planning UI.
+Once confirmed, capture the frame diagram and numerical
+forward/reverse/joint-only motion test fixtures.
 
 ## Implementation stages and acceptance checks
 
 ### Stage A — validated model, no planner integration yet
 
-- Define explicit `ArticulatedState{x,y,theta,gamma}`,
+- Define explicit `ArticulatedState{xf,yf,thetaFront,gamma}`,
   `ArticulatedControl{v,gammaRate}` and robot parameters with SI
   units. Keep them separate from `ackermann::Pose2D`.
 - Implement the time-domain derivative with finite-value tests,
@@ -84,7 +87,7 @@ motion fixture before enabling the model in the public planning UI.
 ### Stage B — model-specific primitives, search and path
 
 - Generate bounded, fully evaluable complete-state primitives with
-  stored `(x,y,theta,gamma)` samples; preserve joint-velocity and
+  stored `(xf,yf,thetaFront,gamma)` samples; preserve joint-velocity and
   mechanical-limit constraints over each integration interval.
 - Extend model-specific index keys with articulation bins, while
   testing how single-label pruning affects alternate joint arrivals.
@@ -101,7 +104,7 @@ motion fixture before enabling the model in the public planning UI.
   `SE(2)` model-frame transforms at each evaluated full state,
   including map boundaries, occupied/unknown-cell policy and
   user-selected geometric inflation.
-- Test articulated body sweeps when `v=0`; a rear reference point
+- Test articulated body sweeps when `v=0`; a front reference point
   remaining clear/stationary does **not** establish clearance of
   the moving body.
 - Independently validate the complete reconstructed path at
