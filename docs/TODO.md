@@ -1,3 +1,170 @@
+# Implementation roadmap — current priorities
+
+## Current priorities — 2026-11-04
+
+**This section is the active priority order.** The W/M checklists below are
+historical implementation and architecture work items, **not** a competing
+priority queue. Some older unchecked proposals have already been implemented,
+superseded or measured; use the
+[current implementation contract](architecture/current-implementation.md),
+[measured warehouse findings](warehouse_performance_findings_2026-11-04.md)
+and the code for current behavior. Do not mistake a historic checkbox for
+a report that a working feature is absent.
+
+**Current baseline:** Hybrid A* has independently sampled strict full-footprint
+validation, opt-in cost-reducing straight/CSC/RS or model-specific refinement,
+a measured map-specific label-reserve dial-in (tier series v2), and profiler
+support. It produces a **geometric path initializer**; it does not establish
+continuous swept-body safety, time-parameterized actuator feasibility, safe
+real-robot tracking or dynamic-obstacle avoidance.
+
+### Immediate prerequisite gate — before any smoothing-quality benchmark
+
+- [ ] **Complete and agree the additional user-requested work preceding
+  the smoothing-quality benchmark.** The list was introduced but not yet
+  supplied; do not invent the missing tasks or start that benchmark.
+- [ ] Once that list is known, put its concrete tasks, success conditions
+  and ordering **above the benchmark** in this roadmap. Confirm the
+  target robot model(s), map fixture(s), acceptance thresholds and
+  whether any safety/controller requirements are in scope.
+- [ ] Preserve the current validated raw-path fallback, model-specific
+  kinematic checks, independent strict final pose-sampled collision
+  gate and work budgets throughout subsequent experiments.
+
+### Ordered engineering priorities
+
+| Rank | Priority / scope | Target outcome | Current next action |
+| ---: | --- | --- | --- |
+| **1** | **Curvature-continuous, model-feasible smoothing** | Fewer sudden steering/wheel-command changes without breaking collision, kinematics, or route feasibility | **After the prerequisite gate:** create a matched quality baseline, then test a bounded optional curvature-continuous smoother with strict validated raw/refined fallback |
+| **2** | **Faster, smarter post-search refinement** | More quality per millisecond | Profile existing refiner; prioritize high-value sharp turns/cusps/stops, avoid redundant whole-route checks for candidates while retaining independent strict validation of published results |
+| **3** | **Time parameterization / acceleration profiling** | Turn geometric motion sections into controller-ready timed candidates | Define independent speed, acceleration, steering-rate/wheel-rate, jerk, braking and mandatory-stop/cusp contracts; validate physically meaningful limits, not just wheel-rate feasibility |
+| **4** | **End-to-end profiling and quality acceptance** | Choose improvements by total validated pipeline result | Track search, heuristic/map build, collision, refinement, strict validation, smoothing, and future timing stages separately; report p50/p95/p99, failure rate and final-path quality |
+| **5** | **Map-dependent data reuse across requests** | Faster repeated planning on immutable maps | A/B cold versus warm reuse of occupancy prefix, bounded grid/heuristic data and collision acceleration; key by map snapshot/fingerprint + occupancy/geometry/options and invalidate on edits |
+| **6** | **Further hash/EDT/clearance optimization** | Incremental speed, memory or optional wide-clearance quality | First verify measured bottlenecks; keep clearance scoring and EDT opt-in, and preserve the measured versioned label-reservation policy |
+
+The ranks describe **product payoff**, not an instruction to implement each
+item without measurements. Priority 4's *instrumentation and acceptance
+criteria* must underpin all other experiments from their first benchmark.
+
+### Priority 1 — smoothing quality: evidence before new curves
+
+**After the prerequisite gate**, use matched immutable-map routes and
+identical robot, occupancy policy, hard margin and strict validation budgets
+to compare: (A) raw Hybrid A* output, (B) current straight/CSC or model
+appropriate refinement, (C) optional steering-variation objective where
+supported, and (D) a *future* curvature-continuous alternative.
+Current W8 supports (A)–(C); **(D) is not implemented**.
+
+- [ ] Establish reproducible route fixtures covering open space, bends,
+  zigzags, tight corridors, parking/reverse cusps, and blocked alternatives.
+  Retain original seed/map fingerprint and budget-limited failures.
+- [ ] Record **final validated**, not merely raw, length/weighted cost,
+  stop/reverse/cusp counts, section count, turning-radius/wheel-rate feasibility,
+  steering/curvature discontinuities, curvature variation, sampled
+  minimum/P10 obstacle clearance and search+refinement latency.
+- [ ] Evaluate curvature-continuous candidate representations (e.g.
+  clothoid transitions), separately for Ackermann, differential and
+  mecanum motion constraints. Do **not** assume a generic XY spline
+  preserves orientation, no-slip constraints, wheel limits or obstacles.
+- [ ] Bound solver work/time and ensure immutable map/occupancy,
+  inflation and model provenance. Preserve exact start/goal semantics,
+  intended stops/cusps and original validated route if any candidate
+  fails model/collision/strict check or a work budget.
+- [ ] Demonstrate meaningful reduction in curvature/steering discontinuity
+  (and ideally controller-tracking effort), without unacceptable
+  degradation of path cost, corridor clearance, success rate or total
+  p95 latency. Quantitative limits need explicit robot/hardware agreement.
+
+### Priority 2 — refinement throughput / candidate selection
+
+- [ ] Profile `refinePath()` by candidate generation, cheap objective
+  lower-bound pruning, collision pose checks, exact clearance calculations,
+  whole-path revalidation, accepted windows and elapsed time.
+- [ ] Compare current multiscale window scheduling with budgeted,
+  quality-targeted proposals around avoidable stops, reversals,
+  high-curvature jumps and costly detours.
+- [ ] Investigate incremental scoring and **local** verification of changed
+  candidate sections, with pinned map/options and safe splice-boundary
+  accounting. Preserve a **fresh independent whole-path strict validation**
+  before publishing any accepted final route; retain current verified-path
+  fallback. Never substitute a stale cached certificate for a map change.
+- [ ] Accept only measured reductions in total validation/refinement time
+  or improved final validated quality at an equal budget; no new invalid
+  paths or changed search semantics.
+
+### Priority 3 — downstream timed trajectories
+
+- [ ] Specify `path sections -> timed trajectory` contract independently
+  of the Hybrid A* search core, including direction/cusp, in-place spin,
+  lateral mecanum motion and start/goal speed.
+- [ ] Implement bounded speed/acceleration/braking/jerk profiling with
+  Ackermann steering position/rate, differential wheel-rate/acceleration
+  and mecanum wheel-rate/acceleration constraints as appropriate.
+- [ ] Recheck tracking feasibility and full robot motion along the
+  time-parameterized trajectory; retain explicit unsupported-result
+  statuses. Moving obstacles, uncertainties and closed-loop controls
+  require separate validated components and are **not delivered** by
+  geometric search or smoothing alone.
+
+### Priority 4 — representative pipeline benchmarks
+
+- [ ] Establish reference hardware, compiler/build flags and
+  p50/p95/p99 latency, memory/RSS and timeout targets for easy, hard,
+  unsuccessful, inflated-footprint and repeated-plan workloads.
+- [ ] Profile complete work breakdown: map/prefix/heuristic initialization,
+  search labels/queues/collision, reconstruction, post-refinement,
+  independent final checks and (when implemented) smoothing and retiming.
+  Record failure reasons and compare quality of the **final validated path**.
+- [ ] Use uninstrumented builds for real speed results; opt-in
+  `PROFILE_HOTPATHS` for hotspot attribution only. Do not add overlapping
+  nested hot-path timers, treat bucket-array estimates as total RSS,
+  dispatch GitHub Actions or add event-triggered workflows.
+
+### Priority 5 — map reuse; priority 6 — lower-return tuning
+
+- [ ] Benchmark unchanged-map repeated requests against cold searches.
+  Consider versioned, bounded reusable occupancy prefix and heuristic
+  assets only when measured savings exceed construction, invalidation
+  and memory overhead. Avoid sharing mutable model/occupancy-dependent
+  caches across incompatible requests.
+- [ ] Preserve opt-in `searchLabelReserve` and the versioned map-specific
+  calibration. The 32-route large-footprint warehouse run verified zero
+  rehashes for **v2 tier 13 (524,288)** and **v2 tier 14 (655,360)**,
+  with essentially tied paired search latency; the 20%-headroom
+  recommendation is tier 14 for **that specific clearance-OFF workload**.
+  Calibrate again after changing objective, footprint, map or budgets.
+- [ ] Keep the expensive obstacle-clearance objective and its EDT
+  accelerator explicitly opt-in. The corrected 2-route smoke showed
+  EDT about 30.2% faster than exact clearance scoring but still
+  3.57–4.84× slower than clearance-OFF planning. Complete the larger
+  clearance benchmark and measure bottlenecks before pursuing
+  caching/approximation.
+- [ ] Defer alternative hash tables, further queue changes and speculative
+  full-map preprocessing unless a reproducible workload shows their
+  impact on **end-to-end**, strictly validated output.
+
+### Decision and safety guardrails
+
+- [ ] Use measured *final-output* quality versus p95 latency and RSS,
+  with strict goal/model/footprint validation, to accept each change.
+  Keep failures observable; do not silently relax sampling or work caps.
+- [ ] Before any physical-robot claim, explicitly verify actuator/time
+  limits, localization/tracking tolerances, complete swept-volume
+  assumptions and relevant dynamic-obstacle/control integrations.
+  The existing sampled geometric validator is **not** a physical
+  deployment certification.
+- [ ] Work locally (Docker/CTest and explicit manual benchmark commands).
+  No GitHub Actions run or automatic triggers unless explicitly requested.
+
+---
+
+## Historical implementation checklists (preserved for traceability)
+
+These dated W/M work items record implementation history and previously
+proposed designs. The current priority order is above; follow the
+[current implementation contract](architecture/current-implementation.md)
+when dated entries conflict with shipping behavior.
+
 ## Ackermann default collision fast paths — 2026-10-27
 
 - [x] Make four covering discs the Ackermann default; keep explicit
@@ -529,6 +696,17 @@ A prioritized, incremental checklist. **All tasks unchecked as of initial docume
 - [ ] Benchmark resulting total planner/search+refinement latency and final validated path quality against the zero-clearance-cost MVP; retain only if it improves the product.
 
 ## M5 — Path representation and optional refinement
+
+**Updated November 4, 2026:** The current priorities are the
+[roadmap at the top of this file](#current-priorities--2026-11-04).
+The previously proposed generic smoother is now split into:
+(1) prerequisite-gated matched smoothing-quality benchmark,
+(2) optional model-feasible curvature-continuous smoothing,
+(3) separately benchmarked refiner throughput, and
+(4) downstream time parameterization. These are **not** shipped
+features and must retain a strictly validated original-path fallback.
+Legacy checkboxes below remain historical proposals and may overlap
+with capabilities already implemented in W8.
 
 **Current W8 increment:** `ackermann::refinePath` implements opt-in bounded
 section-boundary shortcuts, opt-in native fixed-gear CSC curves, signed-provider injection, recomputed weighted
