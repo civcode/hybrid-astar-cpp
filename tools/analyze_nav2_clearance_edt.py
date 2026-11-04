@@ -44,6 +44,20 @@ def main():
         if set(triple) != expected:
             raise ValueError(f"Expected {expected} for {key}, got {set(triple)}")
         off, exact, edt = (triple[n] for n in ("off", "exact", "edt"))
+        # InvalidRequest was previously serialized as "Other" and could make
+        # both clearance variants look like identical 0.001-ms searches.
+        # Reject such CSVs instead of producing misleading performance data.
+        if off["status"] != "Success":
+            raise ValueError(f"Baseline replay did not succeed for {key}: {off['status']}")
+        invalid = {"InvalidRequest", "InvalidMap", "RejectedUnknownMap",
+                   "InternalError", "Other"}
+        for variant in ("exact", "edt"):
+            scored = triple[variant]
+            if scored["status"] in invalid or integer(scored, "clearance_queries") == 0:
+                raise ValueError(
+                    f"{variant} did not execute clearance scoring for {key}: "
+                    f"status={scored['status']} queries={scored['clearance_queries']}"
+                )
         # Identical objectives must not change the search or its result.
         for col in (
             "status", "expanded", "generated", "pruned_by_key",
