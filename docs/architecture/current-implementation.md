@@ -309,9 +309,12 @@ exact-checkout W11/W12 Catch2, sanitizer and Docker/OMPL verification gate
 remains pending. **The common rigid-body kernel remains SE(2) only**;
 an independent [experimental articulated 4D search](../architecture/articulated_steering_integration.md)
 now handles rear pose plus gamma with separate sampled front/rear
-collision checks. It is not yet in the standard planner model selector
-or Planning Lab, and needs full-Catch2/Docker and physical-geometry
-validation. See [W12 mecanum implementation](w12-mecanum-holonomic.md).
+collision checks. The **local Planning Lab** has a dedicated
+experimental model selector, start/goal gamma inputs, link/footprint
+configuration and independent two-carriage replay. This is not a
+fourth policy in the common rigid search kernel; the new UI invokes
+the separate 4D API. It still needs full Catch2/Docker/HTTP testing,
+browser verification and physical-geometry sign-off. See [W12 mecanum implementation](w12-mecanum-holonomic.md).
 
 See [W10 differential-drive primitive status](w10-differential-primitives.md)
 and [working search/demo contract](w10-differential-search.md).
