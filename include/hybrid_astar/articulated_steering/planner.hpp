@@ -16,8 +16,10 @@ namespace hybrid_astar::articulated_steering {
 // It is a bounded sampled-collision planner, NOT a continuous swept-volume or
 // actuator-trajectory certificate. Caller must provide real robot geometry.
 struct BodyGeometry {
-  ackermann::Footprint front; // in the front reference/heading frame
-  ackermann::Footprint rear;  // in the rear base_link/heading frame
+  // Invalid by default: never silently adopt the rigid Ackermann's
+  // physical dimensions for a two-carriage articulated robot.
+  ackermann::Footprint front{0.0,0.0,0.0}; // front reference/heading frame
+  ackermann::Footprint rear{0.0,0.0,0.0};  // rear base_link/heading frame
   double inflationMeters=0.0;
 };
 struct SearchOptions {
