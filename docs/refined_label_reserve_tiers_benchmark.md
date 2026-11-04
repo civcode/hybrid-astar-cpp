@@ -136,7 +136,9 @@ checks, but those discovery runs are **not** speed measurements.
 
 The analyzer verifies tier-series v2, capacities, success, zero
 rehashes, matching route and map identifiers, work counters and all
-four variants per route. It reports matched median search times,
+four variants per route. It also **rejects profiled builds** (the CSV
+`profile_enabled` column must be zero; compile with
+`PROFILE_HOTPATHS=OFF`). It reports matched median search times,
 paired speedups, wins, bucket-memory estimates and hard-route outliers.
 
 ## Decision criteria
