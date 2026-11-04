@@ -25,6 +25,42 @@ The planner still uses `std::unordered_map`. This experiment does
 **not** change the key hash, collision checking, cost objective,
 search budget, or data structure.
 
+## Measured result: full sweep completed on 2026-11-04
+
+The full unprofiled CSV (`nav2-label-reserve-sweep.csv`) has **80
+successful rows**: 10 warehouse routes x 2 footprints x 4 reservation
+settings, five timed repeats each. All 20 route/footprint quadruples
+preserved search-work counters, full paths and refinement outcomes.
+The separate 16-row smoke CSV also passed.
+
+| Reserve | Median search | Median paired saving vs 0 | Wins vs baseline | Median rehashes | Median bucket-array size |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 231.995 ms | — | — | 14.0 | 1.32 MiB |
+| 65,536 | 228.479 ms | **2.06%** | 20/20 | 1.5 | 1.58 MiB |
+| 131,072 | 226.000 ms | **3.54%** | 20/20 | 0.5 | 1.58 MiB |
+| **262,144** | **221.622 ms** | **4.86%** | **20/20** | **0** | **2.12 MiB** |
+
+262,144 beat 131,072 in **20/20** pairs, saving an additional
+**1.32% median paired** (approximately **2.99 ms/search**).
+Compared with 131,072, the median additional bucket-array allocation
+was **0.54 MiB**. The final bucket count matched in 10/20 comparisons
+because 131,072 already rehashed to the larger table; the up-front
+262,144 reserve prevented that rehash. In the 10 lower-label-count
+cases, where the 131,072 table did not need to grow, the extra benefit
+was only **0.64 ms median**, consistent with a smaller payoff on light
+searches. Peak unique labels across the full sweep ranged from
+42,700 to 179,519.
+
+**Decision for the warehouse workload:** The existing opt-in
+`searchLabelReserve=262144` remains the fastest measured choice.
+Do not enable it as a universal default or claim an adaptive rule
+until it is benchmarked on smaller maps and shorter searches.
+Results are from one workload and five-repeat per-variant medians,
+not a multi-host confidence interval.
+
+Full route-level evidence and EDT context:
+[warehouse performance findings](warehouse_performance_findings_2026-11-04.md).
+
 ## Manual Docker run (28 build jobs)
 
 From the repository root on
@@ -129,8 +165,8 @@ routes should be treated with caution.
 
 - Use **`PROFILE_HOTPATHS=OFF`** to select reserve sizes. The analyzer
   refuses profiled timings by default.
-- The known 262,144 result is a **warehouse-specific prior**, not the
-  winning outcome of this as-yet-unrun four-size experiment.
+- The full four-way run now **confirms 262,144 as the fastest tested
+  warehouse setting**, but this does not establish a universal optimum.
 - Compare 65,536, 131,072 and 262,144 against the same no-reserve
   baseline and against each other. Pay attention to paired outliers
   and memory overhead, not only global median speed.
