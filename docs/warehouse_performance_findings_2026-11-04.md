@@ -144,12 +144,15 @@ and selected **tier 5 (1,048,576 labels)** with 20% requested
 headroom. A direct replay with `--headroom 0` in
 `nav2-label-calibration-large-32-tier4.csv` verified **tier 4
 (524,288 labels)** with zero rehashes in **all 32/32 samples**,
-and identical recorded results between the two CSVs. Thus tier 4
-is the smallest directly verified sampled no-rehash tier, while
-tier 5 is the headroom-adjusted recommendation. **Neither tier's
-wall-clock speed or total memory usage has been compared** on
-these routes; do not equate zero rehashes with optimal latency.
-See the [calibration report](map_specific_label_reserve_calibration.md).
+and identical recorded results between the two CSVs. Thus **524,288 labels** is the smallest directly verified sampled
+no-rehash tier (v1 tier 4 / v2 tier 13). Under the original v1 series,
+**1,048,576 labels** was the 20%-headroom recommendation (v1 tier 5).
+The refined **v2** series now has four capacity steps per doubling,
+so the same 581,441-label headroom target selects **v2 tier 14 =
+655,360 labels**. **None of these capacities has yet been compared
+for timed search performance on the 32 sampled routes**. See the
+[calibration report](map_specific_label_reserve_calibration.md) and
+[new matched tier benchmark](refined_label_reserve_tiers_benchmark.md).
 
 ## 2. EDT-assisted capped clearance: route quality versus computational cost
 
