@@ -167,6 +167,81 @@ real robot geometry. The **front/rear collision-body extents,
 axle offsets, joint frames, possible wheel slip and actuator
 limits still require the robot owner's input** (OQ-022).
 
+#### Confirmed by author-supplied ROS 2 ODE simulator
+
+The author's `OdeSimulation` source implements **exactly** the five-state
+ODE above with `x_[0]=x_f`, `x_[1]=y_f`,
+`theta1=x_[2]=Theta_f`, `theta2=x_[3]=Theta_r`,
+`x_[4]=gamma`, `v_linear_=v`, and
+`gamma_dot_=u_gamma`. For that simulator `L1_=L2_=0.5 m`.
+The `/cmd_vel` fields `linear.x` and `angular.z`
+supply the two controls.
+
+The simulator explicitly calculates the **rear base pose** from the
+front-integrated state:
+
+\[
+x_r=x_f-L_1\cos\Theta_f-L_2\cos\Theta_r,\qquad
+y_r=y_f-L_1\sin\Theta_f-L_2\sin\Theta_r.
+\]
+
+It broadcasts `odom -> base_link` with translation
+\((x_r,y_r,z=0.25)\) and yaw \(\Theta_r\), **not** the integrated
+front position. Its distinct `/ode_pose` message publishes
+\((x_f,y_f)\), with `position.z=\gamma` as an
+application-specific encoding, not a physical height.
+The initial state is all zero, consistent with
+\(\gamma=\Theta_f-\Theta_r\).
+
+**Therefore the user's interpretation matches the source code**:
+\((x_f,y_f)\) is the front point; travel \(L_1\) backward along
+the front heading to the hinge and \(L_2\) backward along
+the rear heading to the rear reference, whose pose is emitted as
+`base_link`. The source **encodes** those geometric offsets but
+does not independently prove that either point is the actual
+physical **axle midpoint**; confirm against mechanical design/URDF
+before attaching collision polygons.
+
+#### Equivalent rear-reference planning equations
+
+Differentiating that exact transformation yields
+
+\[
+\dot x_r=v_r\cos\Theta_r,\quad
+\dot y_r=v_r\sin\Theta_r,\quad
+v_r=\frac{v(L_1+L_2\cos\gamma)+
+          L_1L_2\sin\gamma\,u_\gamma}
+         {L_1\cos\gamma+L_2},
+\]
+
+\[
+\dot\Theta_r=
+\frac{v\sin\gamma-L_1\cos\gamma\,u_\gamma}
+{L_1\cos\gamma+L_2},\qquad
+\dot\gamma=u_\gamma .
+\]
+
+This rear-position, rear-heading, articulation state is a
+**four-independent-variable alternative** to the front-based
+reduction. The commanded \(v\) continues to mean the **front
+reference longitudinal speed**; it must not be silently
+reinterpreted as \(v_r\). At \(v=0\), \(v_r\) can still be
+nonzero for nonstraight articulation with \(u_\gamma\ne0\).
+The resulting rear-reference motion has no sideways velocity
+under the confirmed heading relation.
+
+**Simulator limitations for validation:** It integrates exactly
+`0.01 s` per `/cmd_vel` callback, regardless of actual
+message spacing; `joint_state.velocity[0]` is always sent as 0
+instead of `gamma_dot_`; `/ode_pose` does not set a
+meaningful orientation quaternion; and it does not check
+\(|L_1\cos\gamma+L_2|\) against zero or enforce
+mechanical joint bounds. In particular with `L1_=L2_=0.5`,
+the denominator vanishes at \(\gamma=\pi\).
+These are **integration/telemetry and numerical guards** to
+address before using this simulator as an independent physical
+reference or deploying a fourth planner model.
+
 #### Consequences for planning and motion
 
 - At \(v=0\), the **front reference stays stationary**, but
@@ -222,12 +297,13 @@ ArticulatedState derivative(const ArticulatedState& q,
 }
 ```
 
-**Next confirmation:** Is the front reference \(F\) the **front axle
-midpoint**, \(L_1\) its distance to the articulation pivot, and
-\(L_2\) the pivot-to-rear-axle midpoint distance? Confirm the
-alignment/positive-\(\gamma\) convention, rear/front collision
-body offsets, and admissible controls before implementing the
-fourth planner model.
+**Next confirmation:** The author's simulator corroborates the
+front-to-rear offsets and `base_link` at the rear reference,
+using `L1_=L2_=0.5` as example geometry. Still confirm
+physical **axle midpoint locations**, the precise front/rear
+collision-body dimensions and offsets, mechanical joint-angle
+and speed/rate limits, and start/goal articulation semantics
+before enabling the fourth planner model.
 
 See [articulated-steering implementation gate](articulated_steering_integration.md)
 and [OQ-022](open-questions.md) for remaining physical requirements.
