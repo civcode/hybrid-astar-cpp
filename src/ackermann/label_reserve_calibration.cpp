@@ -79,13 +79,28 @@ bool invalidStatus(PlanStatus s) {
 }
 } // namespace
 
-std::size_t labelReserveForTier(std::size_t tierIndex) {
+std::size_t labelReserveForTier(
+    std::size_t tierIndex,std::uint32_t seriesVersion) {
+  if(seriesVersion!=1 && seriesVersion!=LabelReserveTierSeriesVersion)
+    throw std::invalid_argument("Unknown label reserve tier-series version");
   if(tierIndex==0)return 0;
-  if(tierIndex>1+std::numeric_limits<std::size_t>::digits-17)
-    throw std::out_of_range("Label reserve tier exceeds addressable size");
-  std::size_t reserve=65536;
-  for(std::size_t i=1;i<tierIndex;++i)reserve*=2;
-  return reserve;
+  const auto bits=std::numeric_limits<std::size_t>::digits;
+  if(seriesVersion==1) {
+    if(tierIndex>bits-16)
+      throw std::out_of_range("Legacy label reserve tier overflows size_t");
+    return std::size_t{1}<<(15+tierIndex);
+  }
+  // Four evenly spaced integer steps per octave:
+  // tier=1 -> 2^16, tier=2 -> 1.25*2^16, ..., tier=5 -> 2^17.
+  const auto octave=(tierIndex-1)/4;
+  const auto phase=(tierIndex-1)%4;
+  if(octave>=bits-16)
+    throw std::out_of_range("Label reserve tier overflows size_t");
+  const auto base=std::size_t{1}<<(16+octave);
+  const auto step=base/4;
+  if(phase>(std::numeric_limits<std::size_t>::max()-base)/step)
+    throw std::out_of_range("Label reserve tier overflows size_t");
+  return base+phase*step;
 }
 std::size_t labelReserveTierForPeak(std::size_t observedPeakLabels,
                                     double headroomFraction,
@@ -101,8 +116,12 @@ std::size_t labelReserveTierForPeak(std::size_t observedPeakLabels,
   if(requested>static_cast<long double>(maxGeneratedNodes))
     throw std::out_of_range("Peak plus headroom exceeds maxGeneratedNodes");
   const auto needed=static_cast<std::size_t>(requested);
-  for(std::size_t i=1;i<std::numeric_limits<std::size_t>::digits;++i) {
-    const auto reserve=labelReserveForTier(i);
+  const auto maxTiers=4*(std::numeric_limits<std::size_t>::digits-16);
+  for(std::size_t i=1;i<=maxTiers;++i) {
+    // The final octave can overflow size_t for its higher phases.
+    std::size_t reserve;
+    try {reserve=labelReserveForTier(i);}
+    catch(const std::out_of_range&) {break;}
     if(reserve>maxGeneratedNodes)break;
     if(reserve>=needed)return i;
   }
