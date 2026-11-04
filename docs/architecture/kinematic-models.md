@@ -94,7 +94,7 @@ Equivalently:
 \]
 
 \[
-\dot\Theta_f=\frac{v\sin\gamma+L_2u_\gamma}{D(\gamma)},\qquad
+\dot\Theta_f=\frac{v\sin\gamma+L_ru_\gamma}{D(\gamma)},\qquad
 \dot\Theta_r=\frac{v\sin\gamma-L_f\cos\gamma\,u_\gamma}{D(\gamma)},
 \qquad
 \dot\gamma=u_\gamma.
@@ -123,7 +123,7 @@ equations **exactly** on the constraint manifold, but with
 \[
 \dot x_f=v\cos\Theta_f,\quad
 \dot y_f=v\sin\Theta_f,\quad
-\dot\Theta_f=\frac{v\sin\gamma+L_2u_\gamma}{D(\gamma)},\quad
+\dot\Theta_f=\frac{v\sin\gamma+L_ru_\gamma}{D(\gamma)},\quad
 \dot\gamma=u_\gamma,\quad
 \Theta_r=\operatorname{wrap}(\Theta_f-\gamma).
 \]
@@ -152,8 +152,8 @@ A **conventional no-side-slip axle geometry that reproduces these
 equations**, but is **not yet author-confirmed**, is:
 
 - \(F=(x_f,y_f)\), the midpoint of the front axle, heading \(\Theta_f\);
-- articulation pivot \(H=F-L_1e(\Theta_f)\);
-- rear axle midpoint \(R=H-L_2e(\Theta_r)\);
+- articulation pivot \(H=F-L_fe(\Theta_f)\);
+- rear axle midpoint \(R=H-L_re(\Theta_r)\);
 - \(e(\theta)=(\cos\theta,\sin\theta)\), so \(L_f\) measures
   front-axle-to-hinge and \(L_r\) hinge-to-rear-axle distance
   along the respective chassis axes.
@@ -173,7 +173,7 @@ The author's `OdeSimulation` source implements **exactly** the five-state
 ODE above with `x_[0]=x_f`, `x_[1]=y_f`,
 `theta1=x_[2]=Theta_f`, `theta2=x_[3]=Theta_r`,
 `x_[4]=gamma`, `v_linear_=v`, and
-`gamma_dot_=u_gamma`. The supplied ROS 2 source names these parameters `L1_` and `L2_`; in the planner specification these correspond to `L_f=L_r=0.5 m`.
+`gamma_dot_=u_gamma`. The supplied ROS 2 source names these parameters `__SRC_L_f__` and `__SRC_L_r__`; in the planner specification these correspond to `L_f=L_r=0.5 m`.
 The `/cmd_vel` fields `linear.x` and `angular.z`
 supply the two controls.
 
@@ -210,7 +210,7 @@ Differentiating that exact transformation yields
 \dot x_r=v_r\cos\Theta_r,\quad
 \dot y_r=v_r\sin\Theta_r,\quad
 v_r=\frac{v(L_f+L_r\cos\gamma)+
-          L_1L_2\sin\gamma\,u_\gamma}
+          L_fL_r\sin\gamma\,u_\gamma}
          {L_f\cos\gamma+L_r},
 \]
 
@@ -236,7 +236,7 @@ message spacing; `joint_state.velocity[0]` is always sent as 0
 instead of `gamma_dot_`; `/ode_pose` does not set a
 meaningful orientation quaternion; and it does not check
 \(|L_f\cos\gamma+L_r|\) against zero or enforce
-mechanical joint bounds. In particular with the supplied source values `L1_=L2_=0.5`,
+mechanical joint bounds. In particular with the supplied source values `__SRC_L_f__=__SRC_L_r__=0.5`,
 the denominator vanishes at \(\gamma=\pi\).
 These are **integration/telemetry and numerical guards** to
 address before using this simulator as an independent physical
@@ -245,7 +245,7 @@ reference or deploying a fourth planner model.
 #### Consequences for planning and motion
 
 - At \(v=0\), the **front reference stays stationary**, but
-  \(\dot\Theta_f=L_2u_\gamma/D\) and
+  \(\dot\Theta_f=L_ru_\gamma/D\) and
   \(\dot\Theta_r=-L_f\cos\gamma\,u_\gamma/D\); the front/rear
   rigid bodies can rotate and sweep obstacles. **Do not** describe
   this as a stationary **rear** reference point.
