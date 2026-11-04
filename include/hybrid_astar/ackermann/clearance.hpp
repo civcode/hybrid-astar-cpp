@@ -31,6 +31,7 @@ private:
   Footprint footprint_;
   double lambda_,influence_,bodyRadius_,inflationMeters_;
   bool useDistanceTransform_;
+  double originCos_,originSin_; // reused for every EDT/exact pose sample
   double buildMs_=0.0;
   // Squared nearest blocked-cell center distance in grid-cell units.
   std::vector<double> blockedCenterDistanceSquared_;
