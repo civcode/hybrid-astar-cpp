@@ -1,6 +1,7 @@
 # Articulated-steering kinematic model and frame conventions — review draft
 
-**Status: FOR OWNER REVIEW — not approved for implementation.**
+**Status: STANDALONE KINEMATIC MODEL IMPLEMENTED — still awaiting physical
+robot frame/limit sign-off; not approved for full articulated planning.**
 
 *Rendering note:* Multi-line equations use GitHub-supported fenced `math` blocks.
 
@@ -8,8 +9,13 @@
 **Scope:** two rigid carriages joined by one articulation joint; planar,
 ideal no-side-slip kinematics. This document records the equation and
 reference-frame choices for matching against the robot owner's notes.
-It does **not** enable the fourth planner model, assign production body
-dimensions, or certify collision, actuator, or control feasibility.
+The independent C++ kinematic model and reusable in-house RK4 are
+now available in [`articulated_steering/model.hpp`](../../include/hybrid_astar/articulated_steering/model.hpp),
+[`model.cpp`](../../src/articulated_steering/model.cpp) and
+[`motion/rk4.hpp`](../../include/hybrid_astar/motion/rk4.hpp).
+**These changes do not enable the fourth Hybrid A* planning mode**,
+assign production body dimensions, or certify collision, actuator,
+or control feasibility.
 
 **Review priority:** Please check the **reference points and geometry**
 in §2, the **control meanings and sign conventions** in §3, and the
@@ -455,6 +461,12 @@ Mark each **Agree / Correct / Not yet defined** and annotate it:
 - [ ] **Validation model:** Are no-slip assumptions acceptable
   for path planning, and are there relevant self-collision,
   steering-actuation, or load constraints to include?
+
+**Implementation state:** The kinematic derivative, four-independent-variable
+rear frame conversion, explicit limits and dependency-free RK4 are
+implemented. Full-state search, two-body geometry/collision checking
+and physics-calibrated controls remain pending; a standalone C++ model
+is not by itself a safe articulated robot planner.
 
 **Review outcome (not yet decided):** After the owner reconciles
 these conventions against their notes, freeze a versioned
