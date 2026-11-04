@@ -156,6 +156,9 @@ struct PlanOptions {
   double footprintInflationMeters = 0.0;
   double clearanceWeight = 0.0; // zero by default: equivalent-meter integral
   double clearanceInfluenceRadiusMeters = 0.40;
+  // Experimental opt-in: Euclidean obstacle distance field only proves when
+  // the exact clearance penalty is zero; uncertain samples use exact geometry.
+  bool useClearanceDistanceTransform = false;
   // Automatic default = four cover discs for Ackermann, none for the other
   // models. Set 0 explicitly to disable or 1..64 to override for any model.
   static constexpr std::size_t AutomaticDiscPrefilter =
@@ -249,6 +252,11 @@ struct PlanDiagnostics {
   bool emptyRegionPrefixSumUsed = false;
   std::size_t discDefinitelyClear = 0, discExactFallback = 0;
   std::size_t clearanceSamples = 0;
+  std::size_t clearanceDistanceQueries = 0;
+  std::size_t clearanceEdtZeroCostBypasses = 0;
+  std::size_t clearanceExactFallbacks = 0;
+  std::size_t clearanceEdtBytes = 0;
+  double clearanceEdtBuildMilliseconds = 0.0;
 };
 
 struct PlanResult {
