@@ -240,6 +240,8 @@ fallback, a cached per-map EDT, or an explicitly approximate EDT-derived
 cost with independent exact collision checking and separate path-quality
 acceptance criteria.
 
+For operator/developer choices about **which planning options to use together**,
+see the [planning clearance and performance how-to](planning_clearance_and_performance_howto.md).
 See [`clearance_edt_benchmark.md`](clearance_edt_benchmark.md) for
 implementation semantics and manual benchmark commands.
 
