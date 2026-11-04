@@ -2,7 +2,10 @@
 #include "hybrid_astar/ackermann/geometry_distance.hpp"
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
+#include <numbers>
+#include <vector>
 #include <limits>
 #include <stdexcept>
 namespace hybrid_astar::ackermann {
@@ -13,14 +16,22 @@ bool isBlocked(std::int8_t value,OccupancyPolicy policy) {
 }
 }
 ClearanceScorer::ClearanceScorer(const MapSnapshot& m,OccupancyPolicy p,Footprint f,
-                                 double weight,double influence)
+                                 double weight,double influence,bool useDistanceTransform,double inflationMeters)
     :map_(m),occupancy_(p),footprint_(f),lambda_(weight),influence_(influence),
-     bodyRadius_(std::hypot(std::max(std::abs(f.rearX),std::abs(f.frontX)),f.halfWidth)) {
+     bodyRadius_(std::hypot(std::max(std::abs(f.rearX),std::abs(f.frontX)),f.halfWidth)),
+     inflationMeters_(inflationMeters),useDistanceTransform_(useDistanceTransform) {
   ExactCollisionChecker check(m,p,f);
-  if(!std::isfinite(weight)||weight<0||!std::isfinite(influence)||influence<=0)
+  if(!std::isfinite(weight)||weight<0||!std::isfinite(influence)||influence<=0||
+     !std::isfinite(inflationMeters_)||inflationMeters_<0)
     throw std::invalid_argument("Invalid clearance cost configuration");
+  if(useDistanceTransform_) {
+    const auto start=std::chrono::steady_clock::now();
+    buildDistanceTransform();
+    buildMs_=std::chrono::duration<double,std::milli>(
+        std::chrono::steady_clock::now()-start).count();
+  }
 }
-double ClearanceScorer::poseClearanceMeters(const Pose2D& pose) const {
+double ClearanceScorer::exactPoseClearanceMeters(const Pose2D& pose) const {
   if(!std::isfinite(pose.x)||!std::isfinite(pose.y)||!std::isfinite(pose.yaw))
     throw std::invalid_argument("Nonfinite clearance pose");
   const double c0=std::cos(map_.origin.yaw),s0=std::sin(map_.origin.yaw);
@@ -38,13 +49,17 @@ double ClearanceScorer::poseClearanceMeters(const Pose2D& pose) const {
     minx=std::min(minx,poly[i].x);maxx=std::max(maxx,poly[i].x);
     miny=std::min(miny,poly[i].y);maxy=std::max(maxy,poly[i].y);
   }
-  double best=std::min({minx,miny,double(map_.width)*r-maxx,double(map_.height)*r-maxy,influence_});
+  // The geometric inflation margin expands obstacles and map boundaries.
+  // Exact and EDT-assisted variants use the SAME inflation-aware objective.
+  const double physicalCutoff=influence_+inflationMeters_;
+  double best=std::min({minx,miny,double(map_.width)*r-maxx,double(map_.height)*r-maxy,physicalCutoff});
   if(best<=0) return 0;
-  const auto lowx=static_cast<std::size_t>(std::max(0.0,std::floor((minx-influence_)/r)));
-  const auto lowy=static_cast<std::size_t>(std::max(0.0,std::floor((miny-influence_)/r)));
-  const auto highx=static_cast<std::size_t>(std::min(double(map_.width-1),std::floor((maxx+influence_)/r)));
-  const auto highy=static_cast<std::size_t>(std::min(double(map_.height-1),std::floor((maxy+influence_)/r)));
-  if(lowx>highx||lowy>highy) return best;
+  const auto lowx=static_cast<std::size_t>(std::max(0.0,std::floor((minx-physicalCutoff)/r)));
+  const auto lowy=static_cast<std::size_t>(std::max(0.0,std::floor((miny-physicalCutoff)/r)));
+  const auto highx=static_cast<std::size_t>(std::min(double(map_.width-1),std::floor((maxx+physicalCutoff)/r)));
+  const auto highy=static_cast<std::size_t>(std::min(double(map_.height-1),std::floor((maxy+physicalCutoff)/r)));
+  if(lowx>highx||lowy>highy)
+    return std::max(0.0,best-inflationMeters_);
   double bestSq=best*best;
   for(std::size_t y=lowy;y<=highy;++y) for(std::size_t x=lowx;x<=highx;++x) {
     if(!isBlocked(map_.cells[y*map_.width+x],occupancy_)) continue;
@@ -53,10 +68,11 @@ double ClearanceScorer::poseClearanceMeters(const Pose2D& pose) const {
          geometry::separatedConvexPolygonSquareDistanceSquared(poly,lx,ly,r));
     if(bestSq<=0) return 0;
   }
-  return std::sqrt(bestSq);
+  return std::max(0.0,std::sqrt(bestSq)-inflationMeters_);
 }
 double ClearanceScorer::sectionCost(const MotionSection& part,double step,double bodyStep,
-                                     std::size_t limit,std::size_t& samples) const {
+                                     std::size_t limit,std::size_t& samples,
+                                     PlanDiagnostics* diagnostics) const {
   const double len=part.lengthMeters;
   const double factor=1.0+bodyRadius_*std::abs(part.curvature);
   const double divisions=std::max(len/step,len*factor/bodyStep);
@@ -66,7 +82,7 @@ double ClearanceScorer::sectionCost(const MotionSection& part,double step,double
   double integral=0;
   for(std::size_t j=0;j<=count;++j) {
     const auto p=part.evaluate(j==count ? len : len*double(j)/double(count));
-    const double distance=poseClearanceMeters(p);
+    const double distance=poseClearanceMeters(p,diagnostics);
     const double pen=std::max(0.0,1.0-distance/influence_);
     integral+=(j==0||j==count?.5:1.0)*pen*pen;
     ++samples;
