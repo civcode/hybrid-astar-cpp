@@ -33,6 +33,7 @@ add_library(hybrid_astar_core STATIC
   src/ackermann/primitives.cpp
   src/ackermann/cover_prefilter.cpp
   src/ackermann/clearance.cpp
+  src/ackermann/label_reserve_calibration.cpp
   src/ackermann/refinement.cpp
   src/ackermann/curved_shortcuts.cpp
   src/steering/analytic_expansion.cpp
@@ -105,6 +106,12 @@ if(HYBRID_ASTAR_BUILD_TESTS)
   target_link_libraries(hybrid_astar_footprint_inflation_test PRIVATE
     hybrid_astar::core Catch2::Catch2WithMain)
   add_test(NAME footprint_inflation_test COMMAND hybrid_astar_footprint_inflation_test)
+  add_executable(hybrid_astar_label_reserve_calibration_test
+    tests/label_reserve_calibration_test.cpp)
+  target_link_libraries(hybrid_astar_label_reserve_calibration_test PRIVATE
+    hybrid_astar::core Catch2::Catch2WithMain)
+  add_test(NAME label_reserve_calibration_test
+    COMMAND hybrid_astar_label_reserve_calibration_test)
   add_executable(hybrid_astar_hotpath_test tests/hotpath_test.cpp)
   target_include_directories(hybrid_astar_hotpath_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(hybrid_astar_hotpath_test PRIVATE hybrid_astar::core Catch2::Catch2WithMain)
