@@ -65,8 +65,9 @@ The project author has now supplied the following **five-variable** system
 explicitly identifying **front** and **rear** chassis headings. This
 supersedes the older description that called the four-state `(x,y,Theta)`
 model a **rear** reference pose: that earlier wording was incorrect for
-the equations shown. The equations have not yet been integrated into
-the planner as a supported fourth model.
+the equations shown. The equations are now used by a **separate experimental articulated
+C++ planner** with 4D state indexing and two-body sampled collision checks;
+the existing rigid 3D planner/model selector remains unchanged.
 
 Let $\mathbf q=(x_f,y_f,\Theta_f,\Theta_r,\gamma)$,
 $u=(v,u_\gamma)$, $u_\gamma=\dot\gamma$,
