@@ -111,7 +111,7 @@ Measurement measure(const PlanRequest& req,std::size_t repeats) {
 }
 void header() {
   std::cout<<"sample,model,geometry,seed,tier_series_version,tier_index,"
-      "label_reserve,repeats,status,search_p50_ms,search_p95_ms,"
+      "label_reserve,repeats,profile_enabled,status,search_p50_ms,search_p95_ms,"
       "expanded,generated,peak_labels,baseline_rehashes,rehashes,"
       "label_finds,label_find_hits,label_insertions,label_updates,"
       "pruned_by_key,exact_pose_calls,search_motion_calls,"
@@ -123,10 +123,15 @@ void row(std::size_t sample,const std::string& model,const std::string& geometry
          std::uint64_t mapFingerprint,std::size_t baselineRehashes,
          bool fastAabb,const Measurement& m) {
   const auto& d=m.result.diagnostics;
+#ifdef HYBRID_ASTAR_LABEL_RESERVE_PROFILE_ENABLED
+  constexpr int profiled=1;
+#else
+  constexpr int profiled=0;
+#endif
   std::cout<<std::fixed<<std::setprecision(6)
     <<sample<<','<<model<<','<<geometry<<','<<seed<<','
     <<LabelReserveTierSeriesVersion<<','<<tier<<','
-    <<labelReserveForTier(tier)<<','<<repeats<<",Success,"
+    <<labelReserveForTier(tier)<<','<<repeats<<','<<profiled<<",Success,"
     <<m.searchP50<<','<<m.searchP95<<','
     <<d.expanded<<','<<d.generated<<','<<d.labelPeakSize<<','
     <<baselineRehashes<<','<<d.labelRehashes<<','
