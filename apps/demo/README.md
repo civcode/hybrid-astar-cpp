@@ -112,6 +112,14 @@ It is not a substitute for the complete OMPL-ON CMake package build.
   separated **blocked** map.
 - Set start/goal world x, y (metres) and yaw (degrees); click on the map for
   the **start**, Shift-click for the **goal**. Angles are editable fields.
+  The **cyan start** and **gold goal** now each show the rotated, model-sized
+  rectangular footprint **immediately**, even before a successful plan,
+  on invalid/no-path results, or after the old path has been invalidated.
+  The reference-point circle and orientation ray remain on top. If
+  `Inflate footprint` is enabled, both previews display the same selected
+  nominal metric expansion with a round-joined amber band. The mint body
+  during path replay remains separate. These outlines are display aids,
+  not collision-validation certificates.
 - Default obstacle-grid heuristic (noncertified performance ordering);
   uncheck the box to use the certified Euclidean heuristic,
 - Strict optional post-path refinement for **Ackermann, differential drive,
@@ -143,13 +151,22 @@ It is not a substitute for the complete OMPL-ON CMake package build.
   refinement. Exported JSON contains the effective weight and budget so
   visually compared experiments are reproducible.
 - Visualize exact analytic section trajectories in green for forward and
-  amber for reverse. The animation shows the actual **4.6 × 1.8 m filled
-  vehicle footprint** at a sampled position along the returned path.
+  amber for reverse. The animation shows the active model's filled footprint
+  at a sampled position along the returned path (4.6 × 1.8 m for the
+  built-in Ackermann car, 0.7 × 0.5 m for differential/mecanum).
+  Start/goal footprints are independently visible before path replay.
 - Overlay the original route when postprocessing returns a verified path.
   Show weighted cost, length, reverse length, expanded nodes, time, validation
   status and refinement outcome.
 - Default poses are scenario-specific; custom poses replace the defaults
   until a new scenario is selected.
+
+**Manual preview regression (no server, planner or browser needed):**
+run `node tests/demo_pose_footprint_ui_test.js` from the repository
+root. This headless canvas/DOM test checks both initial footprints,
+editable yaw, the compact robot model, the selected inflation band
+and a rotated map origin. Visual inspection in a browser is also
+recommended before shipping a UI change.
 
 **Important:** The animation's display samples are *not* the collision
 certification samples. Only success returned by the library's independent
