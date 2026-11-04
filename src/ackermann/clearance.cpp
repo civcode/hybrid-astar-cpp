@@ -59,7 +59,8 @@ ClearanceScorer::ClearanceScorer(const MapSnapshot& m,OccupancyPolicy p,Footprin
      originCos_(std::cos(m.origin.yaw)),originSin_(std::sin(m.origin.yaw)) {
   ExactCollisionChecker check(m,p,f);
   if(!std::isfinite(weight)||weight<0||!std::isfinite(influence)||influence<=0||
-     !std::isfinite(inflationMeters_)||inflationMeters_<0)
+     !std::isfinite(inflationMeters_)||inflationMeters_<0||
+     !std::isfinite(influence_+inflationMeters_))
     throw std::invalid_argument("Invalid clearance cost configuration");
   if(useDistanceTransform_) {
     const auto start=std::chrono::steady_clock::now();
