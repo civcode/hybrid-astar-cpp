@@ -13,8 +13,11 @@ The independent C++ kinematic model and reusable in-house RK4 are
 now available in [`articulated_steering/model.hpp`](../../include/hybrid_astar/articulated_steering/model.hpp),
 [`model.cpp`](../../src/articulated_steering/model.cpp) and
 [`motion/rk4.hpp`](../../include/hybrid_astar/motion/rk4.hpp).
-**These changes do not enable the fourth Hybrid A* planning mode**,
-assign production body dimensions, or certify collision, actuator,
+A separate experimental
+[articulated planner API](../../include/hybrid_astar/articulated_steering/planner.hpp)
+now provides gamma-aware search with two-body **sampled** collision checking.
+It does not change the existing rigid planner's model selector, assign
+production body dimensions, or certify continuous collision, actuator
 or control feasibility.
 
 **Review priority:** Please check the **reference points and geometry**
