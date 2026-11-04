@@ -85,7 +85,8 @@ and rotated ROS map origins are supported:
    aborts the calibration.
 
 The result reports `validStrata`, `coveredStartStrata`,
-`coveredGoalStrata`, `successfulRoutes`,
+`coveredGoalStrata`, `coveredEitherStrata` (unique map regions reached
+by at least one start or goal), `successfulRoutes`,
 `budgetLimitedRoutes`, `maxObservedPeakLabels`,
 `sampleTargetMet`, and `verificationPassed`.
 A stable FNV-1a `mapFingerprint` of geometry + occupancy values is
