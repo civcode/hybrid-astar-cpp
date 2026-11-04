@@ -173,7 +173,7 @@ The author's `OdeSimulation` source implements **exactly** the five-state
 ODE above with `x_[0]=x_f`, `x_[1]=y_f`,
 `theta1=x_[2]=Theta_f`, `theta2=x_[3]=Theta_r`,
 `x_[4]=gamma`, `v_linear_=v`, and
-`gamma_dot_=u_gamma`. The supplied ROS 2 source names these parameters `__SRC_L_f__` and `__SRC_L_r__`; in the planner specification these correspond to `L_f=L_r=0.5 m`.
+`gamma_dot_=u_gamma`. The supplied ROS 2 source names these parameters `L1_` and `L2_`; in the planner specification these correspond to `L_f=L_r=0.5 m`.
 The `/cmd_vel` fields `linear.x` and `angular.z`
 supply the two controls.
 
@@ -236,7 +236,7 @@ message spacing; `joint_state.velocity[0]` is always sent as 0
 instead of `gamma_dot_`; `/ode_pose` does not set a
 meaningful orientation quaternion; and it does not check
 \(|L_f\cos\gamma+L_r|\) against zero or enforce
-mechanical joint bounds. In particular with the supplied source values `__SRC_L_f__=__SRC_L_r__=0.5`,
+mechanical joint bounds. In particular with the supplied source values `L1_=L2_=0.5`,
 the denominator vanishes at \(\gamma=\pi\).
 These are **integration/telemetry and numerical guards** to
 address before using this simulator as an independent physical
