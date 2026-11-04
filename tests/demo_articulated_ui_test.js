@@ -52,6 +52,9 @@ const result={model:'articulated',width:200,height:160,resolution:.25,
   limits:{maxExpansions:1000},
   original:{status:'Success',validated:true,cost:1,length:1,
     reverseLength:0,expanded:4,goalGammaErrorRadians:0,
+    precomputedAnalyticDriveTemplates:30,
+    precomputedStationaryRk4Templates:28,
+    appliedPrecomputedTemplates:176,
     sections:[{kind:'articulation',gear:'articulation',
       points:[[10,15,0],[10.01,15,-.1]],
       articulatedPoints:[[10,15,0,0],[10.01,15,-.1,.2]]}]}};
@@ -116,6 +119,10 @@ async function main(){
     assert.equal(posted.get(id),'0','Unsupported rigid feature '+id);
   assert.equal(el('exportButton').disabled,false);
   assert.equal(el('curvatureVariationLabel').textContent,'GOAL γ ERROR');
+  assert.ok(el('message').textContent.includes('58 cached primitives'),
+    'Planning Lab reports precomputed primitive-library statistics');
+  assert.ok(el('message').textContent.includes('176 applications'),
+    'Planning Lab reports reuse rather than per-expansion RK4');
   const n=polygons.length;
   el('position').value='1000';call('draw()');
   assert.equal(polygons.length-n,6,'start+goal+replay each have two bodies');
