@@ -24,9 +24,11 @@ struct Options {
   // limits and body offsets require real-robot sign-off before deployment.
   // Start/goal XY/yaw are rear base_link poses when model=articulated.
   double startGammaDegrees=0.0, goalGammaDegrees=0.0;
-  double LfMeters=0.5, LrMeters=0.5;
-  ackermann::Footprint articulatedFront{-0.3,0.3,0.15};
-  ackermann::Footprint articulatedRear{-0.3,0.3,0.15};
+  double LfMeters=1.0, LrMeters=1.0;
+  // Illustrative centered 1.0 m x 0.6 m RECTANGLES. Each body is defined
+  // relative to its own reference point; actual machine geometry is unverified.
+  ackermann::Footprint articulatedFront{-0.5,0.5,0.3};
+  ackermann::Footprint articulatedRear{-0.5,0.5,0.3};
 
   // Optional work-budget override in expanded nodes. Empty keeps the
   // scenario default. Clamped by the callers to a demo-safe range.
