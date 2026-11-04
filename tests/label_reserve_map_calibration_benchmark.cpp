@@ -132,6 +132,7 @@ int main(int argc,char** argv) {
              <<result.recommendedTierIndex
              <<", reserve_labels="<<result.recommendedReserveLabels
              <<", max_observed_labels="<<result.maxObservedPeakLabels
+             <<", map_fingerprint="<<result.mapFingerprint
              <<", successes="<<result.successfulRoutes<<'/'
              <<result.evaluatedRoutes<<", budget_limited="
              <<result.budgetLimitedRoutes
@@ -149,6 +150,7 @@ int main(int argc,char** argv) {
           <<"  \"model\": \""<<model<<"\",\n"
           <<"  \"geometry\": \""<<geometry<<"\",\n"
           <<"  \"map_revision\": "<<result.mapRevision<<",\n"
+          <<"  \"map_fingerprint\": "<<result.mapFingerprint<<",\n"
           <<"  \"seed\": "<<settings.seed<<",\n"
           <<"  \"headroom_fraction\": "<<settings.headroomFraction<<",\n"
           <<"  \"max_expansions\": "<<maxExpansions<<",\n"
