@@ -256,6 +256,10 @@ if(HYBRID_ASTAR_BUILD_APP)
       PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(hybrid_astar_label_reserve_refined_tiers_benchmark
       PRIVATE hybrid_astar_demo_logic)
+    if(HYBRID_ASTAR_PROFILE_HOTPATHS)
+      target_compile_definitions(hybrid_astar_label_reserve_refined_tiers_benchmark
+        PRIVATE HYBRID_ASTAR_LABEL_RESERVE_PROFILE_ENABLED=1)
+    endif()
   endif()
   # Manual full-resolution Nav2 warehouse performance benchmark. Reuse
   # the same restricted ROS YAML/PGM loader as Planning Lab, with no map
