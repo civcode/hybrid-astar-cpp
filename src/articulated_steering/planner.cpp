@@ -19,6 +19,10 @@ bool finiteRear(RearState s) {
   return std::isfinite(s.xr)&&std::isfinite(s.yr)&&
          std::isfinite(s.thetaRear)&&std::isfinite(s.gamma);
 }
+bool validBody(ackermann::Footprint f) {
+  return std::isfinite(f.rearX)&&std::isfinite(f.frontX)&&
+         std::isfinite(f.halfWidth)&&f.frontX>f.rearX&&f.halfWidth>0.0;
+}
 bool cancelled(const Request& r) {
   return r.cancelled && r.cancelled->load(std::memory_order_relaxed);
 }
@@ -87,7 +91,6 @@ std::array<ControlPrimitive,8> catalog(const SearchOptions& o) {
            {{-v,0},movingTime,-1},{{-v,u},movingTime,-1},
            {{0,-u},jointTime,0},{{0,u},jointTime,0}}};
 }
-int gearOf(double v) {return v>0?1:(v<0?-1:0);}
 double transitionCost(const ControlPrimitive& primitive,
                       const SearchOptions& o) {
   const double length=std::abs(primitive.u.frontSpeedMetersPerSecond)*
@@ -226,7 +229,8 @@ Result plan(const Request& r) {
   Result out;
   if(r.map)out.mapRevision=r.map->revision;
   if(!r.map||!validOptions(r.options)||!finiteRear(r.start)||
-     !finiteRear(r.goal)||!nonnegative(r.bodies.inflationMeters))
+     !finiteRear(r.goal)||!nonnegative(r.bodies.inflationMeters)||
+     !validBody(r.bodies.front)||!validBody(r.bodies.rear))
     return out;
   if(cancelled(r)){out.status=Status::Cancelled;return out;}
   try {
