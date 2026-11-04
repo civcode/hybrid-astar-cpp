@@ -44,9 +44,11 @@ implemented; regression review pending):
   pre-plan loading, stale routes and failed searches. Do not require
   planning success for either footprint to appear.
 
-**P0-B — Articulated-steering model** (**Stage A kinematics and
-RK4 implemented; experimental Stage B four-DOF search and Stage C
-two-body sampled collision implemented**).
+**P0-B — Articulated-steering model and Planning Lab**
+(**Stage A kinematics and RK4, experimental Stage B 4D search,
+Stage C two-body sampled collision and Stage D web UI wiring implemented**).
+Complete Docker/HTTP/browser validation and physical geometry approval
+remain pending.
 The standalone [model and conventions review](architecture/articulated_steering_kinematic_model_review.md)
 remains the **physical-robot sign-off** source. A new independent
 [`articulated_steering::plan`](../include/hybrid_astar/articulated_steering/planner.hpp)
@@ -126,6 +128,17 @@ and actuator validation remain open. See
   geometry and self-collision against the actual robot; evaluate
   continuous swept-volume certification if needed. The new
   validator is still sampled, not a physical safety certificate.
+- [x] Wire the separate articulated C++ planner into the
+  localhost [Planning Lab](../apps/demo/README.md#articulated-steering--experimental-planning-lab-mode):
+  model selector, rear base_link pose, start/goal gamma, L_f/L_r,
+  independent editable carriage rectangles, hinge preview, complete
+  articulated replay samples and result/goal-error metrics.
+- [x] Add focused C++ demo-adapter tests, a Node headless UI
+  regression and actual HTTP route/JSON smoke coverage.
+- [ ] Run full local C++/Docker/CTest and visually test the
+  real browser before relying on the new interface; replace
+  example lengths, body dimensions and joint limits with measured
+  physical robot specifications.
 - [ ] Expose only genuinely supported articulated UI/CLI controls
   (pose, `gamma`, speed/joint limits and body overlays) after
   state/collision integration, then test deterministic maps,
@@ -134,11 +147,12 @@ and actuator validation remain open. See
   until the full path pipeline is validated.
 
 **Acceptance gate to start smoothing-quality benchmarking:**
-P0-A still needs browser-level visual verification. P0-B now has an
-experimental 4-DOF search and independently sampled two-carriage
-collision check, but remains gated on owner-confirmed physical
-geometry/limits, full local C++ test execution and representative
-articulated planning evidence before cross-model smoothing benchmarks. Define smoothing metrics that apply to
+P0-A and the experimental articulated Planning Lab both still
+need browser-level visual verification. P0-B now includes the
+four-DOF search, two-body sampled checks and UI/backend wiring,
+but remains gated on owner-confirmed physical geometry/limits,
+full local C++/HTTP tests and representative articulated planning
+evidence before cross-model smoothing benchmarks. Define smoothing metrics that apply to
 each supported robot: Ackermann curvature/steering rate, differential
 wheel-rate continuity, mecanum body twist, and articulated `gamma`,
 `u_gamma`, front/rear body clearance and joint-limit compliance.
