@@ -16,8 +16,12 @@ now available in [`articulated_steering/model.hpp`](../../include/hybrid_astar/a
 A separate experimental
 [articulated planner API](../../include/hybrid_astar/articulated_steering/planner.hpp)
 now provides gamma-aware search with two-body **sampled** collision checking.
-It does not change the existing rigid planner's model selector, assign
-production body dimensions, or certify continuous collision, actuator
+It leaves the existing rigid planner's model adapters unchanged.
+The local [Planning Lab](../../apps/demo/README.md#articulated-steering--experimental-planning-lab-mode)
+now has an **experimental articulated model selector**, start/goal
+joint angles, independent link/footprint configuration and two-body
+replay. Neither that UI nor the underlying planner assigns
+production body dimensions or certifies continuous collision, actuator
 or control feasibility.
 
 **Review priority:** Please check the **reference points and geometry**
