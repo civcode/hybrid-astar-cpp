@@ -59,9 +59,11 @@ limitations](kinematic-models.md#confirmed-by-author-supplied-ros-2-ode-simulato
 
 ## Remaining physical confirmation (OQ-022)
 
-1. The code **uses** a front reference `(xf,yf)`, a
-   joint offset `L_f` backward along `Theta_f`, and rear
-   `base_link` a further `L_r` backward along `Theta_r`.
+1. The code **uses** front reference `(xf,yf)`, with
+   `L_f` as the scalar distance from front reference to joint
+   and `L_r` as the scalar distance from joint to rear reference.
+   Minus signs in the frame conversion specify the direction
+   of coordinate displacement vectors, not the distances.
    Please confirm whether these are **front and rear physical axle
    midpoints** and whether the example's `L_f=L_r=0.5 m`
    are the intended robot's real dimensions.
