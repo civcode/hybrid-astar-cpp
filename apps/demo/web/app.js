@@ -239,11 +239,19 @@ function stats(result) {
        +', goal '+(result.original.strictRejectedGoalMismatch||0)+')')
     :(exhausted?' · search work budget exhausted'
        :' · search exhaustion is not a proof of continuous-space infeasibility');
-  $('message').textContent=valid?(result.model==='articulated'
+  const cachedArticulated=result.model==='articulated'?
+    (result.original.precomputedAnalyticDriveTemplates||0)+
+    (result.original.precomputedStationaryRk4Templates||0):0;
+  const templateNote=cachedArticulated>0?
+    ' · '+cachedArticulated.toLocaleString()+' cached primitives'+
+    ', '+(result.original.appliedPrecomputedTemplates||0).toLocaleString()+
+    ' applications':'';
+  $('message').textContent=(valid?(result.model==='articulated'
     ?'Experimental articulated path · '+status+' · two-carriage independently sampled checks · not swept certified'
     :'Validated geometric path · '+status+(refinement?' · refinement: '+refinement+acceptedLabel:'')+' · sampled footprint checking'):
     ('No validated path · '+status+failureDetail+
-     (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions':''));
+     (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions':'')))+
+    templateNote;
   $('cost').textContent=valid?path.cost.toFixed(2)+' m':'—';
   $('length').textContent=valid?path.length.toFixed(2)+' m':'—';
   $('reverseLen').textContent=valid?path.reverseLength.toFixed(2)+' m':'—';
