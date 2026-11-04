@@ -8,7 +8,7 @@ pose as a rear reference pose**. This correction is captured in the
 Physical axle/joint locations, collision-body geometry and operating
 limits still need author confirmation before fourth-model integration.
 
-**Read and sign off the [dedicated kinematic model and frame-conventions review draft](articulated_steering_kinematic_model_review.md) first.** It is the owner-facing review artifact covering the exact ODE, front/rear frames, (L_f/L_r), stationary steering and explicit undecided conventions. Do not implement this plan before the owner checks those assumptions against their notes.
+**Use the [dedicated kinematic model and frame-conventions review draft](articulated_steering_kinematic_model_review.md) for the owner's physical-robot sign-off.** It covers the exact ODE, front/rear frames, L_f/L_r, stationary steering and undecided conventions. The dependency-free mathematical Stage A is now implemented, but do not integrate articulated search, multi-body collision or real-robot execution until those physical assumptions and limits are confirmed.
 
 **Implementation status (2026-11-04): Stage A kinematic library is
 implemented** in
