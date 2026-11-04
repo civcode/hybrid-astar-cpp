@@ -233,6 +233,14 @@ struct PrimitiveLibrary {
         t.localSamples=model.trajectory(initial,command.u,command.duration,
                                          command.duration/static_cast<double>(steps),
                                          steps);
+        // Snap ONLY floating-point endpoint gamma to the exact lattice
+        // angle; retain the physically integrated rear pose and reconstruct
+        // its dependent front heading to preserve the angle invariant.
+        auto& endpoint=t.localSamples.back();
+        if(std::abs(endpoint.rear.gamma-angles[to])>1e-9)
+          throw std::invalid_argument("Precomputed steering misses target angle");
+        endpoint.rear.gamma=angles[to];
+        endpoint.state=model.fromRear(endpoint.rear);
         ++stationaryRk4Count;
       }
       sampleCount+=t.localSamples.size();
