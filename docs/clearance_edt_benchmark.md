@@ -1,5 +1,20 @@
 # Opt-in EDT-assisted capped clearance cost: Nav2 warehouse A/B/C
 
+## Measured results (2026-11-04)
+
+The corrected two-route, one-repeat warehouse smoke CSV succeeded in all
+12 runs. EDT skipped **79.8%** of exact clearance-distance scans and reduced
+search latency **30.2% median versus exact clearance**, but clearance-enabled
+planning remained **3.57–4.84x slower than clearance OFF** and made
+**13.9–15.2% more exact collision-check calls**. Sampled obstacle clearance
+improved strongly in route 0 and marginally in route 1. The full 10-route
+follow-up is still pending; do **not** enable clearance/EDT globally.
+
+See [detailed results and caveats](warehouse_performance_findings_2026-11-04.md)
+for the route-by-route times, clearance measurements, model-policy correction
+and experiment limitations.
+
+
 This experiment measures whether a proximity penalty steers Hybrid A* away
 from obstacles, and whether a precomputed Euclidean distance transform (EDT)
 makes this penalty affordable. It does **not** replace exact collision checks,
