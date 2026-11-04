@@ -61,8 +61,11 @@ See [articulated-steering integration stages and remaining physical questions](a
 - [x] Derive a physically consistent candidate frame interpretation:
   `F=(xf,yf)`, `H=F-L1*heading(Theta_f)`,
   `R=H-L2*heading(Theta_r)`, with front/rear axle no-slip.
-  This algebra is established; its **identification with the real
-  robot geometry is still provisional**.
+  The newly supplied ROS 2 simulator **confirms these exact
+  front-to-rear offsets**, with `base_link` at the computed
+  rear reference and `L1_=L2_=0.5 m` in that example.
+  Whether these points are physical axle midpoints and the
+  full collision-body dimensions remain **unconfirmed**.
 - [ ] **Confirm OQ-022 with the robot owner:** whether the front
   reference really is the front axle midpoint, the physical
   endpoints for `L1/L2`, zero/positive articulation convention,
