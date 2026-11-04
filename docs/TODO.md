@@ -93,10 +93,12 @@ and actuator validation remain open. See
   simultaneous front/rear heading changes, stationary front reference,
   moving rear `base_link`, angle consistency and finite-joint-angle
   split (including reverse-time/control fixtures).
-- [ ] Extend them to **model-specific primitive integration and
-  two-body swept collision checks**, with both joint-rate signs,
-  angle wrap, body geometry and independently strict final validation.
-  Those search/collision capabilities do not exist yet.
+- [x] Model-specific joint-only transition integration, two-body
+  sampled collision checks, angle consistency and independently
+  strict final RK4 validation are implemented experimentally.
+- [ ] Test continuous swept envelopes, self-collision and
+  mechanics-calibrated body geometry; discrete samples alone
+  cannot certify a collision-free continuous motion.
 - [x] Implement a standalone native C++20
   [articulated model](../include/hybrid_astar/articulated_steering/model.hpp)
   with **both reported headings**, a strict articulation invariant,
@@ -109,14 +111,23 @@ and actuator validation remain open. See
   full-repository Catch2/CTest execution on a complete checkout
   remains to be verified. Search indexing is **not** yet extended.
 - [x] Add a **separate articulated four-state search kernel**
-  with `gamma` and incoming gear in the label key, eight bounded
-  RK4 motion primitives (including zero-speed joint steering),
-  complete five-variable path reconstruction and gamma-aware goal
-  acceptance. Preserve rigid three-state planners unchanged; rigid
-  Reeds-Shepp connectors are NOT silently used for articulated motion.
+  with `gamma` and incoming gear in the label key,
+  **precomputed request-local fixed-`gamma` analytic forward/reverse
+  arcs** and **RK4-generated stationary `v=0` steering transitions**
+  between neighboring articulation angles. No simultaneous driving
+  and articulation changing occurs in these primitives, and there
+  are no instantaneous jumps between steering states.
+  Exact start/goal gamma values are included in the angular lattice,
+  complete five-state paths are reconstructed, and the final path
+  is independently RK4-integrated and collision checked.
+  Preserve the existing three rigid planners; ordinary Reeds-Shepp
+  connectors are NOT silently used for articulated motion.
 - [ ] Benchmark and tune articulated search key sizes,
-  primitive families and independent geometry/goal tolerances on
-  representative maps. Full Catch2/Docker execution remains open.
+  template angular spacing, geometry/goal tolerances and
+  stationary steering costs on representative maps.
+  Compare expansions and elapsed time with the old per-expansion
+  eight-control RK4 generation using matched map/start/goal cases.
+  Full Catch2/Docker execution remains open.
 - [x] Require **two explicitly configured carriage
   rectangles**, each checked independently by the existing exact
   occupancy-map collision checker with shared unknown/map-boundary
