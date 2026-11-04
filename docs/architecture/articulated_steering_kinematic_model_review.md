@@ -467,9 +467,11 @@ Mark each **Agree / Correct / Not yet defined** and annotate it:
 
 **Implementation state:** The kinematic derivative, four-independent-variable
 rear frame conversion, explicit limits and dependency-free RK4 are
-implemented. Full-state search, two-body geometry/collision checking
-and physics-calibrated controls remain pending; a standalone C++ model
-is not by itself a safe articulated robot planner.
+implemented. Full-state search and separate front/rear occupancy collision checks are
+now implemented experimentally, with independent finer-sampled final
+validation. Robot-specific frame/body calibration, potential self-collision,
+continuous swept checks, performance benchmarking and actuator feasibility
+remain pending; this is not a certified real-robot motion planner.
 
 **Review outcome (not yet decided):** After the owner reconciles
 these conventions against their notes, freeze a versioned
