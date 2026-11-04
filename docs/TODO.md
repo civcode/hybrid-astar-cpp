@@ -40,7 +40,8 @@ implemented; regression review pending):
   plan for the footprints to appear.
 
 **P0-B — Articulated-steering kinematic model** (kinematic ODE already
-supplied; **physical conventions and planner integration pending**):
+supplied; **physical conventions and planner integration pending**).
+See [articulated-steering integration stages and open conventions](architecture/articulated_steering_integration.md):
 
 - [x] Locate the author-supplied four-state rear-chassis ODE in
   [kinematic-models](architecture/kinematic-models.md). State is
