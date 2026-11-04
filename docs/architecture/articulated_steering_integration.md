@@ -8,6 +8,8 @@ pose as a rear reference pose**. This correction is captured in the
 Physical axle/joint locations, collision-body geometry and operating
 limits still need author confirmation before fourth-model integration.
 
+**Read and sign off the [dedicated kinematic model and frame-conventions review draft](articulated_steering_kinematic_model_review.md) first.** It is the owner-facing review artifact covering the exact ODE, front/rear frames, (L_f/L_r), stationary steering and explicit undecided conventions. Do not implement this plan before the owner checks those assumptions against their notes.
+
 This is a design/integration plan, **not a claim that articulated
 search, full-body collision, or smoothing is implemented**.
 
