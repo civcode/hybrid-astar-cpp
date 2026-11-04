@@ -282,6 +282,13 @@ if(HYBRID_ASTAR_BUILD_APP)
       target_compile_definitions(hybrid_astar_nav2_label_lookup_benchmark_test
         PRIVATE HYBRID_ASTAR_NAV2_PIPELINE_PROFILE_ENABLED=1)
     endif()
+    # Manual 10-route clearance OFF / exact / EDT experiment; never CTest.
+    add_executable(hybrid_astar_nav2_clearance_edt_benchmark_test
+      tests/nav2_clearance_edt_benchmark_test.cpp)
+    target_include_directories(hybrid_astar_nav2_clearance_edt_benchmark_test
+      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(hybrid_astar_nav2_clearance_edt_benchmark_test
+      PRIVATE hybrid_astar_demo_logic)
   endif()
   if(HYBRID_ASTAR_BUILD_TESTS)
     add_executable(hybrid_astar_nav2_footprint_envelope_contract_test
