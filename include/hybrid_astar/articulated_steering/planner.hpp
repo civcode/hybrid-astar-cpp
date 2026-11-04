@@ -26,7 +26,7 @@ struct SearchOptions {
   double translationSpeedMetersPerSecond=0.5;
   double articulationRateRadiansPerSecond=0.4;
   double translationPrimitiveMeters=0.5;
-  double articulationPrimitiveRadians=0.2;
+  double articulationPrimitiveRadians=0.2; // max neighboring gamma spacing (rad)
   double xyBinMeters=0.15;
   double yawBinRadians=0.15;
   double gammaBinRadians=0.10;
@@ -83,6 +83,13 @@ struct Diagnostics {
   std::size_t searchBodyChecks=0, finalBodyChecks=0;
   std::size_t rejectedSearchCollision=0, rejectedInvalidMotion=0;
   std::size_t strictGoalCandidates=0, strictRejected=0;
+  // Primitive generation is map-independent and performed once per plan.
+  // Search applies these rigidly transformed templates; it does NOT
+  // reintegrate each successor. Final strict checks still use RK4.
+  std::size_t precomputedAnalyticDriveTemplates=0;
+  std::size_t precomputedStationaryRk4Templates=0;
+  std::size_t precomputedSampleCount=0;
+  std::size_t appliedPrecomputedTemplates=0;
 };
 struct Result {
   Status status=Status::InvalidRequest;
