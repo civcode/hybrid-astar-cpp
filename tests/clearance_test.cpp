@@ -150,7 +150,9 @@ TEST_CASE("EDT and exact clearance produce identical differential search and pat
   auto map=std::make_shared<MapSnapshot>();
   map->width=96;map->height=96;map->resolutionMeters=.2;
   map->cells.assign(map->width*map->height,0);
-  for(std::size_t y=22;y<34;++y)map->cells[y*map->width+41]=100;
+  // Close enough to penalize a straight route, but outside its inflated
+  // footprint so start/goal remain valid and the search can succeed.
+  map->cells[27*map->width+31]=100;
   PlanRequest req;
   req.map=map;
   req.start={4.,5.,0.};
