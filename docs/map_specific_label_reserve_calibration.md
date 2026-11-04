@@ -1,5 +1,43 @@
 # Map-specific A* state-label reservation calibration
 
+## Quick start: run the map dial-in tool
+
+From the repository root, build the manual calibration executable (once, or
+again after changes) and run **32 deterministic, spatially distributed
+start/goal searches** on the chosen map:
+
+```bash
+export BUILD_JOBS=28 TEST_JOBS=4 PROFILE_HOTPATHS=OFF
+docker compose build test
+
+docker compose --profile test run --rm test \
+  ./build-docker/hybrid_astar_label_reserve_map_calibration_benchmark \
+  --map apps/demo/maps/nav2_warehouse_full.yaml \
+  --model differential \
+  --geometry large \
+  --samples 32 \
+  --seed 20261104 \
+  --headroom 0.20 \
+  --max-expansions 500000 \
+  --max-generated 2000000 \
+  --grid-settlements 100000 \
+  --fast-empty-aabb \
+  > nav2-label-calibration.csv
+```
+
+The tool prints the **tier-series version, recommended tier index and
+reserved label count**, coverage and verification result to the terminal
+(stderr); the per-route measurements go to
+`nav2-label-calibration.csv` (stdout). By default it replays all sampled
+routes to verify zero rehashes and identical planning behavior. Use your
+own ROS map YAML with `--map`; adjust the model, footprint geometry and
+budgets to match the intended workload. For the other existing benchmark
+footprint, use `--geometry small-inflated`.
+
+The result is **empirical for the sampled routes**; it does not
+guarantee zero rehashes for every future request. Calibration is
+manual/offline and does not change the planner's default.
+
 ## Purpose and output
 
 `calibrateLabelReserve(prototype, settings)` is a **public, offline,
