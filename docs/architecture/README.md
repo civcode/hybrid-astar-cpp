@@ -30,7 +30,8 @@ The baseline and ADRs are historical architecture proposals; the first C++20 Ack
 | [Quality](quality.md) | Nonfunctional requirements, measurement protocol |
 | [Verification](verification.md) | Contract-driven test and benchmark strategy |
 | [Open questions](open-questions.md) | Unresolved decisions, review gates |
-| [Work items](../TODO.md) | Phased actionable checklists |
+| [Current implementation roadmap](../TODO.md#current-priorities--2026-11-04) | Active priorities: curvature-continuous smoothing, efficient refinement, timed trajectories, profiling, cache reuse and selective tuning; smoothing benchmark is prerequisite-gated |
+| [Historical work items](../TODO.md#historical-implementation-checklists-preserved-for-traceability) | Original W/M phased checklists retained for traceability, not the active priority order |
 | [ADRs](../adr/README.md) | Decision history and rationale |
 
 ## Architecture principles
