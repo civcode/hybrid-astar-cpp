@@ -122,6 +122,12 @@ it is **not** a replacement for a latency-versus-memory sweep.
 
 ## Manually run on the warehouse map (28 compilation jobs)
 
+Use the **same budgets as real production requests** when estimating
+reservations. The previous Nav2 warehouse experiment allowed
+500,000 expansions and 2,000,000 generated nodes; reducing those
+budgets can artificially cap peak labels and produce an unsafe
+underestimate for more demanding future plans.
+
 From the repository root:
 
 ```bash
@@ -143,7 +149,7 @@ docker compose --profile test run --rm test \
   --map apps/demo/maps/nav2_warehouse_full.yaml \
   --model differential --geometry large \
   --samples 4 --seed 20261104 --fast-empty-aabb \
-  --max-expansions 120000 --max-generated 480000 \
+  --max-expansions 500000 --max-generated 2000000 \
   > nav2-label-calibration-smoke.csv
 ```
 
@@ -156,7 +162,7 @@ docker compose --profile test run --rm test \
   --map apps/demo/maps/nav2_warehouse_full.yaml \
   --model differential --geometry large \
   --samples 32 --seed 20261104 --headroom 0.20 \
-  --max-expansions 120000 --max-generated 480000 \
+  --max-expansions 500000 --max-generated 2000000 \
   --grid-settlements 100000 --fast-empty-aabb \
   > nav2-label-calibration-large.csv
 
@@ -165,7 +171,7 @@ docker compose --profile test run --rm test \
   --map apps/demo/maps/nav2_warehouse_full.yaml \
   --model differential --geometry small-inflated \
   --samples 32 --seed 20261104 --headroom 0.20 \
-  --max-expansions 120000 --max-generated 480000 \
+  --max-expansions 500000 --max-generated 2000000 \
   --grid-settlements 100000 --fast-empty-aabb \
   > nav2-label-calibration-small.csv
 ```
