@@ -30,3 +30,10 @@ footer{font-size:11px;color:#647b93;text-align:right;padding:23px 4px}
 .legend i.rotate{background:#b69eff}
 
 .legend i.holonomic{background:#7db2ff}
+
+/* Articulated controls are only visible for the experimental two-carriage model. */
+[hidden]{display:none!important}
+.coords.coords-two{grid-template-columns:repeat(2,minmax(0,1fr))}
+#articulatedControls{margin:0}
+#articulatedControls .section-label{margin-top:18px}
+#articulatedControls .hint strong{color:#bcd9e5}
