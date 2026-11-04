@@ -54,7 +54,8 @@ ClearanceScorer::ClearanceScorer(const MapSnapshot& m,OccupancyPolicy p,Footprin
                                  double weight,double influence,bool useDistanceTransform,double inflationMeters)
     :map_(m),occupancy_(p),footprint_(f),lambda_(weight),influence_(influence),
      bodyRadius_(std::hypot(std::max(std::abs(f.rearX),std::abs(f.frontX)),f.halfWidth)),
-     inflationMeters_(inflationMeters),useDistanceTransform_(useDistanceTransform) {
+     inflationMeters_(inflationMeters),useDistanceTransform_(useDistanceTransform),
+     originCos_(std::cos(m.origin.yaw)),originSin_(std::sin(m.origin.yaw)) {
   ExactCollisionChecker check(m,p,f);
   if(!std::isfinite(weight)||weight<0||!std::isfinite(influence)||influence<=0||
      !std::isfinite(inflationMeters_)||inflationMeters_<0)
@@ -99,7 +100,7 @@ void ClearanceScorer::buildDistanceTransform() {
 bool ClearanceScorer::edtProvesZeroCost(const Pose2D& pose) const {
   // Convert the pose reference point to the same map-local coordinates as
   // the exact polygon scorer. Never approximate exact collision decisions.
-  const double cs=std::cos(map_.origin.yaw),sn=std::sin(map_.origin.yaw);
+  const double cs=originCos_,sn=originSin_;
   const double dx=pose.x-map_.origin.x,dy=pose.y-map_.origin.y;
   const double x0=cs*dx+sn*dy,y0=-sn*dx+cs*dy;
   const double r=map_.resolutionMeters;
@@ -146,7 +147,7 @@ double ClearanceScorer::poseClearanceMeters(const Pose2D& pose,
 double ClearanceScorer::exactPoseClearanceMeters(const Pose2D& pose) const {
   if(!std::isfinite(pose.x)||!std::isfinite(pose.y)||!std::isfinite(pose.yaw))
     throw std::invalid_argument("Nonfinite clearance pose");
-  const double c0=std::cos(map_.origin.yaw),s0=std::sin(map_.origin.yaw);
+  const double c0=originCos_,s0=originSin_;
   const double dx=pose.x-map_.origin.x,dy=pose.y-map_.origin.y;
   const double x0=c0*dx+s0*dy,y0=-s0*dx+c0*dy;
   const double theta=pose.yaw-map_.origin.yaw;
