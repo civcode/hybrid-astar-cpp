@@ -10,8 +10,24 @@ limits still need author confirmation before fourth-model integration.
 
 **Read and sign off the [dedicated kinematic model and frame-conventions review draft](articulated_steering_kinematic_model_review.md) first.** It is the owner-facing review artifact covering the exact ODE, front/rear frames, (L_f/L_r), stationary steering and explicit undecided conventions. Do not implement this plan before the owner checks those assumptions against their notes.
 
-This is a design/integration plan, **not a claim that articulated
-search, full-body collision, or smoothing is implemented**.
+**Implementation status (2026-11-04): Stage A kinematic library is
+implemented** in
+[`articulated_steering/model.hpp`](../../include/hybrid_astar/articulated_steering/model.hpp)
+and [`model.cpp`](../../src/articulated_steering/model.cpp), using the
+project-owned, dependency-free
+[`motion/rk4.hpp`](../../include/hybrid_astar/motion/rk4.hpp).
+The original five-variable ODE, explicit front/rear reference
+transforms, angle invariant, bounds, local deterministic RK4 sampling,
+reverse travel and stationary joint steering are implemented and have
+dedicated [tests](../../tests/articulated_steering_model_test.cpp).
+The model requires caller-supplied link lengths and joint/control
+limits rather than silently adopting the ROS simulator's values.
+
+**Search-stage, articulated primitives, four-DOF labels and two-body
+collision validation are not implemented yet.** The current planner
+remains a three-state rigid-body planner and must not advertise
+articulated motion as supported. Physical dimensions and limits
+still require real-robot confirmation.
 
 ## Canonical author-supplied five-variable model
 
@@ -157,11 +173,26 @@ the ODE undefined.
 
 ## Implementation stages and acceptance checks
 
-### Stage A — validated model, no planner integration yet
+### Stage A — standalone kinematics implemented; physical calibration pending
 
-- Define explicit `ArticulatedState{xf,yf,thetaFront,gamma}`,
-  `ArticulatedControl{v,gammaRate}` and robot parameters with SI
-  units. Keep them separate from `ackermann::Pose2D`.
+- [x] Implement five-variable ODE and four-independent-state rear
+  projection with explicit geometry and control constraints.
+- [x] Add classical `motion::rk4Step` without Boost, ROS or external
+  integrator dependencies; record complete front and rear states.
+- [x] Validate finite inputs, aligned-heading invariant, joint
+  range, positive denominator margin and bounded RK4 steps.
+- [x] Add deterministic forward/reverse, zero-speed articulation,
+  geometry round-trip and convergence tests.
+- [ ] Match production link lengths, joint limits and body reference
+  origins to the actual robot's mechanical definition before declaring
+  deployment readiness.
+
+- The current source API uses
+  `articulated_steering::State{xf,yf,thetaFront,thetaRear,gamma}`
+  for diagnostics and five-ODE fidelity, plus
+  `RearState{xr,yr,thetaRear,gamma}` for the four-independent-state
+  rear `base_link` representation. Keep this distinct from the
+  existing rigid `ackermann::Pose2D` search state.
 - Implement the time-domain derivative with finite-value tests,
   denominator margin, valid joint range and control limits.
 - Provide a deterministic integrator respecting angle topology,
