@@ -106,7 +106,10 @@ LabelReserveCalibrationResult calibrateLabelReserve(
      settings.maxPairAttemptsPerRoute==0||settings.maxPairAttemptsPerRoute>1000||
      (settings.strataX==0)!=(settings.strataY==0)||
      !std::isfinite(settings.minStartGoalDistanceMeters)||
-     settings.minStartGoalDistanceMeters<0)
+     settings.minStartGoalDistanceMeters<0||
+     !std::isfinite(settings.headroomFraction)||
+     settings.headroomFraction<0.0||
+     settings.headroomFraction>2.0)
     throw std::invalid_argument("Invalid calibration sample/coverage settings");
   // The function derives a recommended reserve from an unreserved search;
   // pre-existing caller options are copied but no reservation is inherited.
