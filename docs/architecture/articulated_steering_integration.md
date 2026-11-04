@@ -214,7 +214,8 @@ the ODE undefined.
 
 - [x] Require explicit front and rear filled-rectangle geometry in
   their own carriage frames. No Ackermann geometry is silently reused.
-- [x] Use separate existing `ackermann::ExactCollisionChecker`
+- [x] Use `articulated_steering::BodyCollisionChecker` with two
+  independent existing `ackermann::ExactCollisionChecker`
   instances against the **same immutable map**, occupancy/unknown
   policy, map-origin transform, boundary checks and metric inflation.
 - [x] Evaluate **both** collision bodies at each full state, including
