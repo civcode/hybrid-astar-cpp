@@ -258,6 +258,8 @@ LabelReserveCalibrationResult calibrateLabelReserve(
       std::count(startCovered.begin(),startCovered.end(),true));
   result.coveredGoalStrata=static_cast<std::size_t>(
       std::count(goalCovered.begin(),goalCovered.end(),true));
+  for(std::size_t i=0;i<totalStrata;++i)
+    if(startCovered[i]||goalCovered[i])++result.coveredEitherStrata;
   result.sampleTargetMet=result.evaluatedRoutes==settings.routeSamples;
   if(!result.sampleTargetMet)
     throw std::runtime_error("Insufficient distinct valid start/goal pairs; "
