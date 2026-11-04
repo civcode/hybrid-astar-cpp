@@ -55,6 +55,66 @@ The planner still accepts an explicit **label count**, not a tier index,
 and `PlanOptions.searchLabelReserve` still defaults to **0**.
 Calibration is never triggered implicitly by a planning request.
 
+## Measured performance: 32 seeded warehouse routes (2026-11-04)
+
+**Completed evidence:** `nav2-label-refined-tiers-32.csv` contains
+**128 successful rows**: 32 seeded routes × 4 reservation tiers,
+five timed search repetitions after a per-variant warmup.
+All 128 rows have **zero rehashes** and **identical search-work results**
+for each matched route; all report tier-series v2, map fingerprint
+`16467401262430778714`, seed `20261104`, differential model and
+large (70 × 50 cm) footprint. The CSV analyzer verified the entire
+four-way matrix with profiling disabled.
+
+| Tier | Reserved labels | Median search p50 | Median paired change versus tier 13 | Wins versus tier 13 | Median bucket-array MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| **13** | **524,288** | **176.562 ms** | baseline | — | **4.29** |
+| **14** | **655,360** | **176.708 ms** | **~0.00%** | **16/32** | **5.03** |
+| 15 | 786,432 | 177.667 ms | **0.41% slower** | 10/32 | 6.36 |
+| 17 | 1,048,576 | 178.551 ms | **0.72% slower** | 5/32 | 8.06 |
+
+**Tier 13 and tier 14 have no consistent measured latency winner.**
+Tier 14 is faster on 16/32 pairs, tier 13 on the other 16;
+the median paired tier-14-versus-tier-13 difference is only
+**+0.001% slower**, well below a useful actionable difference in
+this run. Their *independently calculated medians* differ slightly
+(176.562 vs 176.708 ms); do not substitute that difference for the
+median of paired percentages.
+
+- Tier 14 needs **+0.73 MiB of estimated bucket pointers** versus
+  tier 13. It retains **170,826 labels** of spare nominal capacity
+  at the hardest observed peak of 484,534 (35.3% above that peak).
+  Tier 13 has only **39,754 labels** spare (8.2% above the peak).
+  Neither margin proves anything about unobserved requests.
+- Tier 17 uses **+3.03 MiB** estimated buckets compared with tier 14
+  and has worse search p50 on **27/32 matched routes**.
+  Its median paired slowdown versus tier 14 is **0.68%**.
+- Tier 15 also offers no observed advantage: versus tier 14 its
+  median paired slowdown is **0.38%** and it wins just **6/32**.
+- The five most demanding sample peaks exceed the older 262,144-label
+  setting. Sample 24 reached **484,534 labels** and **478,906
+  expansions**; its per-tier search medians were
+  983.884 / 986.787 / 980.121 / 982.702 ms. This one hard route
+  does **not** override the paired 32-route result.
+- Memory values are **bucket arrays only**, excluding node allocations,
+  temporary rehash allocations, allocator overhead and peak process RSS.
+  The benchmark does not establish which tier minimizes total RAM.
+
+**Recommendation for this calibration profile:** retain **v2 tier 14
+(655,360)** as the **20%-headroom-adjusted**, sampled zero-rehash
+recommendation: its performance is effectively level with tier 13,
+and its incremental bucket allocation is just ~0.73 MiB.
+Use **tier 13 (524,288)** when minimizing the measured bucket memory
+matters more than retaining the configured headroom; it also avoided
+rehashes on all these sampled routes. Do **not** select tiers 15/17
+for this workload without new supporting evidence.
+
+This selection is **map-, footprint-, model- and budget-specific**.
+The smaller inflated geometry, other seeds, smaller maps, higher budgets
+and real peak-RSS effects are **not** validated by this comparison.
+The library default remains `searchLabelReserve=0`; calibration
+and use of a tier are explicit.
+
 ## Manual matched speed experiment
 
 A new executable
@@ -159,7 +219,8 @@ the fastest configuration.
 - A real peak-RSS comparison, if required, needs a separate memory
   profiling run; this CSV only estimates bucket-array memory.
 
-**Pending:** The new C++ benchmark has been implemented, but no
-timed 32-route v2 results have been collected yet. No GitHub Actions
-workflow is created or executed; the executable is manual-only and
-not registered with CTest.
+**Status:** The 32-route large-footprint benchmark is complete
+and summarized above; the manual command remains available for exact
+reproduction and other geometries/seeds. No GitHub Actions workflow
+was created or executed; the executable is manual-only and not
+registered with CTest.
