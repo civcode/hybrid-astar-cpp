@@ -51,6 +51,15 @@ target_compile_features(hybrid_astar_mecanum PUBLIC cxx_std_20)
 target_include_directories(hybrid_astar_mecanum PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
 add_library(hybrid_astar::mecanum ALIAS hybrid_astar_mecanum)
+# Explicitly separate articulated five-state kinematics from the existing
+# rigid SE(2) search; the fourth planner mode is NOT yet supported.
+# Uses our own header-only classical RK4, with no Boost/ROS dependency.
+add_library(hybrid_astar_articulated_steering STATIC
+  src/articulated_steering/model.cpp)
+target_compile_features(hybrid_astar_articulated_steering PUBLIC cxx_std_20)
+target_include_directories(hybrid_astar_articulated_steering PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/include")
+add_library(hybrid_astar::articulated_steering ALIAS hybrid_astar_articulated_steering)
 # Core search invokes differential primitive generation when that model is selected.
 target_link_libraries(hybrid_astar_core PUBLIC hybrid_astar_differential_drive hybrid_astar_mecanum)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
@@ -81,6 +90,12 @@ endif()
 
 if(HYBRID_ASTAR_BUILD_TESTS)
   enable_testing()
+  add_executable(hybrid_astar_articulated_steering_model_test
+    tests/articulated_steering_model_test.cpp)
+  target_link_libraries(hybrid_astar_articulated_steering_model_test PRIVATE
+    hybrid_astar::articulated_steering Catch2::Catch2WithMain)
+  add_test(NAME articulated_steering_model_test
+    COMMAND hybrid_astar_articulated_steering_model_test)
   add_executable(hybrid_astar_w12_mecanum_test tests/w12_mecanum_test.cpp)
   target_include_directories(hybrid_astar_w12_mecanum_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(hybrid_astar_w12_mecanum_test PRIVATE
