@@ -16,12 +16,12 @@ search, full-body collision, or smoothing is implemented**.
 ```text
 q = (xf, yf, Theta_f, Theta_r, gamma)
 u = (v, u_gamma) where u_gamma = dgamma/dt
-D(gamma) = L1*cos(gamma) + L2
+D(gamma) = L_f*cos(gamma) + L_r
 
 dxf/dt      = v*cos(Theta_f)
 dyf/dt      = v*sin(Theta_f)
-dTheta_f/dt = (v*sin(gamma) + L2*u_gamma)/D(gamma)
-dTheta_r/dt = (v*sin(gamma) - L1*cos(gamma)*u_gamma)/D(gamma)
+dTheta_f/dt = (v*sin(gamma) + L_r*u_gamma)/D(gamma)
+dTheta_r/dt = (v*sin(gamma) - L_f*cos(gamma)*u_gamma)/D(gamma)
 dgamma/dt   = u_gamma
 ```
 
@@ -40,15 +40,16 @@ The author has also supplied the **ROS 2 `OdeSimulation` code**.
 It confirms the intended frame conversion in the actual simulator:
 `x_[0:2]` hold the **front** reference pose with heading
 `theta1=x_[2]`; `theta2=x_[3]` is the rear heading.
-The transform `odom -> base_link` is published at
-`x2=x-L1*cos(theta1)-L2*cos(theta2)`,
-`y2=y-L1*sin(theta1)-L2*sin(theta2)`, yaw `theta2`.
+The transform `odom -> base_link` is published at the rear
+reference pose, expressed in our notation as
+`x_r=x_f-L_f*cos(Theta_f)-L_r*cos(Theta_r)`,
+`y_r=y_f-L_f*sin(Theta_f)-L_r*sin(Theta_r)`, yaw `Theta_r`.
 Thus `base_link` is **rear-referenced**, whereas the ODE
-integrates the **front** reference. The example has
-`L1_=L2_=0.5 m`.
+integrates the **front** reference. The supplied ROS 2 simulator uses the original source identifiers
+`L1_=L2_=0.5 m`; our geometric names are now `L_f=L_r=0.5 m`.
 
-The code matches `H=F-L1*heading(Theta_f)` and
-`R=H-L2*heading(Theta_r)`. This establishes the
+The code matches `H=F-L_f*heading(Theta_f)` and
+`R=H-L_r*heading(Theta_r)`. This establishes the
 **simulator's intended frame offsets**, not that the front/rear
 reference points are necessarily the *physical* axle centers.
 See [the full rear-reference kinematic reduction and simulator
@@ -57,10 +58,10 @@ limitations](kinematic-models.md#confirmed-by-author-supplied-ros-2-ode-simulato
 ## Remaining physical confirmation (OQ-022)
 
 1. The code **uses** a front reference `(xf,yf)`, a
-   joint offset `L1` backward along `Theta_f`, and rear
-   `base_link` a further `L2` backward along `Theta_r`.
+   joint offset `L_f` backward along `Theta_f`, and rear
+   `base_link` a further `L_r` backward along `Theta_r`.
    Please confirm whether these are **front and rear physical axle
-   midpoints** and whether the example's `L1=L2=0.5 m`
+   midpoints** and whether the example's `L_f=L_r=0.5 m`
    are the intended robot's real dimensions.
 2. Is `gamma = wrap(Theta_f - Theta_r)` with **zero at aligned
    chassis**, and are positive headings counterclockwise in the
@@ -99,14 +100,14 @@ either body stays motionless.
 For `v=0`, the authoritative ODE gives
 
 \[
-\dot\Theta_f=\frac{L_2}{D(\gamma)}u_\gamma,\qquad
-\dot\Theta_r=-\frac{L_1\cos\gamma}{D(\gamma)}u_\gamma,\qquad
-D(\gamma)=L_1\cos\gamma+L_2.
+\dot\Theta_f=\frac{L_r}{D(\gamma)}u_\gamma,\qquad
+\dot\Theta_r=-\frac{L_f\cos\gamma}{D(\gamma)}u_\gamma,\qquad
+D(\gamma)=L_f\cos\gamma+L_r.
 \]
 
 These add up to the required
 \(\dot\Theta_f-\dot\Theta_r=u_\gamma=\dot\gamma\).
-For `L1=L2` and \(\gamma=0\), the front and rear initially
+For `L_f=L_r` and \(\gamma=0\), the front and rear initially
 turn by **equal and opposite half angles**:
 \(\dot\Theta_f=\frac12u_\gamma\),
 \(\dot\Theta_r=-\frac12u_\gamma\).
@@ -114,7 +115,7 @@ turn by **equal and opposite half angles**:
 **Recommended design:** Use the equal split as a convenient initial
 intuition or small-angle approximation; **generate planner motion
 samples with the exact angle-dependent ODE**. At finite articulation
-the split is not constant. For the simulator's `L1=L2=0.5m`,
+the split is not constant. For the simulator's `L_f=L_r=0.5m`,
 the front/rear shares of \(\dot\gamma\) are 50%/−50% at
 0°, about 53.6%/−46.4% at 30°, and 66.7%/−33.3%
 at 60°. A globally fixed 50/50 split would violate the
@@ -127,7 +128,7 @@ define the mean heading \(\psi=(\Theta_f+\Theta_r)/2\). Then
 states, but at `v=0` the mean heading itself generally evolves:
 
 \[
-\dot\psi=\frac{L_2-L_1\cos\gamma}{2D(\gamma)}u_\gamma.
+\dot\psi=\frac{L_r-L_f\cos\gamma}{2D(\gamma)}u_\gamma.
 \]
 
 Holding \(\psi\) constant while commanding a large joint change
@@ -145,8 +146,8 @@ carriages at every sampled articulation state**, including when
 no differential-drive `RotateInPlace` shortcut may be substituted
 for the articulated movement.
 
-**Terminology warning:** The simulator names the denominator
-`c=L1*cos(gamma)+L2`. The steering mode discussed above
+**Terminology warning:** The simulator uses the name `c` for
+the denominator; in our notation `c=L_f*cos(gamma)+L_r`. The steering mode discussed above
 is `v=0`, **never** literal `c=0`, which makes
 the ODE undefined.
 
