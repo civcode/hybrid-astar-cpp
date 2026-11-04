@@ -40,8 +40,11 @@ struct SearchOptions {
   double reverseCostMultiplier=1.1;
   // Performance ordering only: not a certified lower bound and not optimal.
   double heuristicWeight=1.0;
-  std::size_t maxExpansions=50000;
-  std::size_t maxGenerated=200000;
+  // Match the Planning Lab's user-configurable 1M expansion ceiling.
+  // Allow four generated labels per expansion on average; these are
+  // independent work/memory budgets, not guaranteed memory reservations.
+  std::size_t maxExpansions=1'000'000;
+  std::size_t maxGenerated=4'000'000;
   std::size_t maxSamplesPerPrimitive=300;
   std::size_t maxFinalSamplesPerPrimitive=2000;
   std::size_t maxTotalFinalBodyChecks=250000;
