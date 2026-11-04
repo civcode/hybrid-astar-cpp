@@ -165,8 +165,11 @@ TEST_CASE("Differential drive rejects unsupported analytic and zero turn cost",
   };
   REQUIRE(plan(q).status==PlanStatus::InvalidRequest);
   q.analyticConnector={};
-  q.options.clearanceWeight=1;
-  REQUIRE(plan(q).status==PlanStatus::InvalidRequest);
+  q.options.clearanceWeight=.15;
+  const auto withClearance=plan(q);
+  REQUIRE(withClearance.status==PlanStatus::Success);
+  REQUIRE(withClearance.diagnostics.clearanceDistanceQueries==
+          withClearance.diagnostics.clearanceSamples);
   q.options.clearanceWeight=0;
   q.options.diffParameters.trackWidthMeters=0;
   REQUIRE(plan(q).status==PlanStatus::InvalidRequest);
