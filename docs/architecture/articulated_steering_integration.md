@@ -202,6 +202,109 @@ the ODE undefined.
 - Confirm the correct frame transforms of BOTH bodies and the
   articulation pivot before binding to any collision geometry.
 
+### Standalone C++ usage and local tests
+
+The new kinematic library is linked separately as
+`hybrid_astar::articulated_steering`. For example:
+
+```cpp
+#include "hybrid_astar/articulated_steering/model.hpp"
+using namespace hybrid_astar::articulated_steering;
+
+// Illustration ONLY: the ROS simulator's 0.5 m lengths plus example
+// angle/rate limits below are not confirmed production dimensions.
+Model model(Parameters{
+    .LfMeters = 0.5, .LrMeters = 0.5,
+    .minGammaRadians = -1.2, .maxGammaRadians = 1.2,
+    .maxAbsFrontSpeedMetersPerSecond = 2.0,
+    .maxAbsGammaRateRadiansPerSecond = 1.0,
+    .minDenominatorMeters = 0.1
+});
+State start = model.fromRear(RearState{0.0, 0.0, 0.0, 0.0});
+auto checkpoints = model.trajectory(start,
+    Control{.frontSpeedMetersPerSecond = 0.0,
+            .gammaRateRadiansPerSecond = 0.2},
+    1.0, 0.01);
+auto rearBaseLink = checkpoints.back().rear;
+```
+
+This is a **kinematic trajectory with complete front/rear states**,
+not a collision-checked path. In particular, neither this API nor
+`trajectory()` currently performs articulated obstacle checking or
+makes a Hybrid A* planning request.
+
+To run the Catch2 test suite on the repository's normal Docker
+development setup, rebuild the test image and execute the new CTest
+registration manually:
+
+```bash
+docker compose build test
+docker compose --profile test run --rm test \
+  ctest --test-dir build-docker --output-on-failure \
+  -R '^articulated_steering_model_test
+
+- Generate bounded, fully evaluable complete-state primitives with
+  stored `(xf,yf,thetaFront,gamma)` samples; preserve joint-velocity and
+  mechanical-limit constraints over each integration interval.
+- Extend model-specific index keys with articulation bins, while
+  testing how single-label pruning affects alternate joint arrivals.
+- Define goal semantics for `gamma` and complete-state path
+  reconstruction. Standard rigid Ackermann RS arcs do not enforce
+  this joint ODE and must not be silently reused as valid connectors.
+- Add finite search budgets, cancellation, provenance, explicit
+  unsupported states and diagnostics analogous to current native
+  three-model behavior.
+
+### Stage C — complete multi-body collision and validation
+
+- Place the front and rear collision shapes from independent
+  `SE(2)` model-frame transforms at each evaluated full state,
+  including map boundaries, occupied/unknown-cell policy and
+  user-selected geometric inflation.
+- Test articulated body sweeps when `v=0`; a front reference point
+  remaining clear/stationary does **not** establish clearance of
+  the moving body.
+- Independently validate the complete reconstructed path at
+  sufficiently dense state samples (or later certified swept
+  checks), preserving the current honest distinction between
+  sampled collision validation and continuous swept guarantees.
+- Retain the original validated-path fallback; only enable
+  articulation-aware refinement after the new model passes this
+  full-state gate.
+
+### Stage D — web UI and smoothing
+
+- Expose an articulated model selector and `gamma` start/goal
+  controls **only when supported by the C++ backend**.
+- Draw both frame-attached collision bodies and pivot at the
+  start/goal and during path replay, using the real transforms.
+  The two-body UI must never reuse the single-rectangle
+  Ackermann footprint as if it were an articulated body.
+- Expand the later smoothing-quality benchmark with joint angle,
+  joint-rate discontinuities, each body's sampled clearance,
+  stop/cusp handling and tracking/velocity feasibility.
+
+## Relation to the active roadmap
+
+This is **P0-B** in [the current implementation roadmap](../TODO.md).
+It comes **after** the smaller P0-A single-body start/goal footprint
+preview and **before** the proposed cross-model smoothing-quality
+benchmark. Prioritizing the model does not imply making it
+available to real robot deployment before collision and control
+assumptions have been verified.
+
+The existing planner default remains the previously supported
+Ackermann model; differential and mecanum planning are unchanged.
+No GitHub Actions or automatic benchmark execution are needed.
+
+```
+
+Local GCC 14 validation of the *exact committed model and test source*
+passed with strict warnings and both AddressSanitizer and
+UndefinedBehaviorSanitizer, using a small Catch-compatible test-macro
+harness. A separate local CMake/CTest test invocation also passed;
+the full repository/Catch2 Docker matrix remains unverified.
+
 ### Stage B — model-specific primitives, search and path
 
 - Generate bounded, fully evaluable complete-state primitives with
