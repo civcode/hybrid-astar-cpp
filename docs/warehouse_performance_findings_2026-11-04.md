@@ -138,6 +138,19 @@ no-rehash tier on **sampled routes for a particular map and configuration**.
 It returns both an integer tier index and label capacity. It does not
 supersede the measurements above or guarantee no rehash on unseen routes.
 
+**Follow-up calibration result (32 routes, large differential footprint):**
+`nav2-label-calibration-large-32.csv` identified 484,534 peak labels
+and selected **tier 5 (1,048,576 labels)** with 20% requested
+headroom. A direct replay with `--headroom 0` in
+`nav2-label-calibration-large-32-tier4.csv` verified **tier 4
+(524,288 labels)** with zero rehashes in **all 32/32 samples**,
+and identical recorded results between the two CSVs. Thus tier 4
+is the smallest directly verified sampled no-rehash tier, while
+tier 5 is the headroom-adjusted recommendation. **Neither tier's
+wall-clock speed or total memory usage has been compared** on
+these routes; do not equate zero rehashes with optimal latency.
+See the [calibration report](map_specific_label_reserve_calibration.md).
+
 ## 2. EDT-assisted capped clearance: route quality versus computational cost
 
 **Input file:** `nav2-clearance-edt-smoke.csv` (12 rows; 2 routes x 2
