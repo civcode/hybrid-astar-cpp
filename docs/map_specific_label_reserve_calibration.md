@@ -78,8 +78,13 @@ capacity estimate for the same map.
   (range 10–16). On the verification replays, every reported
   `verified_rehashes` value was **0**.
 - **Tier 4 = 524,288** is the smallest tier able to fit all
-  **observed** peaks, because none exceed 524,288. The CSV
-  does **not** separately replay tier 4.
+  **observed** peaks, because none exceed 524,288.
+  **Direct verification is now complete:** the second file,
+  `nav2-label-calibration-large-32-tier4.csv`, reran the same
+  32 routes with `--headroom 0`. All 32 reported `Success`,
+  every verification had **zero rehashes**, and **all recorded CSV
+  fields matched** the earlier tier-5 run (including poses, status,
+  expansions, generated nodes and peak labels).
 - With the default **20% headroom**, the selection target becomes
   `ceil(484534 * 1.20) = 581441`, so the calibration returns
   **tier 5 = 1,048,576** reserved labels. Two of 32 samples
@@ -90,16 +95,22 @@ capacity estimate for the same map.
   labels (tier 4 with 20% headroom); the larger sample found
   a **32% higher** maximum and thus selected a higher tier.
 
-**Interpretation:** Tier 5 is the verified tier for **these sampled
-routes plus the configured tier-based headroom rule**. This does not
-show that tier 4 would rehash for any of the sampled routes; 524,288
-is already larger than the observed maximum of 484,534. It also does
-not demonstrate that tier 5 is faster. The discrete doubling step
-creates significant potential unused bucket capacity. For memory-
-sensitive deployments, separately verify tier 4 (same seed, samples
-and settings, `--headroom 0`), and compare runtime/RSS of tier 4,
-tier 5 and possibly a **non-tier exact capacity of 581,441** before
-adopting a map-specific setting.
+**Interpretation:** **Tier 4 is now the smallest directly
+verified zero-rehash tier** for these 32 sampled routes. At the
+484,534-label peak it leaves **39,754 unused reserved entries**,
+about **7.58% of the tier-4 capacity** (8.20% relative to observed
+peak). Tier 5 remains the **20%-headroom policy recommendation**,
+not the smallest observed no-rehash requirement. Both verified tiers
+preserved identical work and outcomes on all 32 sampled requests.
+
+This establishes **neither tier's runtime superiority**: the calibration
+CSV contains no timed search measurements or peak RSS. Tier 5 reserves
+524,288 more labels up front than tier 4; compare their measured
+latency and memory consumption under the *same 32 sampled routes*
+before choosing a deployment setting. The discrete doubling sequence
+can allocate much more capacity than the headroom target; an optional
+**non-tier reserve of 581,441** is another possible future timing and
+memory experiment, not a tested recommendation.
 
 The result applies only to the tested large footprint and 500k/2M
 work budgets. Run the corresponding 32-route calibration for
