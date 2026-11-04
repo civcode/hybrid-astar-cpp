@@ -187,7 +187,9 @@ double ClearanceScorer::sectionCost(const MotionSection& part,double step,double
                                      std::size_t limit,std::size_t& samples,
                                      PlanDiagnostics* diagnostics) const {
   const double len=part.lengthMeters;
-  const double factor=1.0+bodyRadius_*std::abs(part.curvature);
+  // Inflation increases the maximum motion of a clearance-relevant body
+  // point along a curved section; use it in the integration sampling bound.
+  const double factor=1.0+(bodyRadius_+inflationMeters_)*std::abs(part.curvature);
   const double divisions=std::max(len/step,len*factor/bodyStep);
   if(!std::isfinite(divisions)||divisions>double(limit-1))
     throw std::invalid_argument("Clearance integration sample limit reached");
