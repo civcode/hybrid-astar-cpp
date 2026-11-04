@@ -80,6 +80,34 @@ def main(exe):
                    for sec in art["original"]["sections"])
         assert all(len(p) == 4 for sec in art["original"]["sections"]
                    for p in sec["articulatedPoints"])
+        # Check the ACTUAL articulated defaults, separately from the
+        # explicit legacy dimensions supplied by art_query above.
+        # Start==goal ensures a 1M requested budget is not consumed.
+        default_art_query = (
+            "scenario=open&model=articulated"
+            "&startx=10&starty=15&startyaw=0"
+            "&goalx=10&goaly=15&goalyaw=0"
+            "&budget=1000000"
+        )
+        default_code, _, default_body = get(base + "/api/plan?" + default_art_query)
+        default_art = json.loads(default_body)
+        assert default_code == 200, default_body
+        assert default_art["original"]["status"] == "Success", default_body
+        assert default_art["limits"]["maxExpansions"] == 1000000
+        assert default_art["limits"]["maxGeneratedNodes"] == 4000000
+        assert default_art["articulatedGeometry"]["Lf"] == 1.0
+        assert default_art["articulatedGeometry"]["Lr"] == 1.0
+        assert default_art["articulatedGeometry"]["front"] == [-0.5, 0.5, 0.3]
+        assert default_art["articulatedGeometry"]["rear"] == [-0.5, 0.5, 0.3]
+        # An explicit submillion budget above 50k must not be clamped.
+        selected_code, _, selected_body = get(
+            base + "/api/plan?" + default_art_query.replace(
+                "budget=1000000", "budget=80000"
+            )
+        )
+        assert selected_code == 200, selected_body
+        assert json.loads(selected_body)["limits"]["maxExpansions"] == 80000
+        assert json.loads(selected_body)["limits"]["maxGeneratedNodes"] == 320000
         for rejected in (
             art_query + "&artUnsupported=1",
             "scenario=open&model=articulated&artLf=0",
