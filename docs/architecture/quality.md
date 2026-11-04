@@ -1,6 +1,14 @@
 # Nonfunctional requirements and measurement plan — draft v0.1
 
-**No measured results or hardware-specific targets yet.** Choose numerical thresholds only after defining reference hardware, map characteristics and representative vehicles. Each quality requirement has a method to establish its baseline.
+**Status (2026-11-04):** Measured Nav2 warehouse search, label
+reservation and opt-in clearance/EDT results now exist in the
+[warehouse performance findings](../warehouse_performance_findings_2026-11-04.md)
+and [refined-tier benchmark](../refined_label_reserve_tiers_benchmark.md).
+They are *workload-specific evidence*, not global latency/robot-hardware
+acceptance targets. Reference hardware, p95/p99 limits, trajectory execution
+targets and quality thresholds still need to be agreed.
+The [active implementation priorities](../TODO.md#current-priorities--2026-11-04)
+supersede older milestone ordering.
 
 | ID | Quality objective | Measurement and intended reporting |
 | --- | --- | --- |
@@ -14,8 +22,9 @@
 | NFR-008 | Portability | Standalone Linux C++20 and CMake baseline first; validate additional toolchains by matrix |
 | NFR-009 | No ROS 2/Ceres/yaml-cpp/nlohmann-json/Catch2/cxxopts in generic public search API; **OMPL permitted in isolated initial runtime steering adapter** (ADR-0028) |
 | NFR-010 | Result transparency | Structured status (success, no path, cancelled, budget exceeded, invalid input, internal failure) and metrics |
-| NFR-011 | Path quality | Evaluate **final validated path after optional refinement** as the product metric: length, reverse count, steering/curvature, clearance, refinement success rate; also log the raw path for diagnosis (ADR-0020) |
+| NFR-011 | Path quality | Evaluate **final validated path after optional refinement**: length and weighted cost, stops/cusps/reversals, steering/curvature jumps and variation, model-specific wheel/steering feasibility, sampled minimum/P10 clearance, smoothing success/fallback rate; retain raw path for diagnosis (ADR-0020) |
 | NFR-012 | Maintainability | Compile-time model contract checks for three reference chassis, focused modules, contract tests and documented decisions |
+| NFR-013 | Timed trajectory feasibility (future) | Downstream speed, acceleration, braking, wheel/steering rate, jerk and required cusp-stop limits; model-specific simulated tracking checks; **not** yet certified by the geometric planner |
 
 ## Scenario benchmark matrix (proposed)
 
@@ -41,6 +50,17 @@
 4. Report distributions rather than single best runs; preserve failing seeds and inputs.
 5. Compare changes against previous baseline; any claimed speedup must include equivalent success-rate and path-feasibility results. When the refiner is available, also report **combined search+refinement runtime** and **final validated path** quality, not only the raw Hybrid A* path.
 6. Profile locally before optimizing; avoid running GitHub Actions for local builds or benchmarks.
+7. Before measuring a new smoother, complete the explicit prerequisite gate
+   in the [active roadmap](../TODO.md#immediate-prerequisite-gate--before-any-smoothing-quality-benchmark).
+   On matched maps/routes compare raw search, existing straight/CSC
+   refinement, existing steering-variation mode (where supported)
+   and any future curvature-continuous candidate. Never report a
+   not-yet-implemented method as a measured variant.
+8. Record separate p50/p95/p99 for search, initialization, refinement,
+   independent strict validation and any future smoothing/retiming;
+   include route-level final-path quality and failed/budget-limited
+   outcomes. Preserve fixed map/seed/model/inflation and separate
+   uninstrumented wall-clock measurements from profiled attribution.
 
 ## Simplicity and evidence gate (ADR-0020)
 
