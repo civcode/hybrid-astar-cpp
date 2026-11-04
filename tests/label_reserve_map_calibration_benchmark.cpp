@@ -140,6 +140,7 @@ int main(int argc,char** argv) {
              <<result.strataX*result.strataY
              <<", covered_start_strata="<<result.coveredStartStrata
              <<", covered_goal_strata="<<result.coveredGoalStrata
+             <<", covered_either_strata="<<result.coveredEitherStrata
              <<", verified="<<(result.verificationPassed?"yes":"no (opted out)")
              <<"\n";
     if(!summaryPath.empty()) {
@@ -160,6 +161,7 @@ int main(int argc,char** argv) {
           <<"  \"valid_strata\": "<<result.validStrata<<",\n"
           <<"  \"covered_start_strata\": "<<result.coveredStartStrata<<",\n"
           <<"  \"covered_goal_strata\": "<<result.coveredGoalStrata<<",\n"
+          <<"  \"covered_either_strata\": "<<result.coveredEitherStrata<<",\n"
           <<"  \"sampled_routes\": "<<result.evaluatedRoutes<<",\n"
           <<"  \"successful_routes\": "<<result.successfulRoutes<<",\n"
           <<"  \"budget_limited_routes\": "<<result.budgetLimitedRoutes<<",\n"
