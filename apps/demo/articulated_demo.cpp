@@ -179,15 +179,20 @@ ArticulatedOutcome runArticulated(const Options& opt) {
   if(!std::isfinite(opt.footprintInflationMeters)||
      opt.footprintInflationMeters<0.0||opt.footprintInflationMeters>10.0)
     throw std::invalid_argument("Inflation must be between 0 and 10 m");
+  // Positive lower bound over the *entire* admitted joint range. The
+  // planner's conservative collision sampling uses this bound; setting it
+  // arbitrarily close to zero would unnecessarily exhaust every primitive.
+  constexpr double jointLimit=1.2;
+  const double minimumD=opt.LrMeters+opt.LfMeters*std::cos(jointLimit);
   out.parameters={
     .LfMeters=opt.LfMeters,.LrMeters=opt.LrMeters,
-    .minGammaRadians=-1.2,.maxGammaRadians=1.2,
+    .minGammaRadians=-jointLimit,.maxGammaRadians=jointLimit,
     .maxAbsFrontSpeedMetersPerSecond=1.0,
     .maxAbsGammaRateRadiansPerSecond=0.8,
-    .minDenominatorMeters=0.01
+    .minDenominatorMeters=0.95*minimumD
   };
-  // The explicitly example-only joint limits avoid undefined D throughout
-  // the permitted range. The real robot must supply its own limits later.
+  // These are example-only joint limits; production values must be
+  // calibrated to the actual robot before any real-robot deployment.
   const art::Model model(out.parameters);
   out.start={start.x,start.y,start.yaw,opt.startGammaDegrees*rad};
   out.goal={goal.x,goal.y,goal.yaw,opt.goalGammaDegrees*rad};
