@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-namespace pipe=hybrid_astar::bench::nav2_pipeline;
+namespace pipeline=hybrid_astar::bench::nav2_pipeline;
 namespace fe=hybrid_astar::bench::footprint_envelope;
 using namespace hybrid_astar::ackermann;
 namespace {
@@ -41,7 +41,7 @@ struct Quality {
   std::size_t poses=0;
 };
 Quality assessRawPath(const PlanRequest& req,const PlanResult& raw) {
-  if(!pipe::strictSuccess(raw))return {};
+  if(!pipeline::strictSuccess(raw))return {};
   // Independent UNTIMED exact clearance metrics, saturated at 1.0 m.
   // Use identical sampling for all variants and report inflated clearance.
   const ClearanceScorer exact(*req.map,req.occupancy,req.footprint,
@@ -62,9 +62,9 @@ Quality assessRawPath(const PlanRequest& req,const PlanResult& raw) {
       static_cast<std::size_t>(std::ceil(values.size()*.10))-1);
   return {values.front(),values[p10],values.size()};
 }
-void checkEquivalent(const pipe::Measurement& exact,
-                     const pipe::Measurement& edt) {
-  if(!pipe::equivalentMeasurements(exact,edt))
+void checkEquivalent(const pipeline::Measurement& exact,
+                     const pipeline::Measurement& edt) {
+  if(!pipeline::equivalentMeasurements(exact,edt))
     throw std::runtime_error("EDT changed exact-objective search/refinement path");
   const auto& a=exact.raw.diagnostics;
   const auto& b=edt.raw.diagnostics;
@@ -95,11 +95,11 @@ void header() {
               "p10_clearance_m,quality_poses,refine_status,"
               "refined_length_m,refined_cost_m\n";
 }
-void row(const pipe::Config& cfg,const pipe::Scenario& scenario,
+void row(const pipeline::Config& cfg,const pipeline::Scenario& scenario,
          fe::Variant geometry,Variant variant,const PlanRequest& req,
-         const pipe::Measurement& m,const Quality& quality) {
+         const pipeline::Measurement& m,const Quality& quality) {
   const auto& d=m.raw.diagnostics;
-  const bool refined=m.refinement && pipe::strictSuccess(m.refinement->path);
+  const bool refined=m.refinement && pipeline::strictSuccess(m.refinement->path);
   std::cout<<std::fixed<<std::setprecision(6)
     <<scenario.id<<','<<scenario.drawIndex<<','<<cfg.model<<','
     <<fe::label(geometry)<<','<<label(variant)<<','
@@ -107,7 +107,7 @@ void row(const pipe::Config& cfg,const pipe::Scenario& scenario,
     <<req.options.clearanceInfluenceRadiusMeters<<','
     <<req.options.footprintInflationMeters<<','
     <<(req.options.useFastEmptyAabb?1:0)<<','
-    <<cfg.repeats<<','<<pipe::statusName(m.raw.status)<<','
+    <<cfg.repeats<<','<<pipeline::statusName(m.raw.status)<<','
     <<m.searchP50<<','<<m.searchP95<<','<<m.refineP50<<','<<m.totalP50<<','
     <<d.expanded<<','<<d.generated<<','<<d.prunedByKey<<','
     <<d.exactCollisionPoseCalls<<','<<d.searchMotionCalls<<','
@@ -117,7 +117,7 @@ void row(const pipe::Config& cfg,const pipe::Scenario& scenario,
     <<m.raw.geometricLengthMeters<<','<<m.raw.weightedCostMeters<<','
     <<m.raw.clearanceCostMeters<<','<<m.raw.sections.size()<<','
     <<quality.minClearance<<','<<quality.p10Clearance<<','<<quality.poses<<','
-    <<(refined?pipe::refinerName(m.refinement->status):"NotRun")<<','
+    <<(refined?pipeline::refinerName(m.refinement->status):"NotRun")<<','
     <<(refined?m.refinement->path.geometricLengthMeters:0)<<','
     <<(refined?m.refinement->path.weightedCostMeters:0)<<'\n';
 }
@@ -137,15 +137,15 @@ int main(int argc,char** argv) {
       } else if(arg=="--fast-empty-aabb")fastAabb=true;
       else forwarded.push_back(argv[i]);
     }
-    const auto cfg=pipe::parseArgs(
+    const auto cfg=pipeline::parseArgs(
         static_cast<int>(forwarded.size()),forwarded.data());
     if((cfg.model!="differential"&&cfg.model!="mecanum")||
        cfg.connector!="native"||cfg.collectCollisionWork)
       throw std::invalid_argument("Use native differential/mecanum, no collision-work mode");
     const auto map=hybrid_astar::demo::loadRosMapYaml(cfg.yamlPath);
-    const auto base=pipe::baseRequest(cfg,map);
+    const auto base=pipeline::baseRequest(cfg,map);
     const auto scenarios=cfg.replayCsv.empty()?
-        pipe::discover(cfg,base):pipe::replayScenarios(cfg,base);
+        pipeline::discover(cfg,base):pipeline::replayScenarios(cfg,base);
     std::cerr<<"Nav2 clearance A/B/C: "<<scenarios.size()
              <<" routes; weight="<<weight<<", radius="<<radius
              <<", fastAABB="<<fastAabb
@@ -168,7 +168,7 @@ int main(int argc,char** argv) {
         req.options.useEmptyRegionPrefixSum=true;
         req.options.useFastEmptyAabb=fastAabb;
         req.options.useInflatedFootprintBroadPhase=true;
-        std::array<std::optional<pipe::Measurement>,3> measurements;
+        std::array<std::optional<pipeline::Measurement>,3> measurements;
         const std::size_t offset=(scenario.id+
             (geometry==fe::Variant::SmallInflated?1:0))%3;
         for(std::size_t j=0;j<3;++j) {
@@ -180,7 +180,7 @@ int main(int argc,char** argv) {
           configured.options.clearanceInfluenceRadiusMeters=radius;
           configured.options.useClearanceDistanceTransform=
               variant==Variant::Edt;
-          measurements[index]=pipe::measure(cfg,configured);
+          measurements[index]=pipeline::measure(cfg,configured);
         }
         if(!measurements[0]||!measurements[1]||!measurements[2])
           throw std::runtime_error("Missing clearance experiment variant");
@@ -202,7 +202,7 @@ int main(int argc,char** argv) {
                 std::string("Clearance mode ")+label(variants[i])+
                 " failed before evaluating the objective on case "+
                 std::to_string(scenario.id)+": "+
-                pipe::statusName(planResult.status));
+                pipeline::statusName(planResult.status));
         }
         checkEquivalent(*measurements[1],*measurements[2]);
         for(std::size_t i=0;i<3;++i) {

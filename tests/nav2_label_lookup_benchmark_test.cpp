@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace pipe=hybrid_astar::bench::nav2_pipeline;
+namespace pipeline=hybrid_astar::bench::nav2_pipeline;
 namespace fe=hybrid_astar::bench::footprint_envelope;
 using namespace hybrid_astar::ackermann;
 
@@ -30,9 +30,9 @@ void checkProfile(const PlanDiagnostics& d) {
   (void)d;
 #endif
 }
-void verifyEquivalent(const pipe::Measurement& off,
-                      const pipe::Measurement& on) {
-  if(!pipe::equivalentMeasurements(off,on))
+void verifyEquivalent(const pipeline::Measurement& off,
+                      const pipeline::Measurement& on) {
+  if(!pipeline::equivalentMeasurements(off,on))
     throw std::runtime_error("Pre-reserving labels changed search/refinement results");
   const auto& a=off.raw.diagnostics;
   const auto& b=on.raw.diagnostics;
@@ -60,9 +60,9 @@ void header() {
               "label_successor_hit_ms,label_successor_miss_ms,"
               "label_write_ms,hash_hotpath_ms,exact_collision_hotpath_ms\n";
 }
-void row(const pipe::Config& cfg,const pipe::Scenario& scenario,
+void row(const pipeline::Config& cfg,const pipeline::Scenario& scenario,
          fe::Variant geometry,const char* variant,
-         const PlanRequest& req,const pipe::Measurement& m) {
+         const PlanRequest& req,const pipeline::Measurement& m) {
   const auto& d=m.raw.diagnostics;
 #ifdef HYBRID_ASTAR_NAV2_PIPELINE_PROFILE_ENABLED
   constexpr int profiled=1;
@@ -75,7 +75,7 @@ void row(const pipe::Config& cfg,const pipe::Scenario& scenario,
     <<req.options.searchLabelReserve<<','
     <<(req.options.useFastEmptyAabb?1:0)<<','
     <<(req.options.useEmptyRegionPrefixSum?1:0)<<','
-    <<pipe::statusName(m.raw.status)<<','<<cfg.repeats<<','
+    <<pipeline::statusName(m.raw.status)<<','<<cfg.repeats<<','
     <<m.searchP50<<','<<m.searchP95<<','<<m.refineP50<<','
     <<m.totalP50<<','<<d.expanded<<','<<d.generated<<','
     <<d.exactCollisionPoseCalls<<','<<d.prunedByKey<<','
@@ -83,16 +83,16 @@ void row(const pipe::Config& cfg,const pipe::Scenario& scenario,
     <<d.labelFindHits<<','<<d.labelInsertions<<','<<d.labelUpdates<<','
     <<d.labelRehashes<<','<<d.labelPeakSize<<','<<d.labelPeakBuckets<<','
     <<d.labelPeakBuckets*sizeof(void*)<<','<<d.hashCalls<<','
-    <<profiled<<','<<pipe::nsMs(d.labelLookupNanoseconds)<<','
+    <<profiled<<','<<pipeline::nsMs(d.labelLookupNanoseconds)<<','
     <<d.labelPopHits<<','<<d.labelPopMisses<<','
     <<d.labelSuccessorHits<<','<<d.labelSuccessorMisses<<','
-    <<pipe::nsMs(d.labelPopHitNanoseconds)<<','
-    <<pipe::nsMs(d.labelPopMissNanoseconds)<<','
-    <<pipe::nsMs(d.labelSuccessorHitNanoseconds)<<','
-    <<pipe::nsMs(d.labelSuccessorMissNanoseconds)<<','
-    <<pipe::nsMs(d.labelWriteNanoseconds)<<','
-    <<pipe::nsMs(d.hashNanoseconds)<<','
-    <<pipe::nsMs(d.exactCollisionNanoseconds)<<'\n';
+    <<pipeline::nsMs(d.labelPopHitNanoseconds)<<','
+    <<pipeline::nsMs(d.labelPopMissNanoseconds)<<','
+    <<pipeline::nsMs(d.labelSuccessorHitNanoseconds)<<','
+    <<pipeline::nsMs(d.labelSuccessorMissNanoseconds)<<','
+    <<pipeline::nsMs(d.labelWriteNanoseconds)<<','
+    <<pipeline::nsMs(d.hashNanoseconds)<<','
+    <<pipeline::nsMs(d.exactCollisionNanoseconds)<<'\n';
 }
 } // namespace
 
@@ -105,23 +105,23 @@ int main(int argc,char** argv) {
       const std::string arg=argv[i];
       if(arg=="--label-reserve") {
         if(i+1>=argc)throw std::invalid_argument("Missing value for --label-reserve");
-        reserve=pipe::integer(argv[++i]);
+        reserve=pipeline::integer(argv[++i]);
       } else if(arg=="--fast-empty-aabb") {
         fastEmptyAabb=true;
       } else {
         forwarded.push_back(argv[i]);
       }
     }
-    const auto cfg=pipe::parseArgs(
+    const auto cfg=pipeline::parseArgs(
         static_cast<int>(forwarded.size()),forwarded.data());
     if((cfg.model!="differential"&&cfg.model!="mecanum")||
        cfg.connector!="native"||cfg.collectCollisionWork ||
        reserve>4*cfg.searchBudget)
       throw std::invalid_argument("Use differential/mecanum, native, valid reserve, no work counters");
     const auto map=hybrid_astar::demo::loadRosMapYaml(cfg.yamlPath);
-    const auto base=pipe::baseRequest(cfg,map);
+    const auto base=pipeline::baseRequest(cfg,map);
     const auto scenarios=cfg.replayCsv.empty()?
-        pipe::discover(cfg,base):pipe::replayScenarios(cfg,base);
+        pipeline::discover(cfg,base):pipeline::replayScenarios(cfg,base);
     std::cerr<<"Label pre-reserve 0/"<<reserve
              <<", fast empty AABB "<<(fastEmptyAabb?"ON":"OFF")
              <<", prefix ON. Replaying "<<scenarios.size()
@@ -142,14 +142,14 @@ int main(int argc,char** argv) {
         req.options.useEmptyRegionPrefixSum=true;
         req.options.useFastEmptyAabb=fastEmptyAabb;
         req.options.useInflatedFootprintBroadPhase=true;
-        std::optional<pipe::Measurement> baseline,preReserved;
+        std::optional<pipeline::Measurement> baseline,preReserved;
         // Alternate order to reduce temperature/frequency/order bias.
         for(auto value:scenario.id%2?
              std::array<std::size_t,2>{reserve,0}:
              std::array<std::size_t,2>{0,reserve}) {
           auto variant=req;
           variant.options.searchLabelReserve=value;
-          auto result=pipe::measure(cfg,variant);
+          auto result=pipeline::measure(cfg,variant);
           if(value)preReserved=std::move(result);
           else baseline=std::move(result);
         }
