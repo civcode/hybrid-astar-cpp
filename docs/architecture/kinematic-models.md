@@ -59,73 +59,178 @@ It is nonholonomic despite in-place rotation (\(v=0,\omega\ne0\)). Optionally re
 
 The ideal chassis controls independent forward, lateral and yaw velocities, but wheel-speed saturation may couple input limits. This is a chassis-level holonomic abstraction, not an assertion about detailed roller-contact or slip behavior. Sideways travel at fixed yaw is allowed: **body heading is not travel tangent**.
 
-### Supplied articulated-steering model (rear-chassis pose confirmed; other conventions provisional)
+### Author-supplied articulated-steering model — five reported states (2026-11-04)
 
-This equation was supplied by the project author. **Confirmed:** `(x,y,Theta)` describes the **rear chassis**: `(x,y)` is the position of a rear-chassis reference point, and `Theta` is the rear-chassis heading. The precise location of that point on the rear chassis (e.g., axle midpoint, chassis center, or joint), the joint angle sign convention, and the geometry represented by `l1` and `l2` remain **unverified** (OQ-022). The input columns are **assumed** to correspond to longitudinal rear-reference-point speed `v` and articulation angular rate `u_gamma = d(gamma)/dt`.
+The project author has now supplied the following **five-variable** system
+explicitly identifying **front** and **rear** chassis headings. This
+supersedes the older description that called the four-state \`(x,y,Theta)\`
+model a **rear** reference pose: that earlier wording was incorrect for
+the equations shown. The equations have not yet been integrated into
+the planner as a supported fourth model.
 
-The world transform of the reported rear-chassis reference frame is therefore `T_world_rear_ref = SE2(x,y,Theta)`. This does **not** identify the rear axle center or determine the front-chassis frame. Do not derive front-body or articulation-joint collision transforms from guessed geometry.
-
-Let `q=(x,y,Theta,gamma)`, `u=(v,u_gamma)`, and `D(gamma)=l1 cos(gamma)+l2`.
+Let \(\mathbf q=(x_f,y_f,\Theta_f,\Theta_r,\gamma)\),
+\(u=(v,u_\gamma)\), \(u_\gamma=\dot\gamma\),
+and \(D(\gamma)=L_1\cos\gamma+L_2\).
 
 \[
-\frac{d}{dt}\begin{bmatrix}x\\y\\\Theta\\\gamma\end{bmatrix}
+\frac{d}{dt}
+\begin{bmatrix}x_f\\y_f\\\Theta_f\\\Theta_r\\\gamma\end{bmatrix}
 =
 \begin{bmatrix}
-\cos\Theta & 0\\
-\sin\Theta & 0\\
-\frac{\sin\gamma}{l_1\cos\gamma+l_2} &
-\frac{l_2}{l_1\cos\gamma+l_2}\\
+\cos\Theta_f & 0\\
+\sin\Theta_f & 0\\
+\dfrac{\sin\gamma}{D(\gamma)} & \dfrac{L_2}{D(\gamma)}\\
+\dfrac{\sin\gamma}{D(\gamma)} & -\dfrac{L_1\cos\gamma}{D(\gamma)}\\
 0 & 1
 \end{bmatrix}
 \begin{bmatrix}v\\u_\gamma\end{bmatrix}.
 \]
 
-In scalar form:
+Equivalently:
 
 \[
-\dot x=v\cos\Theta,\quad
-\dot y=v\sin\Theta,\quad
-\dot\Theta=\frac{v\sin\gamma+l_2 u_\gamma}{D(\gamma)},\quad
+\dot x_f=v\cos\Theta_f,\qquad
+\dot y_f=v\sin\Theta_f,
+\]
+
+\[
+\dot\Theta_f=\frac{v\sin\gamma+L_2u_\gamma}{D(\gamma)},\qquad
+\dot\Theta_r=\frac{v\sin\gamma-L_1\cos\gamma\,u_\gamma}{D(\gamma)},
+\qquad
 \dot\gamma=u_\gamma.
 \]
 
-This is a **driftless control-affine** kinematic model with four continuous states and two inputs.
+#### Exact relationship to the previous four-state model
 
-**Consequences**:
+Subtracting the two heading derivatives gives
 
-- `gamma` belongs in state and the discretization policy; equal `(x,y,Theta)` does not imply equivalent future reachability when articulation differs.
-- The rear reference pose comes directly from `(x,y,Theta)`. The front-chassis heading is related to `Theta` and `gamma` by a **sign-convention-dependent** rotation; joint position and front-body origin require explicit link geometry.
-- At `v=0`, changing the articulation input changes `Theta` while `x,y` are stationary. This is *not* the same as independently commanded, unrestricted differential-drive rotation in place. With `v=0` and a nonsingular `D`, returning to the same `gamma` through articulation-only movements also restores the initial `Theta`.
-- Body collision geometry can sweep at `v=0`; the checker must use all frame transforms at intermediate states, not only reference-point displacement.
-- `D(gamma)` must remain nonzero (preferably bounded away from zero) over the configured joint range; also validate lengths, angle limits, speed and articulation-rate limits.
-- For `v != 0`, `dTheta/ds = sin(gamma)/D(gamma) + l2*u_gamma/(v*D(gamma))` where signed `ds/dt=v`. Thus the fixed-joint curvature expression applies only when `u_gamma=0`. It is singular as `v -> 0` even though the time-domain ODE may be well defined.
-- Standard Dubins and Reeds–Shepp connectors do **not** enforce changing articulation state or its coupling; only a specifically proved restricted connector may use those constructions.
-- Use time-domain propagation for the complete state and preserve the full actuation trajectory for reconstruction; generic integrators such as RK4 can evaluate the vector field, but exact special cases and numerical convergence require tests.
+\[
+\dot\Theta_f-\dot\Theta_r
+=\frac{(L_1\cos\gamma+L_2)u_\gamma}{D(\gamma)}
+=u_\gamma=\dot\gamma.
+\]
 
-**Illustrative derivative, not a finalized API**:
+Thus \(\Theta_f-\Theta_r-\gamma\) is constant. **If** articulation
+zero denotes aligned chassis and the initial state satisfies
+\(\gamma=\operatorname{wrap}(\Theta_f-\Theta_r)\), then that
+identity holds throughout a valid trajectory. The **five values
+contain only four independent configuration degrees of freedom**.
 
-```cpp
-struct ArticulatedState { double x, y, theta, gamma; };
-struct ArticulatedControl { double speed, gammaRate; };
+Eliminating \(\Theta_r\) yields the previously documented four-state
+equations **exactly** on the constraint manifold, but with
+\((x,y,\Theta)=(x_f,y_f,\Theta_f)\), **not** a rear reference pose:
 
-ArticulatedState derivative(
-    const ArticulatedState& q,
-    const ArticulatedControl& u,
-    double l1,
-    double l2)
-{
-    const double d = l1 * std::cos(q.gamma) + l2;
-    // Validate |d| >= configured safety threshold before this call.
-    return {
-        u.speed * std::cos(q.theta),
-        u.speed * std::sin(q.theta),
-        (u.speed * std::sin(q.gamma) + l2 * u.gammaRate) / d,
-        u.gammaRate
-    };
+\[
+\dot x_f=v\cos\Theta_f,\quad
+\dot y_f=v\sin\Theta_f,\quad
+\dot\Theta_f=\frac{v\sin\gamma+L_2u_\gamma}{D(\gamma)},\quad
+\dot\gamma=u_\gamma,\quad
+\Theta_r=\operatorname{wrap}(\Theta_f-\gamma).
+\]
+
+For model-facing documentation and outputs, retaining the explicit
+\(\Theta_r\) is useful. For an eventual efficient planner state
+and state index, use four independent variables
+\((x_f,y_f,\Theta_f,\gamma)\) **only when** the angle identity and
+physical conventions have been confirmed. Reject inconsistent
+input states rather than silently discarding the rear heading.
+Angle wrap must not introduce discontinuous physical integration.
+
+#### Meaning of the variables
+
+| Symbol | Meaning established by the new equations | Still to confirm physically |
+| --- | --- | --- |
+| \(x_f,y_f\) | World position of a point fixed in the **front** chassis; its velocity is \(v(\cos\Theta_f,\sin\Theta_f)\) | Whether this is the front axle midpoint or another front reference |
+| \(\Theta_f\) | Front chassis heading | World-heading origin/positive rotation convention |
+| \(\Theta_r\) | Rear chassis heading | Physical rear axle/body reference origin |
+| \(\gamma\) | On the aligned-zero state manifold, \(\Theta_f-\Theta_r\) | Confirmation of zero-angle alignment and angle wrapping |
+| \(v\) | Signed longitudinal velocity of the **front reference point** | Wheel, driveline and control-speed limits |
+| \(u_\gamma=\dot\gamma\) | Articulation angular-rate control/input | Positive actuator direction, joint-angle and rate limits |
+| \(L_1,L_2\) | Positive geometric lengths in the kinematic coupling | Physical endpoints and exact collision-body offsets |
+
+A **conventional no-side-slip axle geometry that reproduces these
+equations**, but is **not yet author-confirmed**, is:
+
+- \(F=(x_f,y_f)\), the midpoint of the front axle, heading \(\Theta_f\);
+- articulation pivot \(H=F-L_1e(\Theta_f)\);
+- rear axle midpoint \(R=H-L_2e(\Theta_r)\);
+- \(e(\theta)=(\cos\theta,\sin\theta)\), so \(L_1\) measures
+  front-axle-to-hinge and \(L_2\) hinge-to-rear-axle distance
+  along the respective chassis axes.
+
+With front no-slip \(\dot F=v e(\Theta_f)\), rear no-slip
+\(\dot R\cdot(-\sin\Theta_r,\cos\Theta_r)=0\), and
+\(\dot\gamma=\dot\Theta_f-\dot\Theta_r\), differentiation yields
+**both supplied heading equations**. This is a consistent
+derivation, not proof that those frame origins are the intended
+real robot geometry. The **front/rear collision-body extents,
+axle offsets, joint frames, possible wheel slip and actuator
+limits still require the robot owner's input** (OQ-022).
+
+#### Consequences for planning and motion
+
+- At \(v=0\), the **front reference stays stationary**, but
+  \(\dot\Theta_f=L_2u_\gamma/D\) and
+  \(\dot\Theta_r=-L_1\cos\gamma\,u_\gamma/D\); the front/rear
+  rigid bodies can rotate and sweep obstacles. **Do not** describe
+  this as a stationary **rear** reference point.
+- With \(u_\gamma=0\) and \(\gamma\ne0\), both headings change
+  at rate \(v\sin\gamma/D\); with \(\gamma=0\) and
+  \(u_\gamma=0\), the chassis translate straight.
+- \(D(\gamma)\) must remain bounded away from zero throughout
+  the admitted joint range. Check finite and positive geometry,
+  joint-angle/rate/speed bounds, and the initial
+  \(\Theta_f-\Theta_r-\gamma\) invariant.
+- At \(v\ne0\), the spatial turning relationship is
+  \(d\Theta_f/ds=\sin\gamma/D+
+  L_2(u_\gamma/v)/D\) for **signed front-point travel**
+  \(ds/dt=v\). Never divide by \(v\) when modeling
+  articulation-only motion or passing through zero speed.
+- An articulated primitive must retain or reconstruct **both body
+  frames**, and collision checking must evaluate them at every
+  required full-state sample (including \(v=0\)). A single
+  rectangle at the front or rear pose is insufficient.
+- Standard three-state Dubins/Reeds–Shepp connections generally
+  do **not** satisfy the extra joint dynamics, so are not
+  automatically valid articulated connectors.
+- The model is a driftless, controlled system; derivatives can
+  be integrated in time (e.g. RK4). The reported five-variable
+  form has the invariant above, so preserve/check it in tests.
+
+**Illustrative five-variable derivative (not production-integrated):**
+
+\`\`\`cpp
+struct ArticulatedState {
+  double xf, yf, thetaFront, thetaRear, gamma;
+};
+struct ArticulatedControl { double frontSpeed, gammaRate; };
+
+ArticulatedState derivative(const ArticulatedState& q,
+                            const ArticulatedControl& u,
+                            double L1, double L2) {
+  const double D = L1*std::cos(q.gamma) + L2;
+  // Validate physical parameters, |D| >= safety threshold, finite
+  // inputs/states and joint/control limits before evaluating.
+  const double driveYaw = u.frontSpeed*std::sin(q.gamma) / D;
+  return {
+    u.frontSpeed*std::cos(q.thetaFront),
+    u.frontSpeed*std::sin(q.thetaFront),
+    driveYaw + L2*u.gammaRate/D,
+    driveYaw - L1*std::cos(q.gamma)*u.gammaRate/D,
+    u.gammaRate
+  };
 }
-```
+\`\`\`
 
-A physical frame diagram and explicit kinematic sign conventions are required before accepting it as a production-ready robot model. **The current implementation gate, requested geometry/control confirmations and staged search + multi-body collision work are documented in [articulated-steering integration](articulated_steering_integration.md).** The ODE exists in the specification; a fourth production planner model is not yet implemented.
+**Next confirmation:** Is the front reference \(F\) the **front axle
+midpoint**, \(L_1\) its distance to the articulation pivot, and
+\(L_2\) the pivot-to-rear-axle midpoint distance? Confirm the
+alignment/positive-\(\gamma\) convention, rear/front collision
+body offsets, and admissible controls before implementing the
+fourth planner model.
+
+See [articulated-steering implementation gate](articulated_steering_integration.md)
+and [OQ-022](open-questions.md) for remaining physical requirements.
 
 ### General articulated extension
 
@@ -169,12 +274,12 @@ Time is the canonical derivative variable for these ODEs because it works for in
 
 Here \(\sigma\) is **primitive-local progress**, not a global execution schedule. A downstream MPC still chooses timing, but any rate-constrained property verified at a specific nominal duration must be rechecked if the motion is retimed.
 
-**Accepted OQ-002 (ADR-0012): spatial extent for translation, model-specific configuration extent for stationary maneuvers.** Translating primitives can be generated using an explicit traveled length and a spatially parameterized control; a constant nominal speed is not required. For example, bicycle curvature is \(d\theta/ds=\tan\delta/L\) for **signed** traveled distance \(ds/dt=v\). For the supplied articulated model with \(D(\gamma)=l_1\cos\gamma+l_2\), when \(v\ne0\):
+**Accepted OQ-002 (ADR-0012): spatial extent for translation, model-specific configuration extent for stationary maneuvers.** Translating primitives can be generated using an explicit traveled length and a spatially parameterized control; a constant nominal speed is not required. For example, bicycle curvature is \(d\theta/ds=\tan\delta/L\) for **signed** traveled distance \(ds/dt=v\). For the supplied articulated model with \(D(\gamma)=L_1\cos\gamma+L_2\), the **front reference** speed \(v\ne0\) gives:
 
 \[
 \frac{d\gamma}{ds}=\frac{u_\gamma}{v},\qquad
 \frac{d\Theta}{ds}=\frac{\sin\gamma}{D(\gamma)}
-+\frac{l_2}{D(\gamma)}\frac{u_\gamma}{v}.
++\frac{L_2}{D(\gamma)}\frac{u_\gamma}{v}.
 \]
 
 The spatial control \(d\gamma/ds\) may be chosen directly for translating primitives; a realizable articulation rate then depends on the eventual longitudinal speed. This division is **singular when \(v=0\)** even though the original time-domain dynamics remain valid. Consequently, zero-translation articulation changes and pure rotations use their own angular/configuration extent (with time-domain integration available when appropriate). Geometric length alone cannot specify execution duration; absent a speed profile there is no unique \(dt\). The accepted primitive design is recorded in [ADR-0012](../adr/0012-model-aware-geometric-primitive-extents.md).
