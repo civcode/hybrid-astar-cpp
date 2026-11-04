@@ -125,8 +125,9 @@ int main(int argc,char** argv) {
         <<t.start.x<<','<<t.start.y<<','<<t.start.yaw<<','
         <<t.goal.x<<','<<t.goal.y<<','<<t.goal.yaw<<','
         <<status(t.status)<<','<<t.expanded<<','<<t.generated<<','
-        <<t.peakLabels<<','<<t.baselineRehashes<<','
-        <<t.verifiedRehashes<<'\n';
+        <<t.peakLabels<<','<<t.baselineRehashes<<',';
+      if(settings.verifyNoRehash)std::cout<<t.verifiedRehashes;
+      std::cout<<'\n';
     }
     std::cerr<<"Map calibration result (empirical): tier="
              <<result.recommendedTierIndex
