@@ -55,11 +55,14 @@ add_library(hybrid_astar::mecanum ALIAS hybrid_astar_mecanum)
 # rigid SE(2) search; the fourth planner mode is NOT yet supported.
 # Uses our own header-only classical RK4, with no Boost/ROS dependency.
 add_library(hybrid_astar_articulated_steering STATIC
-  src/articulated_steering/model.cpp)
+  src/articulated_steering/model.cpp src/articulated_steering/planner.cpp)
 target_compile_features(hybrid_astar_articulated_steering PUBLIC cxx_std_20)
 target_include_directories(hybrid_astar_articulated_steering PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
 add_library(hybrid_astar::articulated_steering ALIAS hybrid_astar_articulated_steering)
+# The articulated planner reuses the existing exact rectangle/map checker,
+# but keeps a distinct gamma-aware search state and independent body checks.
+target_link_libraries(hybrid_astar_articulated_steering PUBLIC hybrid_astar::core)
 # Core search invokes differential primitive generation when that model is selected.
 target_link_libraries(hybrid_astar_core PUBLIC hybrid_astar_differential_drive hybrid_astar_mecanum)
 target_compile_features(hybrid_astar_core PUBLIC cxx_std_20)
@@ -96,6 +99,12 @@ if(HYBRID_ASTAR_BUILD_TESTS)
     hybrid_astar::articulated_steering Catch2::Catch2WithMain)
   add_test(NAME articulated_steering_model_test
     COMMAND hybrid_astar_articulated_steering_model_test)
+  add_executable(hybrid_astar_articulated_steering_planner_test
+    tests/articulated_steering_planner_test.cpp)
+  target_link_libraries(hybrid_astar_articulated_steering_planner_test PRIVATE
+    hybrid_astar::articulated_steering Catch2::Catch2WithMain)
+  add_test(NAME articulated_steering_planner_test
+    COMMAND hybrid_astar_articulated_steering_planner_test)
   add_executable(hybrid_astar_w12_mecanum_test tests/w12_mecanum_test.cpp)
   target_include_directories(hybrid_astar_w12_mecanum_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(hybrid_astar_w12_mecanum_test PRIVATE
