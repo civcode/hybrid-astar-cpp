@@ -207,3 +207,22 @@ TEST_CASE("Missing independent final validation budget cannot produce Success",
   REQUIRE(result.status!=as::Status::Success);
   REQUIRE_FALSE(result.independentlySampledBodyValidated);
 }
+
+TEST_CASE("Articulated planning rejects missing geometry and occupied goals",
+          "[articulated][collision][validation]") {
+  auto r=example();
+  r.bodies.front={0,0,0};
+  REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+  r=example();
+  r.goal=endpoint(r,{.5,0},1.0);
+  auto map=std::make_shared<ac::MapSnapshot>(*r.map);
+  occupy(*map,11.6,10.0); // new front body at goal, not at start
+  r.map=map;
+  REQUIRE(as::plan(r).status==as::Status::GoalInCollision);
+  r=example();
+  map=std::make_shared<ac::MapSnapshot>(*r.map);
+  map->cells[0]=-1;
+  r.map=map;
+  r.occupancy.unknown=ac::UnknownPolicy::Reject;
+  REQUIRE(as::plan(r).status==as::Status::RejectedUnknownMap);
+}
