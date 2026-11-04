@@ -238,6 +238,16 @@ if(HYBRID_ASTAR_BUILD_APP)
   target_compile_definitions(hybrid_astar_demo PRIVATE
     HYBRID_ASTAR_DEMO_WEB_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/web"
     HYBRID_ASTAR_DEMO_NAV2_MAP_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/apps/demo/maps")
+  # Offline, map-specific seeded calibration; never scheduled or CTest.
+  # Kept separate from interactive Planning Lab so calibration is explicit.
+  if(HYBRID_ASTAR_BUILD_BENCHMARKS)
+    add_executable(hybrid_astar_label_reserve_map_calibration_benchmark
+      tests/label_reserve_map_calibration_benchmark.cpp)
+    target_include_directories(hybrid_astar_label_reserve_map_calibration_benchmark
+      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(hybrid_astar_label_reserve_map_calibration_benchmark
+      PRIVATE hybrid_astar_demo_logic)
+  endif()
   # Manual full-resolution Nav2 warehouse performance benchmark. Reuse
   # the same restricted ROS YAML/PGM loader as Planning Lab, with no map
   # reloading or JSON serialization included in timed plan/refine samples.
