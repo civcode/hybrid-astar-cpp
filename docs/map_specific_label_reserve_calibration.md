@@ -9,20 +9,43 @@ It measures how many **simultaneously active state labels** Hybrid A* actually
 stores while exploring deterministic, spatially stratified, randomly jittered
 start/goal pairs on an immutable occupancy grid. It returns **both**:
 
-- `recommendedTierIndex`: a stable index into the reservation series;
+- `tierSeriesVersion`: **2**, identifying the tier-index mapping;
+- `recommendedTierIndex`: an index into **that versioned** series;
 - `recommendedReserveLabels`: the exact
   `PlanOptions.searchLabelReserve` value to pass to future requests.
 
-| Tier index | Reserved labels |
+**Tier series v2** divides each doubling interval into four equal
+integer steps, reducing avoidable reservation jumps:
+
+| v2 tier | Reserved labels |
 | ---: | ---: |
-| 0 | 0 — original growing-table baseline, **not** a zero-rehash certificate |
+| 0 | 0 — original growing-table baseline, **not** a no-rehash certificate |
 | 1 | 65,536 |
-| 2 | 131,072 |
-| 3 | 262,144 |
-| 4 | 524,288 |
-| 5 | 1,048,576 |
-| 6 | 2,097,152 |
-| ... | Doubling thereafter, within machine/budget limits |
+| 2 | 81,920 |
+| 3 | 98,304 |
+| 4 | 114,688 |
+| 5 | 131,072 |
+| 6 | 163,840 |
+| 7 | 196,608 |
+| 8 | 229,376 |
+| 9 | 262,144 |
+| 10 | 327,680 |
+| 11 | 393,216 |
+| 12 | 458,752 |
+| **13** | **524,288** |
+| **14** | **655,360** |
+| 15 | 786,432 |
+| 16 | 917,504 |
+| 17 | 1,048,576 |
+| ... | Four steps per doubling, within machine/budget limits |
+
+The **original v1 series** doubled each tier (v1 tier 4 =
+524,288; v1 tier 5 = 1,048,576). Those historical indices MUST
+be stored/interpreted together with their series version. The
+overload `labelReserveForTier(tier, 1)` decodes v1, while
+`labelReserveForTier(tier)` uses v2. For a full timing and
+memory comparison, see
+[Refined label-reserve tier benchmark](refined_label_reserve_tiers_benchmark.md).
 
 The function selects the **smallest nonzero tier** above the largest
 `diagnostics.labelPeakSize` observed, including a configurable
@@ -44,10 +67,12 @@ const auto calibration = calibrateLabelReserve(templateRequest, settings);
 if (!calibration.sampleTargetMet || !calibration.verificationPassed) {
   throw std::runtime_error("Calibration is incomplete or not verified");
 }
-std::cout << "tier=" << calibration.recommendedTierIndex
+std::cout << "series=" << calibration.tierSeriesVersion
+          << " tier=" << calibration.recommendedTierIndex
           << " reserve=" << calibration.recommendedReserveLabels << "\n";
 
-// Store with map fingerprint and the SAME model/options configuration.
+// Persist tierSeriesVersion, recommendedTierIndex, resolved label count,
+// map fingerprint and the SAME model/options configuration.
 // Apply only to future requests using the same map and search settings:
 futureRequest.options.searchLabelReserve =
     calibration.recommendedReserveLabels;
@@ -77,40 +102,44 @@ capacity estimate for the same map.
 - With **reserve 0**, the median label-table rehash count was **14**
   (range 10–16). On the verification replays, every reported
   `verified_rehashes` value was **0**.
-- **Tier 4 = 524,288** is the smallest tier able to fit all
-  **observed** peaks, because none exceed 524,288.
-  **Direct verification is now complete:** the second file,
+- **v1 tier 4 = 524,288 (v2 tier 13)** is the smallest tier able
+  to fit all **observed** peaks, because none exceed 524,288.
+  **Direct verification is complete:** the second file,
   `nav2-label-calibration-large-32-tier4.csv`, reran the same
   32 routes with `--headroom 0`. All 32 reported `Success`,
   every verification had **zero rehashes**, and **all recorded CSV
   fields matched** the earlier tier-5 run (including poses, status,
   expansions, generated nodes and peak labels).
 - With the default **20% headroom**, the selection target becomes
-  `ceil(484534 * 1.20) = 581441`, so the calibration returns
-  **tier 5 = 1,048,576** reserved labels. Two of 32 samples
+  `ceil(484534 * 1.20) = 581441`. The **original v1** calibration
+  returned **v1 tier 5 = 1,048,576** reserved labels. With **v2**,
+  the same observed maximum returns **v2 tier 14 = 655,360**.
+  The *new tier 14* has not yet been speed-benchmarked. Two of 32 samples
   (indices **3** and **24**) exceed
   `floor(524288 / 1.20) = 436906`, pushing the headroom
   target beyond tier 4.
 - The four-route smoke maximum had been only **367,653** live
-  labels (tier 4 with 20% headroom); the larger sample found
+  labels (v1 tier 4 with 20% headroom); the larger sample found
   a **32% higher** maximum and thus selected a higher tier.
 
-**Interpretation:** **Tier 4 is now the smallest directly
-verified zero-rehash tier** for these 32 sampled routes. At the
+**Interpretation:** **524,288 labels (old v1 tier 4, new v2
+tier 13)** is the smallest directly verified zero-rehash capacity
+for these 32 sampled routes. At the
 484,534-label peak it leaves **39,754 unused reserved entries**,
 about **7.58% of the tier-4 capacity** (8.20% relative to observed
-peak). Tier 5 remains the **20%-headroom policy recommendation**,
-not the smallest observed no-rehash requirement. Both verified tiers
-preserved identical work and outcomes on all 32 sampled requests.
+peak). In the old calibration version, **v1 tier 5 (1,048,576)** was the
+20%-headroom policy recommendation. Under **v2, tier 14
+(655,360)** is the corresponding recommendation; it is not a newly
+measured latency winner. Both originally verified numeric capacities
+(524,288 and 1,048,576) preserved identical work and outcomes on
+all 32 sampled requests.
 
-This establishes **neither tier's runtime superiority**: the calibration
-CSV contains no timed search measurements or peak RSS. Tier 5 reserves
-524,288 more labels up front than tier 4; compare their measured
-latency and memory consumption under the *same 32 sampled routes*
-before choosing a deployment setting. The discrete doubling sequence
-can allocate much more capacity than the headroom target; an optional
-**non-tier reserve of 581,441** is another possible future timing and
-memory experiment, not a tested recommendation.
+This establishes **no tier's runtime superiority**: the calibration
+CSV contains no timed search measurements or peak RSS. The new
+[matched four-way benchmark](refined_label_reserve_tiers_benchmark.md)
+compares **524,288 / 655,360 / 786,432 / 1,048,576** on the
+same seeded routes. Results are pending. The newer tier sequence
+limits the rounding overhead without requiring non-tier reservations.
 
 The result applies only to the tested large footprint and 500k/2M
 work budgets. Run the corresponding 32-route calibration for
