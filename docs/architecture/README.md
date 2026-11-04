@@ -4,6 +4,7 @@ The baseline and ADRs are historical architecture proposals; the first C++20 Ack
 
 | Document | Focus |
 | --- | --- |
+| [**Articulated-steering model and conventions — review first**](articulated_steering_kinematic_model_review.md) | Author's five-variable ODE, rear-frame reduction, agreed vs proposed conventions, numeric examples and owner sign-off checklist; **not approved for implementation** |
 | [Current implementation](current-implementation.md) | Normative shipped behavior, evidence, open W0–W9 work packages |
 | [Interactive Planning Lab app](../../apps/demo/README.md) | Loopback C++20 demo, live map/start/goal editing, exact path visualization and optional OMPL/refinement |
 | [W12 mecanum/holonomic search](w12-mecanum-holonomic.md) | Independent body-lateral/yaw motion, 14 cached primitives, shared-policy search, strict collision and test limits |
