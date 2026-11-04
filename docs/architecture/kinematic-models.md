@@ -194,10 +194,11 @@ The initial state is all zero, consistent with
 $\gamma=\Theta_f-\Theta_r$.
 
 **Therefore the user's interpretation matches the source code**:
-$(x_f,y_f)$ is the front point; travel $L_f$ backward along
-the front heading to the hinge and $L_r$ backward along
-the rear heading to the rear reference, whose pose is emitted as
-`base_link`. The source **encodes** those geometric offsets but
+$(x_f,y_f)$ is the front reference point. $L_f$ is the unsigned
+distance between that point and the hinge; $L_r$ is the unsigned
+distance between the hinge and the rear reference. The coordinate
+transform subtracts the corresponding heading-aligned displacement
+vectors to compute the rear `base_link` pose. The source **encodes** those geometric offsets but
 does not independently prove that either point is the actual
 physical **axle midpoint**; confirm against mechanical design/URDF
 before attaching collision polygons.
