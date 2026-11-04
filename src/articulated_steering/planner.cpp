@@ -1,6 +1,5 @@
 #include "hybrid_astar/articulated_steering/planner.hpp"
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <limits>
 #include <numbers>
@@ -71,6 +70,7 @@ struct Node {
   std::size_t parent=noParent;
   Control incoming{};
   double duration=0.0,g=0.0;
+  std::size_t gammaIndex=0; // exact request-local articulation lattice value
 };
 struct HeapItem {
   double f=0.0;
@@ -80,17 +80,9 @@ struct HeapItem {
   }
 };
 struct Best {double g;std::size_t id;};
+// Drive uses a fixed articulation. Changing articulation is a separate
+// stationary control edge, never an instantaneous node-state jump.
 struct ControlPrimitive {Control u;double duration;int gear;};
-std::array<ControlPrimitive,8> catalog(const SearchOptions& o) {
-  const double v=o.translationSpeedMetersPerSecond;
-  const double u=o.articulationRateRadiansPerSecond;
-  const double movingTime=o.translationPrimitiveMeters/v;
-  const double jointTime=o.articulationPrimitiveRadians/u;
-  return {{{{ v,-u},movingTime,1},{{v,0},movingTime,1},
-           {{v,u},movingTime,1},{{-v,-u},movingTime,-1},
-           {{-v,0},movingTime,-1},{{-v,u},movingTime,-1},
-           {{0,-u},jointTime,0},{{0,u},jointTime,0}}};
-}
 double transitionCost(const ControlPrimitive& primitive,
                       const SearchOptions& o) {
   const double length=std::abs(primitive.u.frontSpeedMetersPerSecond)*
@@ -139,6 +131,140 @@ double safeSampleStep(const Model& m,const BodyCollisionChecker& collision,
     throw std::length_error("Invalid articulated sample schedule");
   return h;
 }
+
+// Each template starts in the canonical REAR base_link pose (0,0,0,gammaFrom).
+// Drive arcs use closed-form integration. Stationary joint transitions are
+// integrated ONCE per request using our own RK4, then rigidly transported
+// to each expanded node via SE(2). Collision queries remain map-specific
+// at EVERY transported intermediate configuration.
+struct PrimitiveTemplate {
+  ControlPrimitive command;
+  std::size_t targetGammaIndex=0;
+  std::vector<Sample> localSamples;
+};
+struct PrimitiveLibrary {
+  std::vector<double> angles;
+  std::vector<std::vector<PrimitiveTemplate>> atGamma;
+  std::size_t initialIndex=0;
+  std::size_t analyticDriveCount=0;
+  std::size_t stationaryRk4Count=0;
+  std::size_t sampleCount=0;
+
+  PrimitiveLibrary(const Model& model,const BodyCollisionChecker& body,
+                   const SearchOptions& o,double startGamma,double goalGamma) {
+    const auto& p=model.parameters();
+    const double width=p.maxGammaRadians-p.minGammaRadians;
+    const double partitions=std::ceil(width/o.articulationPrimitiveRadians);
+    // Explicit finite lattice budget: a user-supplied tiny steering step
+    // must not allocate millions of angle states/templates.
+    if(!std::isfinite(partitions)||partitions>63.0)
+      throw std::invalid_argument("Articulation lattice exceeds 64 angular intervals");
+    const auto count=static_cast<std::size_t>(partitions);
+    angles.reserve(count+4);
+    for(std::size_t i=0;i<=count;++i) {
+      const double g=std::min(p.maxGammaRadians,
+                            p.minGammaRadians+static_cast<double>(i)*
+                            o.articulationPrimitiveRadians);
+      angles.push_back(g);
+    }
+    angles.push_back(p.maxGammaRadians);
+    // Explicit start/goal gamma are physical configurations, not
+    // teleported or silently rounded to a nearby steering bin.
+    angles.push_back(startGamma);
+    angles.push_back(goalGamma);
+    std::sort(angles.begin(),angles.end());
+    std::vector<double> unique;
+    for(double gamma:angles) {
+      if(unique.empty()||gamma-unique.back()>1e-9)unique.push_back(gamma);
+    }
+    angles.swap(unique);
+    const auto findIndex=[&](double gamma) {
+      for(std::size_t i=0;i<angles.size();++i)
+        if(std::abs(angles[i]-gamma)<1e-8)return i;
+      throw std::invalid_argument("Articulation start/goal not in lattice");
+    };
+    initialIndex=findIndex(startGamma);
+    (void)findIndex(goalGamma);
+    atGamma.resize(angles.size());
+    const double v=o.translationSpeedMetersPerSecond;
+    const double u=o.articulationRateRadiansPerSecond;
+    const auto addTemplate=[&](std::size_t from,std::size_t to,
+                               ControlPrimitive command,bool analytic) {
+      const double step=safeSampleStep(model,body,command.u,
+                                      command.duration,o.maxRk4StepSeconds,
+                                      o.searchMaxBodyPointMotionMeters);
+      const double countD=std::ceil(command.duration/step);
+      if(!std::isfinite(countD)||
+         countD>static_cast<double>(o.maxSamplesPerPrimitive-1))
+        throw std::length_error("Precomputed articulated motion exceeds sampling budget");
+      const auto steps=std::max<std::size_t>(1,
+                                      static_cast<std::size_t>(countD));
+      PrimitiveTemplate t;
+      t.command=command;
+      t.targetGammaIndex=to;
+      const RearState origin{0,0,0,angles[from]};
+      const State initial=model.fromRear(origin);
+      if(analytic) {
+        const double gamma=angles[from];
+        const double D=p.LfMeters*std::cos(gamma)+p.LrMeters;
+        const double omega=command.u.frontSpeedMetersPerSecond*
+                            std::sin(gamma)/D;
+        const double vr=model.rearSpeed(initial,command.u);
+        t.localSamples.reserve(steps+1);
+        for(std::size_t k=0;k<=steps;++k) {
+          const double time=k==steps?command.duration:
+                             command.duration*static_cast<double>(k)/
+                             static_cast<double>(steps);
+          const double a=omega*time;
+          // sinc(a), (1-cos(a))/a expansions avoid cancellation
+          // when an articulation bin is near straight.
+          const double sinc=std::abs(a)<1e-5?
+                   1-a*a/6+a*a*a*a/120:std::sin(a)/a;
+          const double cosc=std::abs(a)<1e-5?
+                   a/2-a*a*a/24+a*a*a*a*a/720:(1-std::cos(a))/a;
+          const RearState rear{vr*time*sinc,vr*time*cosc,a,gamma};
+          t.localSamples.push_back({time,model.fromRear(rear),rear});
+        }
+        ++analyticDriveCount;
+      } else {
+        // Integrate stationary articulation for this angle interval ONCE.
+        // The front reference stays fixed, while both carriage
+        // headings and the rear base_link move consistently.
+        t.localSamples=model.trajectory(initial,command.u,command.duration,
+                                         command.duration/static_cast<double>(steps),
+                                         steps);
+        ++stationaryRk4Count;
+      }
+      sampleCount+=t.localSamples.size();
+      atGamma[from].push_back(std::move(t));
+    };
+    for(std::size_t i=0;i<angles.size();++i) {
+      const double driveTime=o.translationPrimitiveMeters/v;
+      for(int gear:{-1,1}) {
+        addTemplate(i,i,{{static_cast<double>(gear)*v,0},driveTime,gear},
+                    true);
+      }
+      for(const int neighbor:{-1,1}) {
+        const auto toSigned=static_cast<std::int64_t>(i)+neighbor;
+        if(toSigned<0||toSigned>=static_cast<std::int64_t>(angles.size()))
+          continue;
+        const auto to=static_cast<std::size_t>(toSigned);
+        const double delta=angles[to]-angles[i];
+        if(std::abs(delta)<1e-10)continue;
+        const double rate=std::copysign(u,delta);
+        addTemplate(i,to,{{0,rate},std::abs(delta)/u,0},false);
+      }
+    }
+  }
+};
+RearState transport(const RearState& anchor,const RearState& local) {
+  const double c=std::cos(anchor.thetaRear),s=std::sin(anchor.thetaRear);
+  return {anchor.xr+c*local.xr-s*local.yr,
+          anchor.yr+s*local.xr+c*local.yr,
+          anchor.thetaRear+local.thetaRear,
+          local.gamma};
+}
+
 enum class StrictResult { Accept, Reject, Incomplete, Cancelled };
 StrictResult strictValidate(const Request& r,const Model& model,
                             const BodyCollisionChecker& body,
@@ -268,14 +394,18 @@ Result plan(const Request& r) {
     std::vector<Node> nodes;
     nodes.reserve(std::min<std::size_t>(r.options.maxGenerated,16384));
     const auto rootKey=makeSearchKey(r.start,0,r.options,r.parameters);
-    nodes.push_back({start,r.start,rootKey,noParent,{},0.0,0.0});
+    nodes.push_back({start,r.start,rootKey,noParent,{},0.0,0.0,
+                     primitives.initialIndex});
     out.diagnostics.generated=1;
     std::unordered_map<SearchKey,Best,KeyHash> best;
     best.reserve(std::min<std::size_t>(r.options.maxGenerated,16384));
     best.emplace(rootKey,Best{0.0,0});
     std::priority_queue<HeapItem> open;
     open.push({heuristic(r.start,r.goal,r.options),0});
-    const auto primitives=catalog(r.options);
+    PrimitiveLibrary primitives(model,*body,r.options,r.start.gamma,r.goal.gamma);
+    out.diagnostics.precomputedAnalyticDriveTemplates=primitives.analyticDriveCount;
+    out.diagnostics.precomputedStationaryRk4Templates=primitives.stationaryRk4Count;
+    out.diagnostics.precomputedSampleCount=primitives.sampleCount;
     bool sampledIncomplete=false;
     while(!open.empty()) {
       if(cancelled(r)){out.status=Status::Cancelled;return out;}
@@ -302,26 +432,30 @@ Result plan(const Request& r) {
         }
         ++out.diagnostics.strictRejected;
       }
-      for(const auto& primitive:primitives) {
+      for(const auto& templateMotion:primitives.atGamma[current.gammaIndex]) {
         if(cancelled(r)){out.status=Status::Cancelled;return out;}
+        ++out.diagnostics.appliedPrecomputedTemplates;
+        const auto& command=templateMotion.command;
         try {
-          const double dt=safeSampleStep(model,*body,primitive.u,
-                         primitive.duration,r.options.maxRk4StepSeconds,
-                         r.options.searchMaxBodyPointMotionMeters);
-          auto samples=model.trajectory(current.state,primitive.u,
-                             primitive.duration,dt,r.options.maxSamplesPerPrimitive-1);
-          bool valid=true;
-          for(const auto& sample:samples) {
+          // No RK4 in successor generation. Transport each precomputed
+          // canonical template from rear (0,0,0) to current world pose.
+          // The complete map-specific, two-body collision validation
+          // still runs on EVERY transported sample.
+          bool clear=true;
+          for(const auto& sample:templateMotion.localSamples) {
+            const auto world=transport(current.rear,sample.rear);
+            const State q=model.fromRear(world);
             out.diagnostics.searchBodyChecks+=2;
-            if(!body->clear(model,sample.state)) {
-              valid=false; ++out.diagnostics.rejectedSearchCollision;break;
+            if(!body->clear(model,q)) {
+              clear=false;++out.diagnostics.rejectedSearchCollision;break;
             }
           }
-          if(!valid)continue;
-          const auto state=samples.back().state;
-          const auto rear=samples.back().rear;
-          const auto key=makeSearchKey(rear,primitive.gear,r.options,r.parameters);
-          const double newG=current.g+transitionCost(primitive,r.options);
+          if(!clear)continue;
+          const auto rear=transport(current.rear,
+                                   templateMotion.localSamples.back().rear);
+          const State state=model.fromRear(rear);
+          const auto key=makeSearchKey(rear,command.gear,r.options,r.parameters);
+          const double newG=current.g+transitionCost(command,r.options);
           if(!std::isfinite(newG))continue;
           const auto prev=best.find(key);
           if(prev!=best.end()&&newG>=prev->second.g-1e-12) {
@@ -331,7 +465,8 @@ Result plan(const Request& r) {
             out.status=Status::BudgetExceeded;return out;
           }
           const auto id=nodes.size();
-          nodes.push_back({state,rear,key,top.node,primitive.u,primitive.duration,newG});
+          nodes.push_back({state,rear,key,top.node,command.u,command.duration,
+                           newG,templateMotion.targetGammaIndex});
           best[key]={newG,id};
           ++out.diagnostics.generated;
           open.push({newG+heuristic(rear,r.goal,r.options),id});
@@ -351,6 +486,9 @@ Result plan(const Request& r) {
     return out;
   } catch(const std::invalid_argument&) {
     out.status=Status::InvalidRequest;
+    return out;
+  } catch(const std::length_error&) {
+    out.status=Status::ValidationIncomplete;
     return out;
   } catch(const std::out_of_range&) {
     out.status=Status::ValidationIncomplete;
