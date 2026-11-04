@@ -1,5 +1,10 @@
 # Opt-in EDT-assisted capped clearance cost: Nav2 warehouse A/B/C
 
+For practical **which options to enable together** guidance and
+ready-to-copy C++ profiles, start with the
+[planning clearance and performance how-to](planning_clearance_and_performance_howto.md).
+This document covers the underlying EDT algorithm and manual A/B/C benchmark.
+
 ## Measured results (2026-11-04)
 
 The corrected two-route, one-repeat warehouse smoke CSV succeeded in all
