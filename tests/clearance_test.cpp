@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/ackermann/clearance.hpp"
+#include "hybrid_astar/ackermann/refinement.hpp"
 #include <cmath>
 #include <iostream>
 #include <memory>
@@ -185,6 +186,11 @@ TEST_CASE("EDT and exact clearance produce identical differential search and pat
   REQUIRE(edt.diagnostics.clearanceExactFallbacks>0);
   REQUIRE(std::abs(exact.weightedCostMeters-edt.weightedCostMeters)<1e-9);
   REQUIRE(std::abs(exact.clearanceCostMeters-edt.clearanceCostMeters)<1e-9);
+  // Refinement must accept the SAME positive-clearance objective for native
+  // differential-drive paths, and recheck it with exact footprint geometry.
+  const auto refined=refinePath(req,edt);
+  REQUIRE(refined.path.status==PlanStatus::Success);
+  REQUIRE(refined.path.weightedCostMeters<=edt.weightedCostMeters+1e-6);
   REQUIRE(exact.sections.size()==edt.sections.size());
   for(std::size_t i=0;i<exact.sections.size();++i) {
     const auto& a=exact.sections[i];
