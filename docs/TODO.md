@@ -34,10 +34,15 @@ implemented; regression review pending):
   metric round-joined margin as a **visual aid**, not a substitute
   for the exact C++ collision checker. Distinguish start (cyan), goal
   (gold) and replay (mint).
-- [ ] Run the manual/headless UI regression and visually verify
-  scenario/model changes, pose editing, goal shift-click, map-origin
-  rotation, inflation and a failed search. Do not require a successful
-  plan for the footprints to appear.
+- [x] Exercise the actual updated app drawing logic against a headless
+  canvas/DOM: initial start/goal footprints, editable 90-degree yaw,
+  Ackermann/differential sizes and the inflation band all passed.
+  A manual Node regression is provided at
+  `tests/demo_pose_footprint_ui_test.js`.
+- [ ] Visually verify the UI in a real browser: scenario/model changes,
+  pose editing, goal shift-click, rotated map origin, inflation,
+  pre-plan loading, stale routes and failed searches. Do not require
+  planning success for either footprint to appear.
 
 **P0-B — Articulated-steering kinematic model** (kinematic ODE already
 supplied; **physical conventions and planner integration pending**).
