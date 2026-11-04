@@ -1,7 +1,7 @@
 # Articulated-steering kinematic model and frame conventions — review draft
 
-**Status: STANDALONE KINEMATIC MODEL IMPLEMENTED — still awaiting physical
-robot frame/limit sign-off; not approved for full articulated planning.**
+**Status: KINEMATIC MODEL + EXPERIMENTAL FOUR-DOF SEARCH IMPLEMENTED —
+physical robot geometry/limits still require owner sign-off.**
 
 *Rendering note:* Multi-line equations use GitHub-supported fenced `math` blocks.
 
