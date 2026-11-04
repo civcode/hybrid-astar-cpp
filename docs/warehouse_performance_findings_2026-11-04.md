@@ -149,10 +149,19 @@ no-rehash tier (v1 tier 4 / v2 tier 13). Under the original v1 series,
 **1,048,576 labels** was the 20%-headroom recommendation (v1 tier 5).
 The refined **v2** series now has four capacity steps per doubling,
 so the same 581,441-label headroom target selects **v2 tier 14 =
-655,360 labels**. **None of these capacities has yet been compared
-for timed search performance on the 32 sampled routes**. See the
-[calibration report](map_specific_label_reserve_calibration.md) and
-[new matched tier benchmark](refined_label_reserve_tiers_benchmark.md).
+655,360 labels**. The completed **128-row, five-repeat-per-tier
+matched benchmark** then verified zero rehashes and identical work at
+**all four tested v2 tiers** (13/14/15/17). Tier 13 and tier 14
+had essentially equal paired speed (16/32 wins each; ~0.00%
+median paired delta), at **4.29 versus 5.03 MiB** estimated
+bucket-array memory. Tier 17 was slower than tier 14 on 27/32
+routes while using about **3.03 MiB more buckets**. Retain
+**v2 tier 14 (655,360)** as the 20%-headroom recommendation for
+the sampled large-footprint warehouse workload; tier 13 is an
+acceptable tighter-memory option with less spare capacity. No claim
+is made for other geometries, unseen routes or process RSS.
+See the [calibration report](map_specific_label_reserve_calibration.md) and
+[completed matched tier benchmark](refined_label_reserve_tiers_benchmark.md).
 
 ## 2. EDT-assisted capped clearance: route quality versus computational cost
 
