@@ -162,3 +162,33 @@ TEST_CASE("Articulated planner enforces joint limits, cancellation and work budg
   REQUIRE(limited.status==as::Status::ValidationIncomplete ||
           limited.status==as::Status::BudgetExceeded);
 }
+
+TEST_CASE("Stationary articulation detects an obstacle hit only between endpoints",
+          "[articulated][collision][intermediate][joint]") {
+  auto r=example();
+  auto map=std::make_shared<ac::MapSnapshot>(*r.map);
+  // Long slender front carriage: its outer corner swings across this cell
+  // during gamma=0 -> 1rad but clears the cell at both endpoints.
+  r.bodies.front={-.2,1.0,.07};
+  occupy(*map,11.9,10.35);
+  r.map=map;
+  as::Model model(r.parameters);
+  const auto start=model.fromRear(r.start);
+  const as::Control u{0,.4};
+  const auto samples=model.trajectory(start,u,2.5,.01);
+  r.goal=samples.back().rear;
+  as::BodyCollisionChecker checker(*r.map,r.occupancy,r.bodies);
+  REQUIRE(checker.clear(model,samples.front().state));
+  REQUIRE(checker.clear(model,samples.back().state));
+  bool hitBetween=false;
+  for(std::size_t i=1;i+1<samples.size();++i)
+    if(!checker.clear(model,samples[i].state))hitBetween=true;
+  REQUIRE(hitBetween);
+  // The direct 1-radian joint-only primitive is NOT allowed to slip
+  // through simply because its endpoints are clear.
+  r.options.articulationPrimitiveRadians=1.0;
+  r.options.maxExpansions=1;
+  const auto result=as::plan(r);
+  REQUIRE(result.status!=as::Status::Success);
+  REQUIRE(result.diagnostics.rejectedSearchCollision>0);
+}
