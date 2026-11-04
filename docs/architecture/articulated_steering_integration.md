@@ -15,10 +15,15 @@ model uses the project-owned RK4 integrator. A **separate experimental
 articulated Hybrid A* entry point** has now been added in
 [`articulated_steering/planner.hpp`](../../include/hybrid_astar/articulated_steering/planner.hpp)
 and [`planner.cpp`](../../src/articulated_steering/planner.cpp).
-It carries rear `(x,y,yaw,gamma)` search states, generates
-eight RK4 constant-control primitives, checks two rigid collision bodies
-against the immutable occupancy map and separately re-integrates
-accepted paths at a finer collision-sampling resolution.
+It carries rear `(x,y,yaw,gamma)` search states and builds a
+**request-local, reusable articulation-indexed primitive library**:
+constant-`gamma` forward/reverse motion as analytic circular arcs,
+and changes in `gamma` **only at zero commanded front speed** as
+precomputed RK4 steering transitions. Every local template is
+transformed to the expanded world rear pose; both collision bodies
+are checked against the immutable occupancy map. Accepted paths
+are independently re-integrated by RK4 and collision checked
+at finer resolution before success.
 
 **This is not production-ready robotic motion validation.**
 The front/rear collision bodies, link geometry, joint limits and
@@ -195,9 +200,24 @@ the ODE undefined.
 - [x] Add `articulated_steering::plan(Request)` with **rear x/y/yaw
   and articulation gamma** indexed independently; the incoming drive
   direction is also part of the label key.
-- [x] Generate eight finite-length/finite-angle RK4 primitives:
-  forward/reverse with negative/zero/positive joint rate, plus
-  joint-only steering in both directions at `v=0`.
+- [x] Precompute **two fixed-`gamma` drive templates per
+  articulation lattice angle** (forward and reverse) with the exact
+  analytic rear-reference arc; no RK4 is used in search expansion
+  for these edges.
+- [x] Precompute **adjacent steering transitions** `gamma_i →
+  gamma_{i±1}` by integrating the five-state ODE **once per
+  articulation interval** with our own RK4 and `v=0`. Steering
+  while driving is intentionally **not** an allowed primitive.
+  Both body headings rotate; the front reference remains fixed
+  and the rear `base_link` may move.
+- [x] Include arbitrary exact start and goal articulation angles
+  in the request-local gamma lattice. No state is teleported,
+  rounded to a joint bin or allowed to jump instantly between
+  fixed-articulation drive arcs.
+- [x] Reuse all local templates in search by SE(2) transformation
+  of their complete intermediate pose samples. Still check
+  both collision bodies at **every transformed sample** and
+  independently integrate the complete final path by RK4.
 - [x] Retain complete five-variable states, rear reference poses,
   control, nominal duration and checked intermediate samples
   on reconstructed motion sections.
@@ -210,6 +230,57 @@ the ODE undefined.
 - [ ] Integrate a compatible fourth model into the Planning Lab/browser
   UI only after validating physical robot geometry; the rigid
   `ackermann::PlanRequest` API deliberately cannot carry gamma.
+
+
+### Primitive library invariants and cost
+
+The grid's articulation spacing is configured by
+\`SearchOptions::articulationPrimitiveRadians\` (default 0.2 rad).
+Values $\gamma_{\min},\gamma_{\max}$, the **exact request start
+angle** and the **exact request goal angle** are retained. Each
+angle state has two analytic drive templates ($\dot\gamma=0$,
+$v=\pm v_{\mathrm{configured}}$) and up to two neighboring
+stationary steering templates ($v=0$,
+$\dot\gamma=\pm u_{\mathrm{configured}}$). All templates are
+constructed **once per plan**, not once per search expansion.
+
+- **Driving:** $\dot\Theta_r=v\sin\gamma/D$;
+  $v_r=v(L_f+L_r\cos\gamma)/D$. The local rear trajectory
+  is a straight line for zero angular velocity and an exact
+  circular arc otherwise. Both carriage headings rotate together,
+  maintaining $\gamma$ exactly.
+- **Stationary steering:** Generate a complete local trajectory
+  using the **five-state RK4 ODE** at $v=0$ between neighboring
+  angles. The front reference $F$ stays fixed, while both
+  carriage headings and the rear reference $R$ evolve.
+  Each transition has finite time $|\Delta\gamma|/|u_\gamma|$.
+- **Reuse:** Precompute with the local rear reference at
+  $(0,0,0)$; transport every sample to the node's actual rear
+  pose using the standard SE(2) transform. $\gamma$ itself
+  is unchanged by this frame transformation.
+- **Collision:** Static maps do **not** permit precomputing
+  universal collision outcomes; each transported sample
+  must be checked against the pinned map and against **both**
+  carriage rectangles. Intermediate samples are essential
+  even for stationary steering.
+- **Safety:** The final accepted candidate is independently
+  re-integrated with finer RK4 steps and collision checked.
+  Precomputation does **not** bypass this pass. Still no
+  continuous swept-volume or physical actuator certificate.
+
+The library is deliberately limited to **64 or fewer regular
+articulation intervals**, plus explicit start/goal angle
+insertion, and fails with a typed status if its sample
+budget cannot cover the configured geometry. Instrumentation
+exposes the number of analytic templates, RK4 steering
+templates, stored checkpoints and template applications.
+
+This is analogous to Ackermann's selection of a constant
+steering command per arc, but **not** identical to
+instantaneously changing Ackermann wheel angle: articulated
+steering physically displaces carriage geometry, so its
+joint-only transition must occupy its own collision-checked
+edge in search.
 
 ### Stage C — front and rear sampled collision — implemented experimentally
 
