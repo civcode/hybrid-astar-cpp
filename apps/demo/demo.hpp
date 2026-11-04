@@ -1,6 +1,7 @@
 #pragma once
 #include "hybrid_astar/ackermann/planner.hpp"
 #include "hybrid_astar/ackermann/refinement.hpp"
+#include "hybrid_astar/articulated_steering/planner.hpp"
 #include "apps/demo/map_edits.hpp"
 #include <optional>
 #include <memory>
@@ -19,6 +20,14 @@ struct Options {
   std::vector<CellEdit> edits;
   std::uint64_t editGeneration = 0;
   std::optional<Pose2D> start, goal;
+  // EXAMPLE Planning Lab geometry only. Production dimensions, mechanical
+  // limits and body offsets require real-robot sign-off before deployment.
+  // Start/goal XY/yaw are rear base_link poses when model=articulated.
+  double startGammaDegrees=0.0, goalGammaDegrees=0.0;
+  double LfMeters=0.5, LrMeters=0.5;
+  ackermann::Footprint articulatedFront{-0.3,0.3,0.15};
+  ackermann::Footprint articulatedRear{-0.3,0.3,0.15};
+
   // Optional work-budget override in expanded nodes. Empty keeps the
   // scenario default. Clamped by the callers to a demo-safe range.
   std::optional<std::size_t> maxExpansions;
@@ -46,6 +55,19 @@ struct Outcome {
   ackermann::RefinementOptions refinementSettings; // reported for reproducibility
   double elapsedMilliseconds = 0;
 };
+struct ArticulatedOutcome {
+  std::shared_ptr<const ackermann::MapSnapshot> map;
+  articulated_steering::RearState start, goal;
+  articulated_steering::BodyGeometry bodies;
+  articulated_steering::Parameters parameters{};
+  articulated_steering::SearchOptions settings;
+  articulated_steering::Result result;
+  double elapsedMilliseconds=0.0;
+};
+// Dedicated articulated branch: preserves the three existing rigid planners
+// while allowing complete gamma states and two independently checked bodies.
+ArticulatedOutcome runArticulated(const Options& options);
+std::string articulatedToJson(const ArticulatedOutcome& outcome);
 // Throws invalid_argument for unsupported scenarios and invalid pose requests.
 ackermann::PlanRequest makeRequest(std::string_view scenario);
 Outcome run(const Options& options);
