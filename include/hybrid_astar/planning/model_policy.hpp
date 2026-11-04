@@ -228,8 +228,7 @@ public:
     const auto& options=request_.options;
     if(!std::isfinite(options.rotationCostMetersPerRadian) ||
        options.rotationCostMetersPerRadian<=0 ||
-       request_.analyticConnector || request_.analyticDistance ||
-       options.clearanceWeight>0)
+       request_.analyticConnector || request_.analyticDistance)
       throw std::invalid_argument("Unsupported differential-drive planning option");
     const differential_drive::Model model(options.diffParameters);
     auto config=options.diffPrimitives;
@@ -401,7 +400,7 @@ public:
        o.rotationCostMetersPerRadian<=0||
        !std::isfinite(o.mecanumStationarySpinPenaltyMeters)||
        o.mecanumStationarySpinPenaltyMeters<0||
-       request_.analyticConnector||request_.analyticDistance||o.clearanceWeight>0)
+       request_.analyticConnector||request_.analyticDistance)
       throw std::invalid_argument("Unsupported mecanum planning option");
     const mecanum::Model model(o.mecanumParameters);
     auto config=o.mecanumPrimitives;
