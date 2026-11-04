@@ -1,5 +1,6 @@
 #include "hybrid_astar/ackermann/label_reserve_calibration.hpp"
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -51,6 +52,25 @@ bool samePath(const PlanResult& a,const PlanResult& b) {
        !close(x.lateralMeters,y.lateralMeters))return false;
   }
   return true;
+}
+std::uint64_t fingerprint(const MapSnapshot& map) {
+  std::uint64_t hash=14695981039346656037ULL;
+  const auto byte=[&](std::uint8_t v) {
+    hash^=v;
+    hash*=1099511628211ULL;
+  };
+  const auto word=[&](std::uint64_t value) {
+    for(unsigned i=0;i<8;++i)byte(
+        static_cast<std::uint8_t>((value>>(i*8))&0xffU));
+  };
+  word(static_cast<std::uint64_t>(map.width));
+  word(static_cast<std::uint64_t>(map.height));
+  word(std::bit_cast<std::uint64_t>(map.resolutionMeters));
+  word(std::bit_cast<std::uint64_t>(map.origin.x));
+  word(std::bit_cast<std::uint64_t>(map.origin.y));
+  word(std::bit_cast<std::uint64_t>(map.origin.yaw));
+  for(const auto value:map.cells)byte(static_cast<std::uint8_t>(value));
+  return hash;
 }
 bool invalidStatus(PlanStatus s) {
   return s==PlanStatus::InvalidRequest||s==PlanStatus::InvalidMap||
@@ -121,6 +141,7 @@ LabelReserveCalibrationResult calibrateLabelReserve(
 
   LabelReserveCalibrationResult result;
   result.mapRevision=map.revision;
+  result.mapFingerprint=fingerprint(map);
   result.mapWidth=map.width;result.mapHeight=map.height;
   result.requestedRoutes=settings.routeSamples;
   const double worldWidth=static_cast<double>(map.width)*map.resolutionMeters;
