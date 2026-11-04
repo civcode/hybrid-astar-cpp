@@ -9,6 +9,9 @@ namespace hybrid_astar::articulated_steering {
 namespace {
 constexpr double kTwoPi=2.0*std::numbers::pi_v<double>;
 constexpr double kStateAngleTolerance=1e-8;
+// Only accommodates RK4 floating-point summation when stopping exactly
+// at a mechanical joint limit; physical excursions beyond it still fail.
+constexpr double kJointLimitRoundingTolerance=1e-12;
 bool finiteState(const State& s) noexcept {
   return std::isfinite(s.xf)&&std::isfinite(s.yf)&&
          std::isfinite(s.thetaFront)&&std::isfinite(s.thetaRear)&&
@@ -42,8 +45,9 @@ Model::Model(Parameters p):params_(p) {
     throw std::invalid_argument("Articulated denominator unsafe within joint limits");
 }
 bool Model::validState(const State& q) const noexcept {
-  if(!finiteState(q)||q.gamma<params_.minGammaRadians||
-     q.gamma>params_.maxGammaRadians)return false;
+  if(!finiteState(q)||
+     q.gamma<params_.minGammaRadians-kJointLimitRoundingTolerance||
+     q.gamma>params_.maxGammaRadians+kJointLimitRoundingTolerance)return false;
   const double d=params_.LfMeters*std::cos(q.gamma)+params_.LrMeters;
   if(!std::isfinite(d)||d<params_.minDenominatorMeters)return false;
   const double headingError=std::remainder(q.thetaFront-q.thetaRear-q.gamma,kTwoPi);
@@ -86,7 +90,8 @@ RearState Model::toRear(const State& q) const {
 State Model::fromRear(const RearState& r) const {
   if(!std::isfinite(r.xr)||!std::isfinite(r.yr)||
      !std::isfinite(r.thetaRear)||!std::isfinite(r.gamma)||
-     r.gamma<params_.minGammaRadians||r.gamma>params_.maxGammaRadians)
+     r.gamma<params_.minGammaRadians-kJointLimitRoundingTolerance||
+     r.gamma>params_.maxGammaRadians+kJointLimitRoundingTolerance)
     throw std::invalid_argument("Invalid rear-reference state");
   const double tf=r.thetaRear+r.gamma;
   const double xf=r.xr+params_.LrMeters*std::cos(r.thetaRear)+
