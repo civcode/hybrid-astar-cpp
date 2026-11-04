@@ -18,6 +18,8 @@ Start at [Architecture documentation](docs/architecture/README.md), then review:
 - [Open decisions](docs/architecture/open-questions.md)
 - [Implementation checklist](docs/TODO.md)
 - [Architecture Decision Records](docs/adr/README.md)
+- [Measured Nov 2026 warehouse performance findings (EDT clearance and label reservation)](docs/warehouse_performance_findings_2026-11-04.md)
+- [Manual four-size A* label-reserve benchmark](docs/label_reserve_sweep_benchmark.md)
 
 The [consolidated external-review specification](docs/architecture/Hybrid_AStar_Consolidated_Specification.md) is versioned as a **proposal**, not an approved ADR. The [current implementation contract and work-package traceability](docs/architecture/current-implementation.md) describes which recommendations have shipped and what remains unverified. See [W3–W5 verification notes](docs/architecture/w3-w5-verification-notes.md) for signed RS decoding, parking fixtures and strict sample-budget evidence, and [W7–W8 verification notes](docs/architecture/w7-w8-verification-notes.md) for conservative cover and quality experiments.
 
