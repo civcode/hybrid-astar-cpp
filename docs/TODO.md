@@ -18,24 +18,79 @@ support. It produces a **geometric path initializer**; it does not establish
 continuous swept-body safety, time-parameterized actuator feasibility, safe
 real-robot tracking or dynamic-obstacle avoidance.
 
-### Immediate prerequisite gate — before any smoothing-quality benchmark
+### Immediate prerequisite gate — complete BEFORE smoothing-quality benchmarks
 
-- [ ] **Complete and agree the additional user-requested work preceding
-  the smoothing-quality benchmark.** The list was introduced but not yet
-  supplied; do not invent the missing tasks or start that benchmark.
-- [ ] Once that list is known, put its concrete tasks, success conditions
-  and ordering **above the benchmark** in this roadmap. Confirm the
-  target robot model(s), map fixture(s), acceptance thresholds and
-  whether any safety/controller requirements are in scope.
-- [ ] Preserve the current validated raw-path fallback, model-specific
-  kinematic checks, independent strict final pose-sampled collision
-  gate and work budgets throughout subsequent experiments.
+**The two explicit user-requested prerequisites (in order) supersede
+the earlier generic, unspecified prerequisite gate:**
+
+**P0-A — Planning Lab footprint at editable start and goal** (UI change
+implemented; regression review pending):
+
+- [x] Draw the full **model-specific rotated rectangular footprint at
+  BOTH start and goal** before planning, while planning is running,
+  after failure, and while a route is stale. Retain each pose's marker
+  and yaw ray. Keep the replay body's independent rendering.
+- [x] Show footprint inflation when enabled, using the displayed
+  metric round-joined margin as a **visual aid**, not a substitute
+  for the exact C++ collision checker. Distinguish start (cyan), goal
+  (gold) and replay (mint).
+- [ ] Run the manual/headless UI regression and visually verify
+  scenario/model changes, pose editing, goal shift-click, map-origin
+  rotation, inflation and a failed search. Do not require a successful
+  plan for the footprints to appear.
+
+**P0-B — Articulated-steering kinematic model** (kinematic ODE already
+supplied; **physical conventions and planner integration pending**):
+
+- [x] Locate the author-supplied four-state rear-chassis ODE in
+  [kinematic-models](architecture/kinematic-models.md). State is
+  `(x, y, Theta, gamma)`, inputs provisionally `(v, u_gamma)`;
+  the denominator is `l1*cos(gamma)+l2`. **Do not guess the
+  front-body transform from the ODE alone.**
+- [ ] **Confirm OQ-022 with the robot owner:** exact rear reference
+  point, physical distances `l1/l2`, positive articulation-angle
+  sign and zero convention, front/rear body and joint transforms,
+  actuator input definitions, articulation limits and rate bounds.
+  Capture a simple physical frame diagram and representative
+  dimensions; distinguish which are invariant versus per-robot.
+- [ ] Introduce a standalone validated four-state model with
+  finite-parameter/denominator safeguards, angle-aware integration,
+  admissible controls and deterministic time-domain tests including
+  `v=0`, finite articulation rate and reverse.
+- [ ] Integrate the **full** state with model-specific primitive
+  generation, `gamma`-aware search indexing/goal acceptance, exact
+  interpolation and full-state path reconstruction. Never shoehorn
+  articulation into the existing three-state Ackermann/differential
+  `Pose2D` keys or use standard RS connectors without proof.
+- [ ] Attach independently defined front/rear collision bodies
+  to the model's confirmed `SE(2)` transforms; validate both at
+  **every sampled configuration**, including articulation motion
+  when the rear reference point does not move. Verify swept-motion
+  assumptions, map boundaries, unknown occupancy, inflation,
+  start/goal and strict final checks before accepting route success.
+- [ ] Expose only genuinely supported articulated UI/CLI controls
+  (pose, `gamma`, speed/joint limits and body overlays) after
+  state/collision integration, then test deterministic maps,
+  narrow corridors, forward/reverse turns, joint-only sweeps and
+  cancellation/budgets. Provide explicit unsupported-model status
+  until the full path pipeline is validated.
+
+**Acceptance gate to start smoothing-quality benchmarking:**
+P0-A is visually and functionally verified, and P0-B has a
+physics-consistent, independently checked planning path (not merely
+a derivative function). Define smoothing metrics that apply to
+each supported robot: Ackermann curvature/steering rate, differential
+wheel-rate continuity, mecanum body twist, and articulated `gamma`,
+`u_gamma`, front/rear body clearance and joint-limit compliance.
+All benchmarks must preserve the validated raw-path fallback, pinned
+map/occupancy/geometry, independently strict sampled collision checks
+and finite work budgets.
 
 ### Ordered engineering priorities
 
 | Rank | Priority / scope | Target outcome | Current next action |
 | ---: | --- | --- | --- |
-| **1** | **Curvature-continuous, model-feasible smoothing** | Fewer sudden steering/wheel-command changes without breaking collision, kinematics, or route feasibility | **After the prerequisite gate:** create a matched quality baseline, then test a bounded optional curvature-continuous smoother with strict validated raw/refined fallback |
+| **1** | **Curvature-continuous, model-feasible smoothing** | Fewer sudden steering/wheel-command changes without breaking collision, kinematics, or route feasibility | **After P0-A and P0-B are verified:** create a matched quality baseline for all supported robot models, then test bounded optional curvature/joint-rate-continuous smoothing with strict validated fallback |
 | **2** | **Faster, smarter post-search refinement** | More quality per millisecond | Profile existing refiner; prioritize high-value sharp turns/cusps/stops, avoid redundant whole-route checks for candidates while retaining independent strict validation of published results |
 | **3** | **Time parameterization / acceleration profiling** | Turn geometric motion sections into controller-ready timed candidates | Define independent speed, acceleration, steering-rate/wheel-rate, jerk, braking and mandatory-stop/cusp contracts; validate physically meaningful limits, not just wheel-rate feasibility |
 | **4** | **End-to-end profiling and quality acceptance** | Choose improvements by total validated pipeline result | Track search, heuristic/map build, collision, refinement, strict validation, smoothing, and future timing stages separately; report p50/p95/p99, failure rate and final-path quality |
@@ -48,7 +103,7 @@ criteria* must underpin all other experiments from their first benchmark.
 
 ### Priority 1 — smoothing quality: evidence before new curves
 
-**After the prerequisite gate**, use matched immutable-map routes and
+**After P0-A and P0-B pass**, use matched immutable-map routes and
 identical robot, occupancy policy, hard margin and strict validation budgets
 to compare: (A) raw Hybrid A* output, (B) current straight/CSC or model
 appropriate refinement, (C) optional steering-variation objective where
@@ -64,8 +119,11 @@ Current W8 supports (A)–(C); **(D) is not implemented**.
   minimum/P10 obstacle clearance and search+refinement latency.
 - [ ] Evaluate curvature-continuous candidate representations (e.g.
   clothoid transitions), separately for Ackermann, differential and
-  mecanum motion constraints. Do **not** assume a generic XY spline
-  preserves orientation, no-slip constraints, wheel limits or obstacles.
+  mecanum motion constraints; for articulated steering, constrain
+  **joint angle/rate, both body transforms and steering-induced rear-yaw
+  dynamics** from the confirmed physical model. Do **not** assume a
+  generic XY spline preserves orientation, no-slip constraints,
+  articulation limits, wheel limits or obstacles.
 - [ ] Bound solver work/time and ensure immutable map/occupancy,
   inflation and model provenance. Preserve exact start/goal semantics,
   intended stops/cusps and original validated route if any candidate
