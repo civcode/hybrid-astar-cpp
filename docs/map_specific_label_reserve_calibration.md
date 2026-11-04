@@ -57,6 +57,56 @@ futureRequest.options.searchLabelReserve =
 `plan()` selects the tier automatically, and no background task/CI job
 calibrates maps on deployment.
 
+## Measured 32-route Nav2 warehouse calibration (2026-11-04)
+
+The manually executed `nav2-label-calibration-large-32.csv` covers
+**32 differential-drive, large (70 x 50 cm) footprint routes** with
+seed `20261104`. The earlier four-route smoke CSV is not a sufficient
+capacity estimate for the same map.
+
+- **32/32 Success**, no budget-limited rows; **32/32 sampled replay
+  rehash counts = 0** at the selected tier.
+- **32 distinct start strata, 28 distinct goal strata, 60 distinct
+  start-or-goal strata**; these are distinct endpoint regions, **not**
+  proof of traversability/coverage of every free map cell.
+- Observed peak live-label counts: **6,368 min, 100,553 median,
+  347,005 p90, 411,561 p95, 484,534 maximum**. The hardest
+  case was **sample 24**: 478,906 expansions, 653,630 generated
+  nodes and 484,534 peak labels. With a 500,000-expansion budget,
+  this case already used **95.8%** of the permitted expansions.
+- With **reserve 0**, the median label-table rehash count was **14**
+  (range 10–16). On the verification replays, every reported
+  `verified_rehashes` value was **0**.
+- **Tier 4 = 524,288** is the smallest tier able to fit all
+  **observed** peaks, because none exceed 524,288. The CSV
+  does **not** separately replay tier 4.
+- With the default **20% headroom**, the selection target becomes
+  `ceil(484534 * 1.20) = 581441`, so the calibration returns
+  **tier 5 = 1,048,576** reserved labels. Two of 32 samples
+  (indices **3** and **24**) exceed
+  `floor(524288 / 1.20) = 436906`, pushing the headroom
+  target beyond tier 4.
+- The four-route smoke maximum had been only **367,653** live
+  labels (tier 4 with 20% headroom); the larger sample found
+  a **32% higher** maximum and thus selected a higher tier.
+
+**Interpretation:** Tier 5 is the verified tier for **these sampled
+routes plus the configured tier-based headroom rule**. This does not
+show that tier 4 would rehash for any of the sampled routes; 524,288
+is already larger than the observed maximum of 484,534. It also does
+not demonstrate that tier 5 is faster. The discrete doubling step
+creates significant potential unused bucket capacity. For memory-
+sensitive deployments, separately verify tier 4 (same seed, samples
+and settings, `--headroom 0`), and compare runtime/RSS of tier 4,
+tier 5 and possibly a **non-tier exact capacity of 581,441** before
+adopting a map-specific setting.
+
+The result applies only to the tested large footprint and 500k/2M
+work budgets. Run the corresponding 32-route calibration for
+`--geometry small-inflated` as well; and consider broader seeds or
+harder routes, particularly because sample 24 approached the expansion
+budget. No universal zero-rehash guarantee is established.
+
 ## Spatially randomized but reproducible route coverage
 
 The generator works in the **map-local metric frame**, so translated
