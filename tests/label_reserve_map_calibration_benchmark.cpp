@@ -151,7 +151,7 @@ int main(int argc,char** argv) {
           <<"  \"model\": \""<<model<<"\",\n"
           <<"  \"geometry\": \""<<geometry<<"\",\n"
           <<"  \"map_revision\": "<<result.mapRevision<<",\n"
-          <<"  \"map_fingerprint\": "<<result.mapFingerprint<<",\n"
+          <<"  \"map_fingerprint\": \""<<result.mapFingerprint<<"\",\n"
           <<"  \"seed\": "<<settings.seed<<",\n"
           <<"  \"headroom_fraction\": "<<settings.headroomFraction<<",\n"
           <<"  \"max_expansions\": "<<maxExpansions<<",\n"
