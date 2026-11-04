@@ -44,10 +44,13 @@ implemented; regression review pending):
   pre-plan loading, stale routes and failed searches. Do not require
   planning success for either footprint to appear.
 
-**P0-B — Articulated-steering kinematic model** (the author has
-now supplied the full **five-variable front/rear-heading ODE**;
-**physical conventions and planner integration pending**).
-**Review and agree the standalone [articulated-steering kinematic model and conventions](architecture/articulated_steering_kinematic_model_review.md) before writing the new model's runtime code.** The model is **not approved yet**; confirm and resolve its open physical assumptions against the owner's notes. Once signed off, follow [the articulated-steering integration stages](architecture/articulated_steering_integration.md):
+**P0-B — Articulated-steering model** (**Stage A mathematical
+kinematics and in-house RK4 implemented; articulated planning pending**).
+The standalone [model and conventions review](architecture/articulated_steering_kinematic_model_review.md)
+remains the physical-robot sign-off source. **Kinematic library code
+is now implemented and locally validated**, but physical frame origins,
+limits, articulated search and two-body collision checking are still
+unapproved/unimplemented. Follow [the staged integration plan](architecture/articulated_steering_integration.md):
 
 - [x] Confirm the supplied five-variable state
   `(xf,yf,Theta_f,Theta_r,gamma)` in
@@ -78,17 +81,25 @@ now supplied the full **five-variable front/rear-heading ODE**;
   **+50% front/−50% rear**; for nonzero `gamma` use the
   geometry-dependent ODE, not a fixed half-angle shortcut.
   See [stationary joint steering model](architecture/articulated_steering_integration.md#zero-longitudinal-speed-articulation-both-bodies-rotate).
-- [ ] Add explicit `v=0`, `u_gamma≠0` full-state primitive
-  tests for both joint-rate signs, finite and nonzero articulation,
-  angle wrap and both-carriage swept collision, with an unchanged
-  front reference and geometry-consistent moving rear base.
-- [ ] Introduce a standalone validated model retaining **both
-  reported headings** for diagnostics and checking the invariant;
-  use a four-independent-state reduction for search if the robot
-  geometry confirms it. Require finite-parameter/denominator
-  safeguards, angle-aware integration, admissible controls and
-  deterministic time-domain tests, including `v=0`,
-  finite articulation rate and reverse.
+- [x] Add deterministic `v=0` model tests showing
+  simultaneous front/rear heading changes, stationary front reference,
+  moving rear `base_link`, angle consistency and finite-joint-angle
+  split (including reverse-time/control fixtures).
+- [ ] Extend them to **model-specific primitive integration and
+  two-body swept collision checks**, with both joint-rate signs,
+  angle wrap, body geometry and independently strict final validation.
+  Those search/collision capabilities do not exist yet.
+- [x] Implement a standalone native C++20
+  [articulated model](../include/hybrid_astar/articulated_steering/model.hpp)
+  with **both reported headings**, a strict articulation invariant,
+  derived rear `base_link` projection, explicit geometry/control
+  bounds and the reusable in-house
+  [RK4 integrator](../include/hybrid_astar/motion/rk4.hpp).
+  Time-domain tests cover `v=0`, reverse, joint-rate signs,
+  convergence, singularity rejection and finite work budgets.
+  Local GCC 14 sanitizer smoke and a test-macro harness passed;
+  full-repository Catch2/CTest execution on a complete checkout
+  remains to be verified. Search indexing is **not** yet extended.
 - [ ] Integrate the **full physical configuration** with model-specific
   primitive generation, `gamma`-aware search indexing/goal acceptance, exact
   interpolation and full-state path reconstruction. Never shoehorn
