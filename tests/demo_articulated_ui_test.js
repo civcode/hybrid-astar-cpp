@@ -47,7 +47,7 @@ el('position').value='0';el('editMode').value='start';el('brushSize').value='0';
 let posted=null;
 const result={model:'articulated',width:200,height:160,resolution:.25,
   origin:[0,0,0],revision:1,mapRuns:[],
-  articulatedGeometry:{Lf:.5,Lr:.5,front:[-.3,.3,.15],rear:[-.3,.3,.15]},
+  articulatedGeometry:{Lf:1,Lr:1,front:[-.5,.5,.3],rear:[-.5,.5,.3]},
   footprintInflationMeters:0,refinement:null,milliseconds:3,
   limits:{maxExpansions:1000},
   original:{status:'Success',validated:true,cost:1,length:1,
@@ -91,13 +91,13 @@ async function main(){
   assert.equal(polygons.length-count,4,'two bodies at each start and goal');
   const bodies=polygons.slice(-4),scale=call('canvasGeometry().scale');
   const rear=center(bodies[0]),front=center(bodies[1]);
-  near(Math.hypot(front[0]-rear[0],front[1]-rear[1])/scale,1);
+  near(Math.hypot(front[0]-rear[0],front[1]-rear[1])/scale,2);
   function size(poly){
     return [Math.hypot(poly[1][0]-poly[0][0],poly[1][1]-poly[0][1])/scale,
       Math.hypot(poly[2][0]-poly[1][0],poly[2][1]-poly[1][1])/scale];
   }
-  near(size(bodies[0])[0],.6);near(size(bodies[0])[1],.3);
-  near(size(bodies[1])[0],.6);near(size(bodies[1])[1],.3);
+  near(size(bodies[0])[0],1);near(size(bodies[0])[1],.6);
+  near(size(bodies[1])[0],1);near(size(bodies[1])[1],.6);
   el('artStartGamma').value='45';
   const before=polygons.length;
   el('artStartGamma').listeners.input();
@@ -109,8 +109,8 @@ async function main(){
   el('artLf').listeners.input();
   const changed=polygons.slice(-4);
   near(Math.hypot(center(changed[1])[0]-center(changed[0])[0],
-    center(changed[1])[1]-center(changed[0])[1])/scale,1.2);
-  el('artLf').value='.5';
+    center(changed[1])[1]-center(changed[0])[1])/scale,1.7);
+  el('artLf').value='1';
   await call('replan()');
   assert.ok(posted,'actual replan() must POST');
   assert.equal(posted.get('model'),'articulated');
