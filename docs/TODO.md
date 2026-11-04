@@ -47,7 +47,7 @@ implemented; regression review pending):
 **P0-B — Articulated-steering kinematic model** (the author has
 now supplied the full **five-variable front/rear-heading ODE**;
 **physical conventions and planner integration pending**).
-See [articulated-steering integration stages and remaining physical questions](architecture/articulated_steering_integration.md):
+**Review and agree the standalone [articulated-steering kinematic model and conventions](architecture/articulated_steering_kinematic_model_review.md) before writing the new model's runtime code.** The model is **not approved yet**; confirm and resolve its open physical assumptions against the owner's notes. Once signed off, follow [the articulated-steering integration stages](architecture/articulated_steering_integration.md):
 
 - [x] Confirm the supplied five-variable state
   `(xf,yf,Theta_f,Theta_r,gamma)` in
