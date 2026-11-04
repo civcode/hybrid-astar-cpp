@@ -50,6 +50,35 @@ TEST_CASE("Planning Lab articulated adapter searches and serializes complete two
   REQUIRE(json.find("\"mapRuns\":[]")!=std::string::npos);
   REQUIRE(json.find("\"maxExpansions\":1000")!=std::string::npos);
 }
+TEST_CASE("Articulated Planning Lab honors one million expansions without a hidden cap",
+          "[articulated][demo][limits]") {
+  demo::Options opt;
+  opt.model="articulated";
+  opt.scenario="open";
+  opt.start=hybrid_astar::Pose2D{10,15,0};
+  opt.goal=opt.start; // zero-length valid goal keeps test fast
+  opt.maxExpansions=1'000'000;
+  const auto result=demo::runArticulated(opt);
+  REQUIRE(result.result.status==art::Status::Success);
+  REQUIRE(result.settings.maxExpansions==1'000'000);
+  REQUIRE(result.settings.maxGenerated==4'000'000);
+  const auto json=demo::articulatedToJson(result);
+  REQUIRE(json.find("\"maxExpansions\":1000000")!=std::string::npos);
+  REQUIRE(json.find("\"maxGeneratedNodes\":4000000")!=std::string::npos);
+
+  opt.maxExpansions=80'000; // previously silently clamped to 50k
+  const auto selected=demo::runArticulated(opt);
+  REQUIRE(selected.result.status==art::Status::Success);
+  REQUIRE(selected.settings.maxExpansions==80'000);
+  REQUIRE(selected.settings.maxGenerated==320'000);
+
+  opt.maxExpansions.reset(); // no explicit budget now uses the UI's 1M default
+  const auto defaultBudget=demo::runArticulated(opt);
+  REQUIRE(defaultBudget.result.status==art::Status::Success);
+  REQUIRE(defaultBudget.settings.maxExpansions==1'000'000);
+  REQUIRE(defaultBudget.settings.maxGenerated==4'000'000);
+}
+
 TEST_CASE("Planning Lab articulated gamma goals can require joint-only steering",
           "[articulated][demo][joint]") {
   demo::Options o;
