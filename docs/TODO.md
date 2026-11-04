@@ -71,6 +71,16 @@ See [articulated-steering integration stages and remaining physical questions](a
   endpoints for `L1/L2`, zero/positive articulation convention,
   front/rear collision-body dimensions and offsets, input meaning,
   articulation/speed bounds and joint-angle goal semantics.
+- [x] Clarify owner intent for **zero-longitudinal-speed
+  articulation**: both front and rear carriage headings must change.
+  For `L1=L2` and initially aligned chassis the shares start
+  **+50% front/−50% rear**; for nonzero `gamma` use the
+  geometry-dependent ODE, not a fixed half-angle shortcut.
+  See [stationary joint steering model](architecture/articulated_steering_integration.md#zero-longitudinal-speed-articulation-both-bodies-rotate).
+- [ ] Add explicit `v=0`, `u_gamma≠0` full-state primitive
+  tests for both joint-rate signs, finite and nonzero articulation,
+  angle wrap and both-carriage swept collision, with an unchanged
+  front reference and geometry-consistent moving rear base.
 - [ ] Introduce a standalone validated model retaining **both
   reported headings** for diagnostics and checking the invariant;
   use a four-independent-state reduction for search if the robot
