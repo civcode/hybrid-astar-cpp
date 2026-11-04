@@ -36,20 +36,32 @@ The previously written "rear reference stationary at `v=0`"
 assertion is **incorrect**. At zero speed the front reference
 stays fixed, while both chassis can rotate with articulation.
 
-A natural **provisional** two-axle no-slip frame construction is
-`H = F - L1*heading(Theta_f)` and
-`R = H - L2*heading(Theta_r)`, where `F=(xf,yf)` might be
-the front axle midpoint, `H` the hinge and `R` the rear
-axle midpoint. Those choices reproduce both author-supplied
-heading equations, but **do not yet establish the physical frame
-offsets of the actual robot**.
+The author has also supplied the **ROS 2 `OdeSimulation` code**.
+It confirms the intended frame conversion in the actual simulator:
+`x_[0:2]` hold the **front** reference pose with heading
+`theta1=x_[2]`; `theta2=x_[3]` is the rear heading.
+The transform `odom -> base_link` is published at
+`x2=x-L1*cos(theta1)-L2*cos(theta2)`,
+`y2=y-L1*sin(theta1)-L2*sin(theta2)`, yaw `theta2`.
+Thus `base_link` is **rear-referenced**, whereas the ODE
+integrates the **front** reference. The example has
+`L1_=L2_=0.5 m`.
+
+The code matches `H=F-L1*heading(Theta_f)` and
+`R=H-L2*heading(Theta_r)`. This establishes the
+**simulator's intended frame offsets**, not that the front/rear
+reference points are necessarily the *physical* axle centers.
+See [the full rear-reference kinematic reduction and simulator
+limitations](kinematic-models.md#confirmed-by-author-supplied-ros-2-ode-simulator).
 
 ## Remaining physical confirmation (OQ-022)
 
-1. Does `(xf,yf)` represent the **front axle midpoint**,
-   and are `L1` and `L2` respectively front-axle-to-joint
-   and joint-to-rear-axle distances? If not, provide the
-   actual origin locations and signed distances.
+1. The code **uses** a front reference `(xf,yf)`, a
+   joint offset `L1` backward along `Theta_f`, and rear
+   `base_link` a further `L2` backward along `Theta_r`.
+   Please confirm whether these are **front and rear physical axle
+   midpoints** and whether the example's `L1=L2=0.5 m`
+   are the intended robot's real dimensions.
 2. Is `gamma = wrap(Theta_f - Theta_r)` with **zero at aligned
    chassis**, and are positive headings counterclockwise in the
    world frame? Provide the mechanical joint sign and stop angles.
@@ -64,6 +76,13 @@ offsets of the actual robot**.
 5. Are start `gamma` and goal `gamma` constrained or measured?
    A five-variable input must satisfy the heading-angle
    invariant; invalid inputs need explicit rejection.
+
+Before using the ROS 2 code as a numerical oracle, also fix
+`0.01 s` per `/cmd_vel` callback instead of elapsed-time integration,
+the always-zero `joint_state.velocity` despite nonzero joint rate,
+the overloaded `/ode_pose.position.z` field, and the missing
+denominator/joint-limit guards. The planner can implement the
+validated kinematic model independently without taking on ROS 2.
 
 Once confirmed, capture the frame diagram and numerical
 forward/reverse/joint-only motion test fixtures.
