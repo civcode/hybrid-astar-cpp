@@ -306,9 +306,12 @@ added ideal mecanum lateral and combined heading sections** to this
 SE(2) single-rigid-body kernel, including positive translation/turn effort,
 four-wheel angular speed validation and a new Planning Lab mode. The full
 exact-checkout W11/W12 Catch2, sanitizer and Docker/OMPL verification gate
-remains pending. Four-plus-dimensional state and articulated multibody
-collision still require a separate generalization; see
-[W12 mecanum implementation](w12-mecanum-holonomic.md).
+remains pending. **The common rigid-body kernel remains SE(2) only**;
+an independent [experimental articulated 4D search](../architecture/articulated_steering_integration.md)
+now handles rear pose plus gamma with separate sampled front/rear
+collision checks. It is not yet in the standard planner model selector
+or Planning Lab, and needs full-Catch2/Docker and physical-geometry
+validation. See [W12 mecanum implementation](w12-mecanum-holonomic.md).
 
 See [W10 differential-drive primitive status](w10-differential-primitives.md)
 and [working search/demo contract](w10-differential-search.md).
