@@ -106,6 +106,21 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   }
   if(auto it=params.find("scenario");it!=params.end())o.scenario=it->second;
   if(auto it=params.find("model");it!=params.end())o.model=it->second;
+  // Articulated-only inputs. All numeric values are finite and further
+  // validated by runArticulated() against physical geometry and joint limits.
+  const auto artNum=[&](const char* key,double& output) {
+    if(const auto it=params.find(key);it!=params.end())output=number(it->second);
+  };
+  artNum("artStartGamma",o.startGammaDegrees);
+  artNum("artGoalGamma",o.goalGammaDegrees);
+  artNum("artLf",o.LfMeters);
+  artNum("artLr",o.LrMeters);
+  artNum("artFrontRearX",o.articulatedFront.rearX);
+  artNum("artFrontFrontX",o.articulatedFront.frontX);
+  artNum("artFrontHalfWidth",o.articulatedFront.halfWidth);
+  artNum("artRearRearX",o.articulatedRear.rearX);
+  artNum("artRearFrontX",o.articulatedRear.frontX);
+  artNum("artRearHalfWidth",o.articulatedRear.halfWidth);
   if(auto it=params.find("refine");it!=params.end())o.refine=flag(it->second);
   if(auto it=params.find("maxAccepted");it!=params.end())
     o.maxAcceptedReplacements=acceptedReplacementLimit(it->second);
@@ -136,11 +151,24 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   };
   o.start=coords("start");o.goal=coords("goal");
   for(const auto& [name,_]:params) {
+    if(name.starts_with("art") && name!="artStartGamma" &&
+       name!="artGoalGamma" && name!="artLf" && name!="artLr" &&
+       name!="artFrontRearX" && name!="artFrontFrontX" &&
+       name!="artFrontHalfWidth" && name!="artRearRearX" &&
+       name!="artRearFrontX" && name!="artRearHalfWidth")
+      throw std::invalid_argument("Unknown articulated option: "+name);
     if(name!="scenario"&&name!="model"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="maxAccepted"&&name!="curved"&&name!="steeringSmooth"&&name!="steeringWeight"&&name!="performance"&&name!="rsDistance"&&
        name!="improve"&&name!="ompl"&&name!="budget"&&name!="inflate"&&
        name!="inflationMeters"&&name!="startx"&&name!="starty"&&
-       name!="startyaw"&&name!="goalx"&&name!="goaly"&&name!="goalyaw")
+       name!="startyaw"&&name!="goalx"&&name!="goaly"&&name!="goalyaw"&&
+       name!="artStartGamma"&&name!="artGoalGamma"&&
+       name!="artLf"&&name!="artLr"&&
+       name!="artFrontRearX"&&name!="artFrontFrontX"&&
+       name!="artFrontHalfWidth"&&name!="artRearRearX"&&
+       name!="artRearFrontX"&&name!="artRearHalfWidth")
       throw std::invalid_argument("Unknown option: "+name);
+    if(o.model!="articulated"&&name.starts_with("art"))
+      throw std::invalid_argument("Articulated parameters require the articulated model");
   }
   return o;
 }
@@ -274,7 +302,13 @@ void handle(int client,const Options& availableMaps) {
       options.customMap=availableMaps.customMap;
       options.nav2WarehouseFullMap=availableMaps.nav2WarehouseFullMap;
       options.nav2Warehouse344128Map=availableMaps.nav2Warehouse344128Map;
-      sendReply(client,200,"application/json",hybrid_astar::demo::toJson(hybrid_astar::demo::run(options)));
+      if(options.model=="articulated")
+        sendReply(client,200,"application/json",
+                  hybrid_astar::demo::articulatedToJson(
+                    hybrid_astar::demo::runArticulated(options)));
+      else
+        sendReply(client,200,"application/json",
+                  hybrid_astar::demo::toJson(hybrid_astar::demo::run(options)));
     } else sendReply(client,404,"application/json",jsonError("Not found"));
   }catch(const std::exception& e) {
     sendReply(client,400,"application/json",jsonError(e.what()));
