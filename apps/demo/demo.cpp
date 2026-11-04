@@ -333,7 +333,7 @@ std::string capabilitiesJson(const ackermann::MapSnapshot* customMap,
   const char* ompl="false";
 #endif
   std::ostringstream os;os<<std::setprecision(15);
-  os<<"{\"ompl\":"<<ompl<<",\"differential\":true,\"mecanum\":true,\"customMap\":"<<(customMap?"true":"false")
+  os<<"{\"ompl\":"<<ompl<<",\"differential\":true,\"mecanum\":true,\"articulated\":true,\"customMap\":"<<(customMap?"true":"false")
     <<",\"nav2WarehouseFull\":"<<(nav2WarehouseFull?"true":"false")
     <<",\"nav2Warehouse344128\":"<<(nav2Warehouse344128?"true":"false");
   os<<",\"nav2Maps\":{";
