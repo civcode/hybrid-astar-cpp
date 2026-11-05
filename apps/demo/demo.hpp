@@ -29,6 +29,14 @@ struct Options {
   // relative to its own reference point; actual machine geometry is unverified.
   ackermann::Footprint articulatedFront{-0.5,0.5,0.3};
   ackermann::Footprint articulatedRear{-0.5,0.5,0.3};
+  // Articulated-only search controls. Defaults preserve existing behavior.
+  // Combined + weight 1.2 is an optional UI performance preset, not a
+  // global planner default or an optimality guarantee.
+  articulated_steering::HeuristicMode articulatedHeuristicMode=
+      articulated_steering::HeuristicMode::ObstacleGrid;
+  double articulatedHeuristicWeight=1.0;
+  bool articulatedEnableCoupledMotion=true;
+  bool articulatedUseSweptAabbPrefilter=true;
 
   // Optional work-budget override in expanded nodes. Empty keeps the
   // scenario default. Clamped by the callers to a demo-safe range.
