@@ -17,7 +17,16 @@ for(const [,id] of script.matchAll(/\$\('([^']+)'\)/g))
 const controls=['artStartGamma','artGoalGamma','artLf','artLr',
   'artFrontRearX','artFrontFrontX','artFrontHalfWidth',
   'artRearRearX','artRearFrontX','artRearHalfWidth'];
-for(const id of controls)assert.ok(ids.has(id),'Missing articulated input '+id);
+for(const id of [...controls,'artHeuristicMode','artHeuristicWeight',
+                  'artCoupledMotion','artSweptAabb'])
+  assert.ok(ids.has(id),'Missing articulated input '+id);
+assert.match(html, /<option value="grid" selected>/,
+  'Preserve the existing grid-only default');
+assert.match(html, /<option value="combined">/,
+  'Expose the recommended combined mode');
+const defaultChecked=new Set(
+  [...html.matchAll(/<input[^>]*\bid="([^"]+)"[^>]*>/g)]
+    .filter(m=>/\bchecked\b/.test(m[0])).map(m=>m[1]));
 const defaultInputs=new Map([...html.matchAll(/<input[^>]*\bid="([^"]+)"[^>]*>/g)]
   .map(m=>[m[1],(m[0].match(/\bvalue="([^"]*)"/)||[])[1]||'']));
 const polygons=[],arcs=[];let points=[];
@@ -35,7 +44,7 @@ function el(id){
   if(id==='map')return canvas;
   if(!elements.has(id))elements.set(id,{
     value:defaultInputs.get(id)||'',
-    checked:id==='performance'||id==='showOriginal',
+    checked:defaultChecked.has(id),
     disabled:false,hidden:false,textContent:'',className:'',
     listeners:{},addEventListener(name,handler){this.listeners[name]=handler},
     classList:{add(){},remove(){}}
@@ -43,6 +52,7 @@ function el(id){
   return elements.get(id);
 }
 el('scenario').value='open';el('model').value='ackermann';
+el('artHeuristicMode').value='grid'; // Browser selects the 'selected' option.
 el('position').value='0';el('editMode').value='start';el('brushSize').value='0';
 let posted=null;
 const result={model:'articulated',width:200,height:160,resolution:.25,
@@ -50,6 +60,8 @@ const result={model:'articulated',width:200,height:160,resolution:.25,
   articulatedGeometry:{Lf:1,Lr:1,front:[-.5,.5,.3],rear:[-.5,.5,.3]},
   footprintInflationMeters:0,refinement:null,milliseconds:3,
   limits:{maxExpansions:1000},
+  articulatedSearch:{heuristicMode:'grid',heuristicWeight:1.0,
+    enableCoupledMotion:true,useSweptAabbPrefilter:true},
   original:{status:'Success',validated:true,cost:1,length:1,
     reverseLength:0,expanded:4,goalGammaErrorRadians:0,
     precomputedAnalyticDriveTemplates:30,
@@ -84,6 +96,13 @@ async function main(){
   el('model').value='articulated';
   call('syncModelOptions()');
   assert.equal(el('articulatedControls').hidden,false);
+  assert.equal(el('artHeuristicMode').value,'grid');
+  assert.equal(el('artHeuristicWeight').value,'1.0');
+  assert.equal(el('artCoupledMotion').checked,true);
+  assert.equal(el('artSweptAabb').checked,true);
+  for(const id of ['artHeuristicMode','artHeuristicWeight',
+                   'artCoupledMotion','artSweptAabb'])
+    assert.equal(el(id).disabled,false,id+' must be active');
   for(const id of ['ompl','refine','rsDistance','improve','curved','performance'])
     assert.equal(el(id).disabled,true,id+' must be disabled');
   const count=polygons.length;
@@ -115,6 +134,10 @@ async function main(){
   assert.ok(posted,'actual replan() must POST');
   assert.equal(posted.get('model'),'articulated');
   for(const id of controls)assert.ok(posted.has(id),'Missing POST '+id);
+  assert.equal(posted.get('artHeuristicMode'),'grid');
+  assert.equal(posted.get('artHeuristicWeight'),'1.0');
+  assert.equal(posted.get('artCoupledMotion'),'1');
+  assert.equal(posted.get('artSweptAabb'),'1');
   for(const id of ['ompl','refine','improve'])
     assert.equal(posted.get(id),'0','Unsupported rigid feature '+id);
   assert.equal(el('exportButton').disabled,false);
@@ -123,6 +146,33 @@ async function main(){
     'Planning Lab reports precomputed primitive-library statistics');
   assert.ok(el('message').textContent.includes('176 applications'),
     'Planning Lab reports reuse rather than per-expansion RK4');
+  assert.ok(el('message').textContent.includes('Obstacle grid ×1'),
+    'Effective heuristic should appear in the result readout');
+
+  el('artHeuristicMode').value='combined';
+  el('artHeuristicMode').listeners.change();
+  assert.equal(el('artHeuristicWeight').value,'1.2',
+    'Selecting combined mode applies the measured performance preset');
+  assert.equal(el('exportButton').disabled,true,'Changing the heuristic invalidates old route');
+  await call('replan()');
+  assert.equal(posted.get('artHeuristicMode'),'combined');
+  assert.equal(posted.get('artHeuristicWeight'),'1.2');
+  el('artHeuristicWeight').value='1.4';
+  el('artHeuristicWeight').listeners.input();
+  el('artCoupledMotion').checked=false;
+  el('artCoupledMotion').listeners.change();
+  el('artSweptAabb').checked=false;
+  el('artSweptAabb').listeners.change();
+  await call('replan()');
+  assert.equal(posted.get('artHeuristicWeight'),'1.4');
+  assert.equal(posted.get('artCoupledMotion'),'0');
+  assert.equal(posted.get('artSweptAabb'),'0');
+  el('artHeuristicMode').value='analytic';
+  el('artHeuristicMode').listeners.change();
+  assert.equal(el('artHeuristicWeight').value,'1.0');
+  await call('replan()');
+  assert.equal(posted.get('artHeuristicMode'),'analytic');
+
   const n=polygons.length;
   el('position').value='1000';call('draw()');
   assert.equal(polygons.length-n,6,'start+goal+replay each have two bodies');
@@ -130,6 +180,12 @@ async function main(){
   call('baseMap={width:200,height:160,resolution:.25,origin:[4,-3,.47],mapRuns:[],revision:1}');
   const last=polygons.length;call('draw()');
   assert.equal(polygons.length-last,6,'rotated origin preserves both bodies');
-  console.log('PASS: articulated UI selection, geometry, gamma, HTTP form and replay');
+  el('model').value='ackermann';
+  call('syncModelOptions()');
+  assert.equal(el('articulatedControls').hidden,true);
+  for(const id of ['artHeuristicMode','artHeuristicWeight',
+                   'artCoupledMotion','artSweptAabb'])
+    assert.equal(el(id).disabled,true,id+' must not affect rigid models');
+  console.log('PASS: articulated UI selection, optimizations, presets, POST and replay');
 }
 main().catch(error=>{console.error(error);process.exitCode=1});
