@@ -56,10 +56,14 @@ bool validOptions(const SearchOptions& o) {
          std::isfinite(o.goalConnectorAttemptRatio)&&
          o.goalConnectorAttemptRatio>=1.0&&
          positive(o.maxGoalConnectorArcMeters)&&
-         o.maxGoalConnectorAttempts>0&&
+         o.maxGoalConnectorArcMeters<=100.0&&
+         o.maxGoalConnectorAttempts>0&&o.maxGoalConnectorAttempts<=1000&&
          o.maxGoalConnectorEvaluationsPerAttempt>0&&
+         o.maxGoalConnectorEvaluationsPerAttempt<=100000&&
          o.maxGoalConnectorCandidatesPerAttempt>0&&
+         o.maxGoalConnectorCandidatesPerAttempt<=32&&
          o.maxGoalConnectorSearchBodyChecks>=2&&
+         o.maxGoalConnectorSearchBodyChecks<=2000000&&
          o.maxExpansions>0&&o.maxGenerated>1&&
          o.maxSamplesPerPrimitive>=2&&o.maxFinalSamplesPerPrimitive>=2&&
          o.maxTotalFinalBodyChecks>=2;
