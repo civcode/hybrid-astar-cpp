@@ -48,6 +48,14 @@ void rearStateJson(std::ostream& os,art::RearState r) {
 void footprintJson(std::ostream& os,ackermann::Footprint b) {
   os<<'['<<b.rearX<<','<<b.frontX<<','<<b.halfWidth<<']';
 }
+const char* heuristicModeName(art::HeuristicMode mode) {
+  switch(mode) {
+    case art::HeuristicMode::ObstacleGrid:return "grid";
+    case art::HeuristicMode::AnalyticOnly:return "analytic";
+    case art::HeuristicMode::Combined:return "combined";
+  }
+  throw std::invalid_argument("Invalid articulated heuristic mode");
+}
 const char* statusName(art::Status s) {
   switch(s) {
     case art::Status::Success:return "Success";
@@ -222,6 +230,15 @@ ArticulatedOutcome runArticulated(const Options& opt) {
   out.settings.maxExpansions=std::min(
       opt.maxExpansions.value_or(kMaxUiExpansions),kMaxUiExpansions);
   out.settings.maxGenerated=out.settings.maxExpansions*4;
+  if(!std::isfinite(opt.articulatedHeuristicWeight)||
+     opt.articulatedHeuristicWeight<=0.0||
+     opt.articulatedHeuristicWeight>3.0)
+    throw std::invalid_argument("Articulated heuristic weight must be in (0, 3]");
+  (void)heuristicModeName(opt.articulatedHeuristicMode); // reject invalid enum values
+  out.settings.heuristicMode=opt.articulatedHeuristicMode;
+  out.settings.heuristicWeight=opt.articulatedHeuristicWeight;
+  out.settings.enableCoupledMotion=opt.articulatedEnableCoupledMotion;
+  out.settings.useSweptAabbPrefilter=opt.articulatedUseSweptAabbPrefilter;
   art::Request request;
   request.map=out.map;
   request.parameters=out.parameters;
@@ -267,6 +284,11 @@ std::string articulatedToJson(const ArticulatedOutcome& out) {
     <<",\"limits\":{\"maxExpansions\":"<<out.settings.maxExpansions
     <<",\"maxGeneratedNodes\":"<<out.settings.maxGenerated
     <<",\"maxFinalPoseChecks\":"<<out.settings.maxTotalFinalBodyChecks
+    <<"},\"articulatedSearch\":{\"heuristicMode\":";
+  quoted(os,heuristicModeName(out.settings.heuristicMode));
+  os<<",\"heuristicWeight\":"<<out.settings.heuristicWeight
+    <<",\"enableCoupledMotion\":"<<(out.settings.enableCoupledMotion?"true":"false")
+    <<",\"useSweptAabbPrefilter\":"<<(out.settings.useSweptAabbPrefilter?"true":"false")
     <<"},\"mapRuns\":[";
   bool first=true;
   for(std::size_t y=0;y<m.height;++y) {
