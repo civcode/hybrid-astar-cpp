@@ -116,7 +116,7 @@ std::vector<GoalControl> makeControls(const Vector& x,const Gears& signs,
     // same physical motion but respects adaptive sample limits in both
     // preliminary collision checks and independent final RK4 validation.
     double remaining=x[i+3];
-    const double chunkMeters=std::min(2.0,o.translationPrimitiveMeters*4.0);
+    const double chunkMeters=std::min(1.0,o.translationPrimitiveMeters*2.0);
     while(remaining>1e-6) {
       const double distance=std::min(remaining,chunkMeters);
       out.push_back({{signs[i]*v,0.0},distance/v});
