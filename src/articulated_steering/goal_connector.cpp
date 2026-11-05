@@ -171,7 +171,12 @@ std::vector<GoalConnection> proposeGoalConnections(
   const double steerSign=turn<0?-1.0:1.0;
   const double amp=std::min(.85,std::max(0.0,p.maxGammaRadians));
   const double minusAmp=std::max(-.85,p.minGammaRadians);
-  const std::array<std::array<double,3>,4> seeds{{
+  // Small S-shaped arcs often provide a clean path between separated
+  // poses with the SAME heading; try them before large-articulation seeds.
+  // This also helps eliminate avoidable open-field steering oscillations.
+  const double approachSign=aimed<0.0?-1.0:1.0;
+  const std::array<std::array<double,3>,5> seeds{{
+      {approachSign*.12,0.0,-approachSign*.12},
       {aimed,aimed,aimed},
       {steerSign*amp,-steerSign*amp,steerSign*amp},
       {-steerSign*amp,steerSign*amp,-steerSign*amp},
