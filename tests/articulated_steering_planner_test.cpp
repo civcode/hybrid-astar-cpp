@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/articulated_steering/planner.hpp"
 #include "hybrid_astar/articulated_steering/heuristic.hpp"
+#include "hybrid_astar/articulated_steering/goal_connector.hpp"
 #include "hybrid_astar/ackermann/obstacle_grid.hpp"
 #include <array>
 #include <atomic>
@@ -494,4 +495,83 @@ TEST_CASE("Articulated heuristic modes preserve strictly validated planner resul
     if(mode==as::HeuristicMode::AnalyticOnly)
       REQUIRE(out.diagnostics.gridSettlements==0);
   }
+}
+
+TEST_CASE("Native articulated terminal generator fits reversible bounded controls",
+          "[articulated][connector][model]") {
+  auto r=example();
+  as::Model model(r.parameters);
+  r.goal={9.0,10.0,0.0,0.0}; // one metre straight behind start
+  std::size_t evaluations=0;
+  const auto proposals=as::proposeGoalConnections(
+      model,r.start,r.goal,r.options,evaluations);
+  REQUIRE(evaluations>0);
+  REQUIRE(evaluations<=r.options.maxGoalConnectorEvaluationsPerAttempt);
+  REQUIRE_FALSE(proposals.empty());
+  bool hasReverse=false;
+  for(const auto& proposal:proposals) {
+    auto state=model.fromRear(r.start);
+    for(const auto& part:proposal.controls) {
+      REQUIRE(model.validControl(part.control));
+      REQUIRE(part.durationSeconds>0.0);
+      if(part.control.frontSpeedMetersPerSecond<0.0)hasReverse=true;
+      state=model.propagate(state,part.control,part.durationSeconds,.005);
+    }
+    const auto reached=model.toRear(state);
+    REQUIRE(std::hypot(reached.xr-r.goal.xr,reached.yr-r.goal.yr)<
+            r.options.goalXYToleranceMeters);
+    REQUIRE(std::abs(std::remainder(reached.thetaRear-r.goal.thetaRear,
+                                   2*std::numbers::pi_v<double>))<
+            r.options.goalYawToleranceRadians);
+    REQUIRE(std::abs(reached.gamma-r.goal.gamma)<
+            r.options.goalGammaToleranceRadians);
+  }
+  REQUIRE(hasReverse);
+}
+
+TEST_CASE("First-node native terminal connection is strictly replayed",
+          "[articulated][connector][strict][reverse]") {
+  auto r=example();
+  r.goal={9.0,10.0,0.0,0.0};
+  r.options.enableGoalConnector=true;
+  r.options.maxExpansions=1;
+  r.options.maxGenerated=100;
+  const auto out=as::plan(r);
+  REQUIRE(out.status==as::Status::Success);
+  REQUIRE(out.independentlySampledBodyValidated);
+  REQUIRE(out.diagnostics.expanded==1);
+  REQUIRE(out.diagnostics.goalConnectorAttempts==1);
+  REQUIRE(out.diagnostics.goalConnectorValidated==1);
+  REQUIRE(out.diagnostics.goalConnectorCandidates>=1);
+  REQUIRE(out.diagnostics.goalConnectorBodyChecks>0);
+  REQUIRE(out.diagnostics.finalBodyChecks>0);
+  REQUIRE(out.goalXYErrorMeters<=r.options.goalXYToleranceMeters);
+  REQUIRE(out.goalYawErrorRadians<=r.options.goalYawToleranceRadians);
+  REQUIRE(out.goalGammaErrorRadians<=r.options.goalGammaToleranceRadians);
+  bool reversed=false;
+  for(const auto& motion:out.motions) {
+    if(motion.control.frontSpeedMetersPerSecond<0.0)reversed=true;
+    as::Model model(r.parameters);
+    as::BodyCollisionChecker body(*r.map,r.occupancy,r.bodies);
+    for(const auto& sample:motion.samples)
+      REQUIRE(body.clear(model,sample.state));
+  }
+  REQUIRE(reversed);
+}
+
+TEST_CASE("Native terminal connection never tunnels through a wall",
+          "[articulated][connector][collision]") {
+  auto r=example();
+  // A full-height barrier separates both complete two-carriage poses.
+  for(std::size_t y=0;y<r.map->height;++y)
+    const_cast<ac::MapSnapshot&>(*r.map).cells[
+      y*r.map->width+120]=100;
+  r.goal={15,10,0,0};
+  r.options.enableGoalConnector=true;
+  r.options.maxExpansions=50;
+  const auto out=as::plan(r);
+  REQUIRE(out.status!=as::Status::Success);
+  REQUIRE_FALSE(out.independentlySampledBodyValidated);
+  REQUIRE(out.diagnostics.goalConnectorAttempts>0);
+  REQUIRE(out.diagnostics.goalConnectorValidated==0);
 }
