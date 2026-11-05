@@ -56,6 +56,17 @@ struct SearchOptions {
   HeuristicMode heuristicMode=HeuristicMode::ObstacleGrid;
   // Multiplies the selected heuristic; values >1 intentionally favor speed.
   double heuristicWeight=1.0;
+  // Optional native articulated terminal connector. Disabled by default so
+  // existing plans and benchmark baselines remain byte-for-byte comparable.
+  // Adaptive attempts reuse the Ackermann scheduler, but all proposed motions
+  // obey this model's bounded front speed and gamma rate, not rigid-car RS.
+  bool enableGoalConnector=false;
+  double goalConnectorAttemptRatio=3.5;
+  std::size_t maxGoalConnectorAttempts=24;
+  std::size_t maxGoalConnectorEvaluationsPerAttempt=3000;
+  std::size_t maxGoalConnectorCandidatesPerAttempt=8;
+  std::size_t maxGoalConnectorSearchBodyChecks=100000;
+  double maxGoalConnectorArcMeters=40.0;
   // Shared Ackermann reverse-Dijkstra occupancy guidance (performance only).
   // The grid is a point-robot relaxation, not an articulated clearance oracle.
   bool useObstacleGridHeuristic=true;
@@ -107,6 +118,10 @@ struct Diagnostics {
   std::size_t searchBodyChecks=0, finalBodyChecks=0;
   std::size_t rejectedSearchCollision=0, rejectedInvalidMotion=0;
   std::size_t strictGoalCandidates=0, strictRejected=0;
+  std::size_t goalConnectorAttempts=0,goalConnectorCandidates=0;
+  std::size_t goalConnectorValidated=0,goalConnectorRejectedCollision=0;
+  std::size_t goalConnectorRejectedTerminal=0,goalConnectorRejectedStrict=0;
+  std::size_t goalConnectorEvaluations=0,goalConnectorBodyChecks=0;
   // Primitive generation is map-independent and performed once per plan.
   // Search applies these rigidly transformed templates; it does NOT
   // reintegrate each successor. Final strict checks still use RK4.
