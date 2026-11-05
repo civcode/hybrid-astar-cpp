@@ -49,6 +49,18 @@
 <label>Half-width (m)<input id="artRearHalfWidth" type="number" min="0.01" step="0.05" value="0.30"/></label>
 </div>
 <div class="hint">Demo kinematic limits: |γ| ≤ 1.2 rad (68.75°), |front speed| ≤ 1 m/s, |joint rate| ≤ 0.8 rad/s. Planner checks both rectangular bodies at intermediate states. No self-collision, certified continuous swept volume, or actuator-feasibility claim.</div>
+<div class="divider"></div><div class="section-label">ARTICULATED SEARCH OPTIMIZATION</div>
+<label class="label" for="artHeuristicMode">Heuristic mode</label>
+<select id="artHeuristicMode">
+<option value="grid" selected>Obstacle grid (existing default)</option>
+<option value="analytic">Analytical articulated (obstacle-free)</option>
+<option value="combined">Combined grid + analytical (recommended)</option>
+</select>
+<label class="label" for="artHeuristicWeight">Heuristic weight <small>1.0 baseline · 1.2 recommended with Combined</small></label>
+<input id="artHeuristicWeight" type="number" min="0.01" max="3" step="0.1" value="1.0"/>
+<div class="hint">Selecting Combined sets weight 1.2; you can adjust it. Higher weights favor speed over path cost and provide no optimality guarantee. The analytical-only heuristic does not account for obstacles.</div>
+<label class="check"><input type="checkbox" id="artCoupledMotion" checked/><span>Coupled steering while driving <small>(precomputed; on by default)</small></span></label>
+<label class="check"><input type="checkbox" id="artSweptAabb" checked/><span>Swept-AABB free-space prefilter <small>(on by default; exact checks on fallback)</small></span></label>
 </div>
 <div class="divider"></div><div class="section-label">MAP EDITING <small>Drag to paint cells</small></div>
 <label class="label" for="editMode">Map interaction</label>
