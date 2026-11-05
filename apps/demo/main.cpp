@@ -121,6 +121,25 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
   artNum("artRearRearX",o.articulatedRear.rearX);
   artNum("artRearFrontX",o.articulatedRear.frontX);
   artNum("artRearHalfWidth",o.articulatedRear.halfWidth);
+  if(auto it=params.find("artHeuristicMode");it!=params.end()) {
+    const auto& mode=it->second;
+    if(mode=="grid")
+      o.articulatedHeuristicMode=hybrid_astar::articulated_steering::HeuristicMode::ObstacleGrid;
+    else if(mode=="analytic")
+      o.articulatedHeuristicMode=hybrid_astar::articulated_steering::HeuristicMode::AnalyticOnly;
+    else if(mode=="combined")
+      o.articulatedHeuristicMode=hybrid_astar::articulated_steering::HeuristicMode::Combined;
+    else throw std::invalid_argument("Articulated heuristic mode must be grid, analytic or combined");
+  }
+  if(auto it=params.find("artHeuristicWeight");it!=params.end()) {
+    o.articulatedHeuristicWeight=number(it->second);
+    if(o.articulatedHeuristicWeight<=0.0||o.articulatedHeuristicWeight>3.0)
+      throw std::invalid_argument("Articulated heuristic weight must be in (0, 3]");
+  }
+  if(auto it=params.find("artCoupledMotion");it!=params.end())
+    o.articulatedEnableCoupledMotion=flag(it->second);
+  if(auto it=params.find("artSweptAabb");it!=params.end())
+    o.articulatedUseSweptAabbPrefilter=flag(it->second);
   if(auto it=params.find("refine");it!=params.end())o.refine=flag(it->second);
   if(auto it=params.find("maxAccepted");it!=params.end())
     o.maxAcceptedReplacements=acceptedReplacementLimit(it->second);
@@ -155,7 +174,9 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
        name!="artGoalGamma" && name!="artLf" && name!="artLr" &&
        name!="artFrontRearX" && name!="artFrontFrontX" &&
        name!="artFrontHalfWidth" && name!="artRearRearX" &&
-       name!="artRearFrontX" && name!="artRearHalfWidth")
+       name!="artRearFrontX" && name!="artRearHalfWidth" &&
+       name!="artHeuristicMode" && name!="artHeuristicWeight" &&
+       name!="artCoupledMotion" && name!="artSweptAabb")
       throw std::invalid_argument("Unknown articulated option: "+name);
     if(name!="scenario"&&name!="model"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="maxAccepted"&&name!="curved"&&name!="steeringSmooth"&&name!="steeringWeight"&&name!="performance"&&name!="rsDistance"&&
        name!="improve"&&name!="ompl"&&name!="budget"&&name!="inflate"&&
@@ -165,7 +186,9 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
        name!="artLf"&&name!="artLr"&&
        name!="artFrontRearX"&&name!="artFrontFrontX"&&
        name!="artFrontHalfWidth"&&name!="artRearRearX"&&
-       name!="artRearFrontX"&&name!="artRearHalfWidth")
+       name!="artRearFrontX"&&name!="artRearHalfWidth"&&
+       name!="artHeuristicMode"&&name!="artHeuristicWeight"&&
+       name!="artCoupledMotion"&&name!="artSweptAabb")
       throw std::invalid_argument("Unknown option: "+name);
     if(o.model!="articulated"&&name.starts_with("art"))
       throw std::invalid_argument("Articulated parameters require the articulated model");
