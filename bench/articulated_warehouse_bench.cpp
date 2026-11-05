@@ -21,8 +21,9 @@ int main(int argc,char** argv) {
     if(argc>3)throw std::invalid_argument("Usage: articulated_warehouse_bench [mode] [heuristic_weight]");
     // Preserve all historical default runs. The control differs from
     // 'weighted' only in using the grid heuristic rather than Combined.
-    double weight=(mode=="weighted"||mode=="grid-weighted")?1.5:
-        (mode=="connector"||mode=="weighted-connector")?1.2:1.0;
+    double weight=(mode=="weighted"||mode=="grid-weighted"||
+                   mode=="weighted-connector")?1.5:
+                  mode=="connector"?1.2:1.0;
     if(argc==3) {
       const std::string arg=argv[2];
       std::size_t parsed=0;
