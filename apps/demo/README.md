@@ -185,12 +185,20 @@ transitions and independently validating the final path**.
   is not guaranteed optimal or fastest on other maps. The maximum
   accepted weight is 3.0. Two articulated-only checkboxes enable or
   disable **coupled steering while driving** and the **swept-AABB
-  free-space prefilter**, both checked by default. These options do
-  not enable the disabled rigid-body RS or smoothing controls.
+  free-space prefilter**, both checked by default. A separate
+  **Native articulated goal connector** checkbox is off by default;
+  it performs adaptively scheduled, bounded forward/reverse terminal
+  shooting with both-body collision checks and independent full-path
+  RK4 validation. The connector uses native articulated controls, not
+  rigid Reeds–Shepp curves, and is not a complete shortest-path solver.
+  These options do not enable the disabled rigid-body RS or smoothing controls.
   The backend validates all values, and each exported path JSON records
   the effective configuration in `articulatedSearch`:
-  `heuristicMode`, `heuristicWeight`, `enableCoupledMotion`, and
-  `useSweptAabbPrefilter`. The status line reports these values too.
+  `heuristicMode`, `heuristicWeight`, `enableCoupledMotion`,
+  `useSweptAabbPrefilter`, and `enableGoalConnector`. Connector attempts,
+  accepted tails, collision rejects and solver evaluation counts appear
+  in the `original` diagnostics. The status line reports the selected
+  mode and connector status too.
   Articulated planning honors the same user-configurable
   **1,000,000-expansion ceiling** as the three rigid models;
   its separate generated-node budget is four times the selected
