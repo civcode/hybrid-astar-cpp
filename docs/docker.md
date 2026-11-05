@@ -250,6 +250,25 @@ separate and do not substitute for that Docker verification.
 Even a passing Docker build does not certify continuous swept collision
 freedom, actuator feasibility, optimality or safety for a real vehicle.
 \n## Manual warehouse performance experiments\n\nFor the opt-in Ackermann and diagonal differential-drive warehouse profiling\ncommands, see [W6](architecture/w6-hotpath-profiling.md#ackermann-warehouse-hot-path-profiling-manual-only-2026-10-27)\nand [W10](architecture/w10-differential-search.md#diagonal-smoothing-and-radius-ab-manual-only-2026-10-27).\nBoth benchmarks are built into the Docker test image, but are **not**\nregistered in CTest or scheduled in GitHub Actions. Set\n`PROFILE_HOTPATHS=OFF` for unbiased wall-clock comparisons and\n`PROFILE_HOTPATHS=ON` separately for nested per-hotpath timings.\n
+### Articulated heuristic weight A/B (grid-only vs combined)
+
+The **manual** [articulated heuristic weight sweep](architecture/articulated_steering_heuristic.md#docker-weight-sweep-manually-triggered)
+compares grid-only and combined heuristics at weights 1.0 through 1.5,
+with three repeats per configuration. It records actual accumulated
+planner path cost separately from driving distance and reports search
+expansions, collision checks and planning times.
+
+```bash
+BUILD_JOBS=8 docker compose build test
+docker compose run --rm test python3 \
+  tools/articulated_heuristic_weight_sweep.py --repeats 3 \
+  | tee articulated_weight_sweep_summary.csv
+```
+
+For a single grid-only control run, use
+`docker compose run --rm test ./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.5`.
+Nothing is dispatched to GitHub Actions.
+
 ### Ackermann footprint broad-phase profiling
 
 The manual `--ackermann-collision-ab` benchmark times a factorial
