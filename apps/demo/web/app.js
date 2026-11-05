@@ -266,7 +266,11 @@ function stats(result) {
         effectiveSearch.heuristicMode]||effectiveSearch.heuristicMode)+
       ' ×'+effectiveSearch.heuristicWeight+
       ' · coupled '+(effectiveSearch.enableCoupledMotion?'on':'off')+
-      ' · swept-AABB '+(effectiveSearch.useSweptAabbPrefilter?'on':'off')
+      ' · swept-AABB '+(effectiveSearch.useSweptAabbPrefilter?'on':'off')+
+      ' · goal connector '+(effectiveSearch.enableGoalConnector?'on':'off')+
+      (effectiveSearch.enableGoalConnector?' (shots '+
+        (result.original.goalConnectorAttempts||0)+
+        ', accepted '+(result.original.goalConnectorValidated||0)+')':'')
     :'';
   $('message').textContent=(valid?(result.model==='articulated'
     ?'Experimental articulated path · '+status+' · two-carriage independently sampled checks · not swept certified'
@@ -304,7 +308,7 @@ function syncModelOptions() {
   const articulated=model==='articulated';
   $('articulatedControls').hidden=!articulated;
   for(const id of ['artHeuristicMode','artHeuristicWeight',
-                   'artCoupledMotion','artSweptAabb'])
+                   'artCoupledMotion','artSweptAabb','artGoalConnector'])
     $(id).disabled=!articulated;
   if(articulated) {
     // These features are built for rigid three-state paths. Never send an
@@ -396,6 +400,7 @@ async function replan() {
     params.set('artHeuristicWeight',$('artHeuristicWeight').value.trim());
     params.set('artCoupledMotion',$('artCoupledMotion').checked?'1':'0');
     params.set('artSweptAabb',$('artSweptAabb').checked?'1':'0');
+    params.set('artGoalConnector',$('artGoalConnector').checked?'1':'0');
   }
   if($('refine').checked)
     params.set('maxAccepted',$('maxAccepted').value);
@@ -482,6 +487,7 @@ $('artHeuristicMode').addEventListener('change',()=>{
 $('artHeuristicWeight').addEventListener('input',invalidateRoute);
 $('artCoupledMotion').addEventListener('change',invalidateRoute);
 $('artSweptAabb').addEventListener('change',invalidateRoute);
+$('artGoalConnector').addEventListener('change',invalidateRoute);
 $('ompl').addEventListener('change',syncModelOptions);
 $('performance').addEventListener('change',syncModelOptions);
 $('inflate').addEventListener('change',()=>{
