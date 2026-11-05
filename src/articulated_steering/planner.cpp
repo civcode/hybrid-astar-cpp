@@ -465,7 +465,7 @@ Result plan(const Request& r) {
     if(r.options.useObstacleGridHeuristic) {
       grid=std::make_unique<ackermann::LazyGrid<Diagnostics>>(
           *r.map,r.occupancy,
-          ackermann::Pose2D{r.goal.xr,r.goal.yr,r.goal.thetaRear},
+          Pose2D{r.goal.xr,r.goal.yr,r.goal.thetaRear},
           r.options.goalXYToleranceMeters,
           r.options.gridMaxSettlementsPerQuery,
           r.options.gridMaxTotalSettlements,

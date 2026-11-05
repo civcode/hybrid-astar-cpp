@@ -315,7 +315,7 @@ TEST_CASE("Shared reverse-Dijkstra grid guides articulated search around a wall"
   map.cells.assign(49,0);
   for(std::size_t y=0;y<6;++y)map.cells[y*7+3]=100;
   as::Diagnostics diagnostics;
-  ac::LazyGrid<as::Diagnostics> grid(map,{},ac::Pose2D{5.5,1.5,0},
+  ac::LazyGrid<as::Diagnostics> grid(map,{},hybrid_astar::Pose2D{5.5,1.5,0},
                                      0.2,100,100,true,
                                      ac::OpenQueueMode::BinaryLazy,diagnostics);
   // Straight-line XY distance crosses a wall; the raw-grid detour goes via y=6.
@@ -326,7 +326,7 @@ TEST_CASE("Shared reverse-Dijkstra grid guides articulated search around a wall"
 
   // Low work budgets must gracefully fall back; never declare NoPath.
   as::Diagnostics limitedDiagnostics;
-  ac::LazyGrid<as::Diagnostics> limited(map,{},ac::Pose2D{5.5,1.5,0},
+  ac::LazyGrid<as::Diagnostics> limited(map,{},hybrid_astar::Pose2D{5.5,1.5,0},
                                         0.2,1,1,true,
                                         ac::OpenQueueMode::BinaryLazy,
                                         limitedDiagnostics);
