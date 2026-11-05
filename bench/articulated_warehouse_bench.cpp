@@ -15,13 +15,14 @@ int main(int argc,char** argv) {
     const std::string mode=argc>1?argv[1]:"coupled";
     if(mode!="legacy"&&mode!="coupled"&&mode!="coupled-no-fast"&&
        mode!="analytic-only"&&mode!="combined"&&mode!="weighted"&&
-       mode!="grid-weighted")
+       mode!="grid-weighted"&&mode!="connector"&&mode!="weighted-connector")
       throw std::invalid_argument(
-          "Use legacy | coupled | coupled-no-fast | analytic-only | combined | weighted | grid-weighted");
+          "Use legacy | coupled | coupled-no-fast | analytic-only | combined | weighted | grid-weighted | connector | weighted-connector");
     if(argc>3)throw std::invalid_argument("Usage: articulated_warehouse_bench [mode] [heuristic_weight]");
     // Preserve all historical default runs. The control differs from
     // 'weighted' only in using the grid heuristic rather than Combined.
-    double weight=(mode=="weighted"||mode=="grid-weighted")?1.5:1.0;
+    double weight=(mode=="weighted"||mode=="grid-weighted")?1.5:
+        (mode=="connector"||mode=="weighted-connector")?1.2:1.0;
     if(argc==3) {
       const std::string arg=argv[2];
       std::size_t parsed=0;
@@ -57,8 +58,11 @@ int main(int argc,char** argv) {
     if(mode=="legacy")request.options.stationaryArticulationPenaltyMeters=0;
     if(mode=="analytic-only")
       request.options.heuristicMode=as::HeuristicMode::AnalyticOnly;
-    if(mode=="combined"||mode=="weighted")
+    if(mode=="combined"||mode=="weighted"||
+       mode=="connector"||mode=="weighted-connector")
       request.options.heuristicMode=as::HeuristicMode::Combined;
+    if(mode=="connector"||mode=="weighted-connector")
+      request.options.enableGoalConnector=true;
     // Both weighted modes have the same kinematics, costs, map and budgets;
     // only the heuristic changes. Weight >1 is an experiment, not a bound.
     if(mode=="grid-weighted")
@@ -80,7 +84,8 @@ int main(int argc,char** argv) {
     }
     std::cout<<"mode,status,validated,expanded,generated,search_body_checks,"
       "elapsed_ms,stationary_s,coupled_s,drive_m,swept_free,grid_settlements,"
-      "heuristic_weight,plan_cost_m,goal_xy_error_m,goal_yaw_error_rad,goal_gamma_error_rad\n";
+      "heuristic_weight,plan_cost_m,goal_xy_error_m,goal_yaw_error_rad,goal_gamma_error_rad,"
+      "connector_attempts,connector_candidates,connector_validated,connector_checks,connector_evaluations\n";
     std::cout<<mode<<','<<static_cast<int>(result.status)<<','
       <<result.independentlySampledBodyValidated<<','
       <<result.diagnostics.expanded<<','<<result.diagnostics.generated<<','
@@ -90,7 +95,12 @@ int main(int argc,char** argv) {
       <<result.diagnostics.gridSettlements<<','
       <<weight<<','<<result.costMeters<<','
       <<result.goalXYErrorMeters<<','<<result.goalYawErrorRadians<<','
-      <<result.goalGammaErrorRadians<<'\n';
+      <<result.goalGammaErrorRadians<<','
+      <<result.diagnostics.goalConnectorAttempts<<','
+      <<result.diagnostics.goalConnectorCandidates<<','
+      <<result.diagnostics.goalConnectorValidated<<','
+      <<result.diagnostics.goalConnectorBodyChecks<<','
+      <<result.diagnostics.goalConnectorEvaluations<<'\n';
     return result.status==as::Status::Success?0:2;
   } catch(const std::exception& e) {
     std::cerr<<e.what()<<'\n';
