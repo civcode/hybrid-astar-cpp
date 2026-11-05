@@ -166,6 +166,9 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
   REQUIRE(defaultRun.settings.heuristicWeight==1.0);
   REQUIRE(defaultRun.settings.enableCoupledMotion);
   REQUIRE(defaultRun.settings.useSweptAabbPrefilter);
+  REQUIRE_FALSE(defaultRun.settings.enableGoalConnector);
+  REQUIRE(demo::articulatedToJson(defaultRun).find(
+    "\"enableGoalConnector\":false")!=std::string::npos);
   const auto defaultJson=demo::articulatedToJson(defaultRun);
   REQUIRE(defaultJson.find(
     "\"articulatedSearch\":{\"heuristicMode\":\"grid\",\"heuristicWeight\":1,")!=
@@ -176,6 +179,7 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     options.articulatedHeuristicWeight=1.2;
     options.articulatedEnableCoupledMotion=false;
     options.articulatedUseSweptAabbPrefilter=false;
+    options.articulatedEnableGoalConnector=true;
     const auto changed=demo::runArticulated(options);
     REQUIRE(changed.result.status==art::Status::Success);
     REQUIRE(changed.result.independentlySampledBodyValidated);
@@ -183,6 +187,7 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     REQUIRE(changed.settings.heuristicWeight==1.2);
     REQUIRE_FALSE(changed.settings.enableCoupledMotion);
     REQUIRE_FALSE(changed.settings.useSweptAabbPrefilter);
+    REQUIRE(changed.settings.enableGoalConnector);
     const auto json=demo::articulatedToJson(changed);
     REQUIRE(json.find("\"heuristicMode\":\""+
       std::string(mode==art::HeuristicMode::Combined?"combined":"analytic")+"\"")!=
@@ -190,6 +195,8 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     REQUIRE(json.find("\"heuristicWeight\":1.2")!=std::string::npos);
     REQUIRE(json.find("\"enableCoupledMotion\":false")!=std::string::npos);
     REQUIRE(json.find("\"useSweptAabbPrefilter\":false")!=std::string::npos);
+    REQUIRE(json.find("\"enableGoalConnector\":true")!=std::string::npos);
+    REQUIRE(json.find("\"goalConnectorAttempts\"")!=std::string::npos);
   }
 }
 
