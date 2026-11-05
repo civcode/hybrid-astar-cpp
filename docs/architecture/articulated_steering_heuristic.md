@@ -96,20 +96,69 @@ cmake --build build --target hybrid_astar_articulated_steering_planner_test hybr
 ctest --test-dir build -R '^articulated_steering_planner_test$' --output-on-failure
 ```
 
-The warehouse benchmark supports the unchanged historical modes and
-three new A/B modes:
+The manual warehouse benchmark accepts the original modes plus the
+new grid-only weight control. An optional second argument overrides
+`SearchOptions::heuristicWeight` for **any** mode, accepting finite
+positive weights up to 3.0 (the planner's validated range).
 
 ```bash
-./build/hybrid_astar_articulated_warehouse_bench coupled
-./build/hybrid_astar_articulated_warehouse_bench analytic-only
-./build/hybrid_astar_articulated_warehouse_bench combined
-./build/hybrid_astar_articulated_warehouse_bench weighted
+./build-docker/hybrid_astar_articulated_warehouse_bench coupled
+./build-docker/hybrid_astar_articulated_warehouse_bench analytic-only
+./build-docker/hybrid_astar_articulated_warehouse_bench combined
+./build-docker/hybrid_astar_articulated_warehouse_bench weighted
+./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted
+./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.2
+./build-docker/hybrid_astar_articulated_warehouse_bench weighted 1.2
 ```
 
-`weighted` is the same combined heuristic multiplied by 1.5;
-all four of these commands enable coupled steering and swept-AABB
-optimization with the same map, cost model and limits. Compare status,
-independent sampled validation, expansions, generated labels, collision
-checks, elapsed time and physical motion metrics. Do not interpret
-the target of fewer than 100k expansions or under 2 seconds as an
-established result until the matched benchmark runs.
+`weighted` (Combined) and `grid-weighted` (ObstacleGrid) **both default
+to 1.5**. `coupled` (ObstacleGrid) and `combined` (Combined) both
+default to 1.0. All four share exactly the same warehouse, kinematics,
+primitive set, costs, search budgets and swept-AABB optimization.
+The benchmark appends `heuristic_weight`, `plan_cost_m` (the actual
+accumulated planner edge cost, not just front driving distance) and
+the three terminal goal errors to its pre-existing CSV columns.
+Failed plans report zero `plan_cost_m`; exclude failed plans from
+path-cost comparisons.
+
+### Docker weight sweep, manually triggered
+
+Run the sweep from the repository root after pulling this feature branch
+and explicitly building the existing Docker Compose test image:
+
+```bash
+BUILD_JOBS=8 docker compose build test
+
+docker compose run --rm test python3 -m unittest discover \
+  -s tests -p 'test_articulated_heuristic_weight_sweep.py' -v
+
+docker compose run --rm test python3 \
+  tools/articulated_heuristic_weight_sweep.py --repeats 3 \
+  | tee articulated_weight_sweep_summary.csv
+```
+
+The script compares `grid-weighted` and `weighted` at **1.0, 1.1, 1.2,
+1.3, 1.4, and 1.5**, with three repeated runs of each configuration.
+Its stdout is a 12-row CSV reporting valid plan counts, median expansions,
+collision checks, front driving distance, **real accumulated path cost**,
+stationary and coupled steering, plus mean/median/min/max planning times.
+Progress is printed to stderr and does not contaminate the CSV.
+The two variants run at adjacent weights to minimize environmental drift.
+
+For a one-off missing-control run:
+
+```bash
+docker compose run --rm test \
+  ./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.5
+```
+
+To obtain per-run raw rows rather than an aggregated summary, pass
+`--raw` to the sweep script and save its output to a separate CSV.
+The raw mode performs fresh benchmark runs; it does not reuse earlier
+summary measurements. Neither this script nor its tests are scheduled
+or registered for automatic CI execution.
+
+The warehouse scenario is one performance sample, not a general runtime
+guarantee. A weighted or grid-based heuristic is not an admissibility or
+continuous optimality certificate. Always compare independent geometric
+validation and goal errors alongside cost and runtime.
