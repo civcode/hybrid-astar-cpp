@@ -37,6 +37,7 @@ struct Options {
   double articulatedHeuristicWeight=1.0;
   bool articulatedEnableCoupledMotion=true;
   bool articulatedUseSweptAabbPrefilter=true;
+  bool articulatedEnableGoalConnector=false; // optional native 4D terminal solver
 
   // Optional work-budget override in expanded nodes. Empty keeps the
   // scenario default. Clamped by the callers to a demo-safe range.
