@@ -474,7 +474,8 @@ Result plan(const Request& r) {
               r.options.goalXYToleranceMeters,
               r.options.goalYawToleranceRadians,
               r.options.goalGammaToleranceRadians},
-          r.options.articulationCostMetersPerRadian);
+          r.options.articulationCostMetersPerRadian,
+          r.options.reverseCostMultiplier);
       headingOffsets.reserve(primitives.angles.size());
       for(double gamma:primitives.angles)
         headingOffsets.push_back(analyticGoal->headingOffset(gamma));
