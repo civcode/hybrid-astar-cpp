@@ -1,10 +1,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/articulated_steering/planner.hpp"
+#include "hybrid_astar/articulated_steering/heuristic.hpp"
 #include "hybrid_astar/ackermann/obstacle_grid.hpp"
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <memory>
 #include <numbers>
+#include <random>
 
 namespace as=hybrid_astar::articulated_steering;
 namespace ac=hybrid_astar::ackermann;
@@ -409,4 +412,83 @@ TEST_CASE("Swept free-space proof handles rotated map origins and inflation",
   REQUIRE(out.independentlySampledBodyValidated);
   REQUIRE(out.diagnostics.searchSweptAabbAccepted>0);
   REQUIRE(out.diagnostics.finalBodyChecks>0);
+}
+
+TEST_CASE("Articulated heading offset matches the ODE over distinct chassis geometries",
+          "[articulated][heuristic][analytic]") {
+  const std::array<as::Parameters,3> geometries{{
+      {1.0,1.0,-1.2,1.2,1.0,.8,.1},
+      {.75,1.2,-1.2,1.2,1.0,.8,.1},
+      {1.2,.8,-1.2,1.2,1.0,.8,.1}}};
+  for(const auto& p:geometries) {
+    as::AnalyticGoalHeuristic h(p,{}, {.2,.15,.1},.25);
+    REQUIRE(std::abs(h.headingOffset(0.0))<1e-12);
+    for(int i=-20;i<=20;++i) {
+      const double gamma=.055*i;
+      const double step=1e-5;
+      const double slope=(h.headingOffset(gamma+step)-
+                          h.headingOffset(gamma-step))/(2*step);
+      const double expected=p.LfMeters*std::cos(gamma)/
+          (p.LrMeters+p.LfMeters*std::cos(gamma));
+      REQUIRE(std::abs(slope-expected)<1e-6);
+    }
+  }
+}
+
+TEST_CASE("Analytic articulated bounds never exceed feasible RK4 motion cost",
+          "[articulated][heuristic][lower-bound]") {
+  const std::array<as::Parameters,3> geometries{{
+      {1.0,1.0,-1.2,1.2,1.0,.8,.1},
+      {.75,1.2,-1.2,1.2,1.0,.8,.1},
+      {1.2,.8,-1.2,1.2,1.0,.8,.1}}};
+  std::mt19937 rng(20261105);
+  std::uniform_real_distribution<double> random(-1.0,1.0);
+  std::uniform_real_distribution<double> duration(.08,.55);
+  for(const auto& p:geometries) {
+    as::Model model(p);
+    for(int i=0;i<150;++i) {
+      const as::RearState start{10.0+random(rng),10.0+random(rng),
+                                2.5*random(rng),.45*random(rng)};
+      const as::Control control{
+          i%5==0?0.0:.8*random(rng),.6*random(rng)};
+      const double dt=duration(rng);
+      const auto reached=model.toRear(
+          model.propagate(model.fromRear(start),control,dt,.004));
+      as::RearState nominalGoal=reached;
+      // Move the nominal goal within all three accepted tolerance windows.
+      nominalGoal.xr+=.1*random(rng);
+      nominalGoal.yr+=.1*random(rng);
+      nominalGoal.thetaRear+=.1*random(rng);
+      nominalGoal.gamma+=.05*random(rng);
+      as::AnalyticGoalHeuristic h(p,nominalGoal,{.2,.15,.1},.25);
+      const double drive=std::abs(control.frontSpeedMetersPerSecond)*dt;
+      const double joint=std::abs(control.gammaRateRadiansPerSecond)*dt*.25;
+      const double feasibleCost=drive+joint+
+          (control.frontSpeedMetersPerSecond==0.0 ? .15 : 0.0);
+      REQUIRE(h.estimate(start)<=feasibleCost+1e-5);
+      REQUIRE(h.estimate(reached)<=1e-8);
+      REQUIRE(std::abs(h.estimate(start)-
+          h.estimate(start,h.headingOffset(start.gamma)))<1e-10);
+    }
+  }
+}
+
+TEST_CASE("Articulated heuristic modes preserve strictly validated planner results",
+          "[articulated][heuristic][search]") {
+  for(const auto mode:{as::HeuristicMode::AnalyticOnly,
+                       as::HeuristicMode::Combined}) {
+    auto r=example();
+    r.goal=endpoint(r,{.5,.2},1.0);
+    r.options.heuristicMode=mode;
+    r.options.maxExpansions=20000;
+    const auto out=as::plan(r);
+    REQUIRE(out.status==as::Status::Success);
+    REQUIRE(out.independentlySampledBodyValidated);
+    REQUIRE(out.diagnostics.finalBodyChecks>0);
+    REQUIRE(out.goalXYErrorMeters<=r.options.goalXYToleranceMeters);
+    REQUIRE(out.goalYawErrorRadians<=r.options.goalYawToleranceRadians);
+    REQUIRE(out.goalGammaErrorRadians<=r.options.goalGammaToleranceRadians);
+    if(mode==as::HeuristicMode::AnalyticOnly)
+      REQUIRE(out.diagnostics.gridSettlements==0);
+  }
 }
