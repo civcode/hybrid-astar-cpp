@@ -61,6 +61,8 @@
 <div class="hint">Selecting Combined sets weight 1.2; you can adjust it. Higher weights favor speed over path cost and provide no optimality guarantee. The analytical-only heuristic does not account for obstacles.</div>
 <label class="check"><input type="checkbox" id="artCoupledMotion" checked/><span>Coupled steering while driving <small>(precomputed; on by default)</small></span></label>
 <label class="check"><input type="checkbox" id="artSweptAabb" checked/><span>Swept-AABB free-space prefilter <small>(on by default; exact checks on fallback)</small></span></label>
+<label class="check"><input type="checkbox" id="artGoalConnector"/><span>Native articulated goal connector <small>(experimental; adaptive attempts, forward/reverse, strict validation)</small></span></label>
+<div class="hint">Opt-in terminal shooting with physically bounded steering transitions. A failed attempt falls back to ordinary search; no rigid Reeds–Shepp geometry is accepted directly. May increase planning time.</div>
 </div>
 <div class="divider"></div><div class="section-label">MAP EDITING <small>Drag to paint cells</small></div>
 <label class="label" for="editMode">Map interaction</label>
