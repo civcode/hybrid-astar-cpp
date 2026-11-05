@@ -1,5 +1,7 @@
 #include "hybrid_astar/articulated_steering/planner.hpp"
 #include "hybrid_astar/articulated_steering/heuristic.hpp"
+#include "hybrid_astar/articulated_steering/goal_connector.hpp"
+#include "hybrid_astar/steering/analytic_expansion.hpp"
 #include "hybrid_astar/ackermann/obstacle_grid.hpp"
 #include <algorithm>
 #include <cmath>
@@ -51,6 +53,13 @@ bool validOptions(const SearchOptions& o) {
          positive(o.reverseCostMultiplier)&&
          nonnegative(o.stationaryArticulationPenaltyMeters)&&
          nonnegative(o.heuristicWeight)&&o.heuristicWeight<=3.0&&
+         std::isfinite(o.goalConnectorAttemptRatio)&&
+         o.goalConnectorAttemptRatio>=1.0&&
+         positive(o.maxGoalConnectorArcMeters)&&
+         o.maxGoalConnectorAttempts>0&&
+         o.maxGoalConnectorEvaluationsPerAttempt>0&&
+         o.maxGoalConnectorCandidatesPerAttempt>0&&
+         o.maxGoalConnectorSearchBodyChecks>=2&&
          o.maxExpansions>0&&o.maxGenerated>1&&
          o.maxSamplesPerPrimitive>=2&&o.maxFinalSamplesPerPrimitive>=2&&
          o.maxTotalFinalBodyChecks>=2;
@@ -328,7 +337,9 @@ enum class StrictResult { Accept, Reject, Incomplete, Cancelled };
 StrictResult strictValidate(const Request& r,const Model& model,
                             const BodyCollisionChecker& body,
                             const std::vector<Node>& nodes,std::size_t goalId,
-                            Result& out) {
+                            Result& out,
+                            const std::vector<GoalControl>* tail=nullptr,
+                            double tailCost=0.0) {
   std::vector<std::size_t> chain;
   std::size_t index=goalId;
   while(nodes[index].parent!=noParent) {
@@ -373,15 +384,80 @@ StrictResult strictValidate(const Request& r,const Model& model,
       return StrictResult::Reject;
     }
   }
+  // A terminal connection is an extension of the search path, not a
+  // replacement. Reintegrate the ENTIRE prefix and the candidate tail using
+  // the finer independent sample schedule. Every sample checks BOTH bodies.
+  if(tail)for(const auto& segment:*tail) {
+    if(cancelled(r))return StrictResult::Cancelled;
+    try {
+      const double dt=safeSampleStep(model,body,segment.control,
+          segment.durationSeconds,r.options.maxRk4StepSeconds,
+          r.options.finalMaxBodyPointMotionMeters);
+      auto samples=model.trajectory(state,segment.control,
+          segment.durationSeconds,dt,r.options.maxFinalSamplesPerPrimitive-1);
+      for(const auto& sample:samples) {
+        if(cancelled(r))return StrictResult::Cancelled;
+        if(bodyChecks>r.options.maxTotalFinalBodyChecks-2)
+          return StrictResult::Incomplete;
+        bodyChecks+=2;
+        out.diagnostics.finalBodyChecks+=2;
+        if(!body.clear(model,sample.state))return StrictResult::Reject;
+      }
+      const auto end=samples.back().state;
+      motions.push_back({segment.control,segment.durationSeconds,
+                         state,end,std::move(samples)});
+      state=end;
+    } catch(const std::length_error&) {
+      return StrictResult::Incomplete;
+    } catch(const std::invalid_argument&) {
+      return StrictResult::Reject;
+    } catch(const std::out_of_range&) {
+      return StrictResult::Reject;
+    }
+  }
   const auto rear=model.toRear(state);
   if(!atGoal(rear,r.goal,r.options))return StrictResult::Reject;
   out.motions=std::move(motions);
   goalErrors(out,rear,r.goal);
   out.independentlySampledBodyValidated=true;
-  out.costMeters=nodes[goalId].g;
+  out.costMeters=nodes[goalId].g+tailCost;
   out.status=Status::Success;
   return StrictResult::Accept;
 }
+// Search-stage acceptance guard for native articulated connector proposals.
+// Limit its cumulative body checks independently of the final prefix replay.
+// Do NOT use a purely geometric RS collision check on an articulated body.
+enum class TailCheck { Clear, Collision, Terminal, Incomplete, Cancelled };
+TailCheck checkGoalTail(const Request& r,const Model& model,
+                       const BodyCollisionChecker& body,RearState from,
+                       const GoalConnection& proposal,Result& out) {
+  State state=model.fromRear(from);
+  for(const auto& segment:proposal.controls) {
+    if(cancelled(r))return TailCheck::Cancelled;
+    try {
+      const double dt=safeSampleStep(model,body,segment.control,
+          segment.durationSeconds,r.options.maxRk4StepSeconds,
+          r.options.searchMaxBodyPointMotionMeters);
+      auto samples=model.trajectory(state,segment.control,
+          segment.durationSeconds,dt,r.options.maxSamplesPerPrimitive-1);
+      for(const auto& sample:samples) {
+        if(cancelled(r))return TailCheck::Cancelled;
+        if(out.diagnostics.goalConnectorBodyChecks>
+            r.options.maxGoalConnectorSearchBodyChecks-2)
+          return TailCheck::Incomplete;
+        out.diagnostics.goalConnectorBodyChecks+=2;
+        if(!body.clear(model,sample.state))return TailCheck::Collision;
+      }
+      state=samples.back().state;
+    } catch(const std::length_error&) {return TailCheck::Incomplete;
+    } catch(const std::invalid_argument&) {return TailCheck::Collision;
+    } catch(const std::out_of_range&) {return TailCheck::Collision;}
+  }
+  const auto terminal=model.toRear(state);
+  return atGoal(terminal,r.goal,r.options)
+      ?TailCheck::Clear:TailCheck::Terminal;
+}
+
 } // namespace
 
 SearchKey makeSearchKey(const RearState& rear,int gear,
