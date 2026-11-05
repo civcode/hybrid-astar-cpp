@@ -56,7 +56,8 @@ add_library(hybrid_astar::mecanum ALIAS hybrid_astar_mecanum)
 # articulated planner API is experimental and requires real robot geometry.
 # Uses our own header-only classical RK4, with no Boost/ROS dependency.
 add_library(hybrid_astar_articulated_steering STATIC
-  src/articulated_steering/model.cpp src/articulated_steering/planner.cpp)
+  src/articulated_steering/model.cpp src/articulated_steering/planner.cpp
+  src/articulated_steering/goal_connector.cpp)
 target_compile_features(hybrid_astar_articulated_steering PUBLIC cxx_std_20)
 target_include_directories(hybrid_astar_articulated_steering PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
