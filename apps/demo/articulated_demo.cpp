@@ -95,6 +95,14 @@ void pathJson(std::ostream& os,const art::Result& r) {
     <<",\"prunedByKey\":"<<r.diagnostics.pruned
     <<",\"strictGoalCandidates\":"<<r.diagnostics.strictGoalCandidates
     <<",\"strictRejected\":"<<r.diagnostics.strictRejected
+    <<",\"goalConnectorAttempts\":"<<r.diagnostics.goalConnectorAttempts
+    <<",\"goalConnectorCandidates\":"<<r.diagnostics.goalConnectorCandidates
+    <<",\"goalConnectorValidated\":"<<r.diagnostics.goalConnectorValidated
+    <<",\"goalConnectorRejectedCollision\":"<<r.diagnostics.goalConnectorRejectedCollision
+    <<",\"goalConnectorRejectedTerminal\":"<<r.diagnostics.goalConnectorRejectedTerminal
+    <<",\"goalConnectorRejectedStrict\":"<<r.diagnostics.goalConnectorRejectedStrict
+    <<",\"goalConnectorEvaluations\":"<<r.diagnostics.goalConnectorEvaluations
+    <<",\"goalConnectorBodyChecks\":"<<r.diagnostics.goalConnectorBodyChecks
     <<",\"searchBodyChecks\":"<<r.diagnostics.searchBodyChecks
     <<",\"precomputedAnalyticDriveTemplates\":"<<r.diagnostics.precomputedAnalyticDriveTemplates
     <<",\"precomputedStationaryRk4Templates\":"<<r.diagnostics.precomputedStationaryRk4Templates
@@ -239,6 +247,7 @@ ArticulatedOutcome runArticulated(const Options& opt) {
   out.settings.heuristicWeight=opt.articulatedHeuristicWeight;
   out.settings.enableCoupledMotion=opt.articulatedEnableCoupledMotion;
   out.settings.useSweptAabbPrefilter=opt.articulatedUseSweptAabbPrefilter;
+  out.settings.enableGoalConnector=opt.articulatedEnableGoalConnector;
   art::Request request;
   request.map=out.map;
   request.parameters=out.parameters;
@@ -289,6 +298,7 @@ std::string articulatedToJson(const ArticulatedOutcome& out) {
   os<<",\"heuristicWeight\":"<<out.settings.heuristicWeight
     <<",\"enableCoupledMotion\":"<<(out.settings.enableCoupledMotion?"true":"false")
     <<",\"useSweptAabbPrefilter\":"<<(out.settings.useSweptAabbPrefilter?"true":"false")
+    <<",\"enableGoalConnector\":"<<(out.settings.enableGoalConnector?"true":"false")
     <<"},\"mapRuns\":[";
   bool first=true;
   for(std::size_t y=0;y<m.height;++y) {
