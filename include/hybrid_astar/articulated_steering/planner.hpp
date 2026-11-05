@@ -23,6 +23,11 @@ struct BodyGeometry {
   ackermann::Footprint rear{0.0,0.0,0.0};  // rear base_link/heading frame
   double inflationMeters=0.0;
 };
+// ObstacleGrid preserves the established search ordering. The two new
+// modes use obstacle-free, tolerance-aware articulated effort lower bounds.
+// Combined is performance guidance only: the raw grid is not certified.
+enum class HeuristicMode { ObstacleGrid, AnalyticOnly, Combined };
+
 struct SearchOptions {
   double translationSpeedMetersPerSecond=0.5;
   double articulationRateRadiansPerSecond=0.4;
@@ -46,7 +51,10 @@ struct SearchOptions {
   // Conservative full-primitive empty-map AABB proof; false falls back to
   // the original two-body sampled search collision checking.
   bool useSweptAabbPrefilter=true;
-  // Performance ordering only: not a certified lower bound and not optimal.
+  // Select one of the three request-local heuristic modes without changing
+  // primitive generation, collision checking or final RK4 validation.
+  HeuristicMode heuristicMode=HeuristicMode::ObstacleGrid;
+  // Multiplies the selected heuristic; values >1 intentionally favor speed.
   double heuristicWeight=1.0;
   // Shared Ackermann reverse-Dijkstra occupancy guidance (performance only).
   // The grid is a point-robot relaxation, not an articulated clearance oracle.
