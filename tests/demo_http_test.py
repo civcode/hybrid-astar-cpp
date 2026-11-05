@@ -177,7 +177,7 @@ def main(exe):
         assert 'id="rsDistance"' in page and "RS distance heuristic" in page
         assert "['ompl','rsDistance','refine'" in script
         for new_control in ("artHeuristicMode","artHeuristicWeight",
-                            "artCoupledMotion","artSweptAabb"):
+                            "artCoupledMotion","artSweptAabb","artGoalConnector"):
             assert f'id="{new_control}"' in page, new_control
             assert f"params.set('{new_control}'" in script, new_control
         assert '<option value="grid" selected>' in page
@@ -384,14 +384,24 @@ def main(exe):
             assert parsed["original"]["validated"] is True
             assert parsed["articulatedSearch"]=={
                 "heuristicMode":mode,"heuristicWeight":float(weight),
-                "enableCoupledMotion":False,"useSweptAabbPrefilter":False
+                "enableCoupledMotion":False,"useSweptAabbPrefilter":False,
+                "enableGoalConnector":False
             }
         code, _, body=post(art_form)
         assert code==200
         assert json.loads(body)["articulatedSearch"]=={
             "heuristicMode":"grid","heuristicWeight":1.0,
-            "enableCoupledMotion":True,"useSweptAabbPrefilter":True
+            "enableCoupledMotion":True,"useSweptAabbPrefilter":True,
+            "enableGoalConnector":False
         }
+        # Opt-in request/response is explicit and stays independent of RS.
+        code, _, body=post({**art_form,"artHeuristicMode":"combined",
+                             "artHeuristicWeight":"1.2","artGoalConnector":"1"})
+        assert code==200, body
+        connected=json.loads(body)
+        assert connected["articulatedSearch"]["enableGoalConnector"] is True
+        assert connected["original"]["goalConnectorAttempts"] >= 0
+        assert connected["original"]["goalConnectorValidated"] >= 0
         for bad in (
             {"artHeuristicMode":"unknown"},
             {"artHeuristicMode":""},
@@ -402,6 +412,7 @@ def main(exe):
             {"artHeuristicWeight":"1foo"},
             {"artCoupledMotion":"perhaps"},
             {"artSweptAabb":"2"},
+            {"artGoalConnector":"maybe"},
             {"artHeuristic":"grid"},
         ):
             code, _, body=post({**art_form,**bad})
