@@ -47,6 +47,7 @@ bool validOptions(const SearchOptions& o) {
          positive(o.finalMaxBodyPointMotionMeters)&&
          positive(o.articulationCostMetersPerRadian)&&
          positive(o.reverseCostMultiplier)&&
+         nonnegative(o.stationaryArticulationPenaltyMeters)&&
          nonnegative(o.heuristicWeight)&&o.heuristicWeight<=3.0&&
          o.maxExpansions>0&&o.maxGenerated>1&&
          o.maxSamplesPerPrimitive>=2&&o.maxFinalSamplesPerPrimitive>=2&&
@@ -81,8 +82,8 @@ struct HeapItem {
   }
 };
 struct Best {double g;std::size_t id;};
-// Drive uses a fixed articulation. Changing articulation is a separate
-// stationary control edge, never an instantaneous node-state jump.
+// Finite constant-control edges support fixed articulation, stationary
+// articulation, and coupled driving plus articulation.
 struct ControlPrimitive {Control u;double duration;int gear;};
 double transitionCost(const ControlPrimitive& primitive,
                       const SearchOptions& o) {
@@ -92,7 +93,8 @@ double transitionCost(const ControlPrimitive& primitive,
                      primitive.duration;
   const double cost=length*(primitive.gear<0?o.reverseCostMultiplier:1.0)+
                     joint*o.articulationCostMetersPerRadian;
-  return cost;
+  return cost+(length==0.0&&joint>0.0
+      ?o.stationaryArticulationPenaltyMeters:0.0);
 }
 bool atGoal(const RearState& a,const RearState& b,const SearchOptions& o) {
   return std::hypot(a.xr-b.xr,a.yr-b.yr)<=o.goalXYToleranceMeters&&
@@ -128,11 +130,43 @@ double safeSampleStep(const Model& m,const BodyCollisionChecker& collision,
 }
 
 // Each template starts in the canonical REAR base_link pose (0,0,0,gammaFrom).
-// Drive arcs use closed-form integration. Stationary joint transitions are
-// integrated ONCE per request using our own RK4, then rigidly transported
-// to each expanded node via SE(2). Collision queries remain map-specific
-// at EVERY transported intermediate configuration.
+// Drive arcs use closed-form integration. Stationary and coupled joint
+// transitions use RK4 ONCE per request; all templates are then transported
+// into world coordinates at each expanded node. Safe swept-AABB free-space
+// proofs may skip repeated samples; uncertain edges check both bodies.
+struct LocalBounds {
+  double minX=std::numeric_limits<double>::infinity();
+  double minY=std::numeric_limits<double>::infinity();
+  double maxX=-std::numeric_limits<double>::infinity();
+  double maxY=-std::numeric_limits<double>::infinity();
+  void include(double x,double y,double radius) noexcept {
+    minX=std::min(minX,x-radius);minY=std::min(minY,y-radius);
+    maxX=std::max(maxX,x+radius);maxY=std::max(maxY,y+radius);
+  }
+};
+// Rotate every corner of a precomputed canonical swept AABB into map-local
+// coordinates; this also supports rotated occupancy-map origins.
+MapLocalAabb mapBounds(const ackermann::MapSnapshot& map,
+                       RearState anchor,LocalBounds bounds) {
+  const double dx=anchor.xr-map.origin.x,dy=anchor.yr-map.origin.y;
+  const double mc=std::cos(map.origin.yaw),ms=std::sin(map.origin.yaw);
+  const double tx=mc*dx+ms*dy,ty=-ms*dx+mc*dy;
+  const double c=std::cos(anchor.thetaRear-map.origin.yaw);
+  const double s=std::sin(anchor.thetaRear-map.origin.yaw);
+  MapLocalAabb out{std::numeric_limits<double>::infinity(),
+                   std::numeric_limits<double>::infinity(),
+                   -std::numeric_limits<double>::infinity(),
+                   -std::numeric_limits<double>::infinity()};
+  for(double x:{bounds.minX,bounds.maxX})
+    for(double y:{bounds.minY,bounds.maxY}) {
+      const double px=tx+c*x-s*y,py=ty+s*x+c*y;
+      out.minX=std::min(out.minX,px);out.minY=std::min(out.minY,py);
+      out.maxX=std::max(out.maxX,px);out.maxY=std::max(out.maxY,py);
+    }
+  return out;
+}
 struct PrimitiveTemplate {
+  LocalBounds frontBounds,rearBounds;
   ControlPrimitive command;
   std::size_t targetGammaIndex=0;
   std::vector<Sample> localSamples;
@@ -143,6 +177,7 @@ struct PrimitiveLibrary {
   std::size_t initialIndex=0;
   std::size_t analyticDriveCount=0;
   std::size_t stationaryRk4Count=0;
+  std::size_t coupledRk4Count=0;
   std::size_t sampleCount=0;
 
   PrimitiveLibrary(const Model& model,const BodyCollisionChecker& body,
@@ -222,9 +257,7 @@ struct PrimitiveLibrary {
         }
         ++analyticDriveCount;
       } else {
-        // Integrate stationary articulation for this angle interval ONCE.
-        // The front reference stays fixed, while both carriage
-        // headings and the rear base_link move consistently.
+        // Integrate stationary or coupled articulation ONCE per request.
         t.localSamples=model.trajectory(initial,command.u,command.duration,
                                          command.duration/static_cast<double>(steps),
                                          steps);
@@ -236,7 +269,19 @@ struct PrimitiveLibrary {
           throw std::invalid_argument("Precomputed steering misses target angle");
         endpoint.rear.gamma=angles[to];
         endpoint.state=model.fromRear(endpoint.rear);
-        ++stationaryRk4Count;
+        if(command.u.frontSpeedMetersPerSecond==0.0)
+          ++stationaryRk4Count;
+        else ++coupledRk4Count;
+      }
+      // Reference radius covers the filled carriage and inflation. Sampling
+      // adds a conservative whole-interval motion margin between checkpoints.
+      const double frontRadius=body.maxFrontBodyRadius()+
+                               o.searchMaxBodyPointMotionMeters+1e-9;
+      const double rearRadius=body.maxRearBodyRadius()+
+                              o.searchMaxBodyPointMotionMeters+1e-9;
+      for(const auto& sample:t.localSamples) {
+        t.frontBounds.include(sample.state.xf,sample.state.yf,frontRadius);
+        t.rearBounds.include(sample.rear.xr,sample.rear.yr,rearRadius);
       }
       sampleCount+=t.localSamples.size();
       atGamma[from].push_back(std::move(t));
@@ -256,6 +301,15 @@ struct PrimitiveLibrary {
         if(std::abs(delta)<1e-10)continue;
         const double rate=std::copysign(u,delta);
         addTemplate(i,to,{{0,rate},std::abs(delta)/u,0},false);
+        if(o.enableCoupledMotion) {
+          // EXACT neighbor gamma with bounded gamma-rate; extend duration
+          // rather than violating rate limits when steering is slow.
+          const double coupledTime=std::max(driveTime,std::abs(delta)/u);
+          const double coupledRate=delta/coupledTime;
+          for(int gear:{-1,1})
+            addTemplate(i,to,{{static_cast<double>(gear)*v,coupledRate},
+                             coupledTime,gear},false);
+        }
       }
     }
   }
@@ -354,6 +408,13 @@ bool BodyCollisionChecker::clear(const Model& m,const State& s) const {
   const bool rearClear=rear_.check(m.rearPose(s))==ackermann::PoseCollision::Clear;
   return frontClear&&rearClear;
 }
+bool BodyCollisionChecker::provenEmptySweptAabbs(
+    MapLocalAabb front,MapLocalAabb rear) const noexcept {
+  return front_.provenEmptyMapLocalAabb(front.minX,front.minY,
+                                        front.maxX,front.maxY)&&
+         rear_.provenEmptyMapLocalAabb(rear.minX,rear.minY,
+                                       rear.maxX,rear.maxY);
+}
 double BodyCollisionChecker::maxFrontBodyRadius() const noexcept {
   return front_.maxBodyRadius();
 }
@@ -398,6 +459,7 @@ Result plan(const Request& r) {
     PrimitiveLibrary primitives(model,*body,r.options,r.start.gamma,r.goal.gamma);
     out.diagnostics.precomputedAnalyticDriveTemplates=primitives.analyticDriveCount;
     out.diagnostics.precomputedStationaryRk4Templates=primitives.stationaryRk4Count;
+    out.diagnostics.precomputedCoupledRk4Templates=primitives.coupledRk4Count;
     out.diagnostics.precomputedSampleCount=primitives.sampleCount;
     std::unique_ptr<ackermann::LazyGrid<Diagnostics>> grid;
     if(r.options.useObstacleGridHeuristic) {
@@ -457,18 +519,29 @@ Result plan(const Request& r) {
         if(cancelled(r)){out.status=Status::Cancelled;return out;}
         ++out.diagnostics.appliedPrecomputedTemplates;
         const auto& command=templateMotion.command;
+        if(command.u.frontSpeedMetersPerSecond!=0.0&&
+           command.u.gammaRateRadiansPerSecond!=0.0)
+          ++out.diagnostics.appliedCoupledTemplates;
         try {
           // No RK4 in successor generation. Transport each precomputed
           // canonical template from rear (0,0,0) to current world pose.
-          // The complete map-specific, two-body collision validation
-          // still runs on EVERY transported sample.
+          // Only provably obstacle-free swept envelopes bypass sample checks.
+          // All other candidates still run both-body sample collision tests.
           bool clear=true;
-          for(const auto& sample:templateMotion.localSamples) {
-            const auto world=transport(current.rear,sample.rear);
-            const State q=model.fromRear(world);
-            out.diagnostics.searchBodyChecks+=2;
-            if(!body->clear(model,q)) {
-              clear=false;++out.diagnostics.rejectedSearchCollision;break;
+          const bool sweptClear=r.options.useSweptAabbPrefilter&&
+              body->provenEmptySweptAabbs(
+                  mapBounds(*r.map,current.rear,templateMotion.frontBounds),
+                  mapBounds(*r.map,current.rear,templateMotion.rearBounds));
+          if(sweptClear)++out.diagnostics.searchSweptAabbAccepted;
+          else {
+            ++out.diagnostics.searchSweptAabbFallback;
+            for(const auto& sample:templateMotion.localSamples) {
+              const auto world=transport(current.rear,sample.rear);
+              const State q=model.fromRear(world);
+              out.diagnostics.searchBodyChecks+=2;
+              if(!body->clear(model,q)) {
+                clear=false;++out.diagnostics.rejectedSearchCollision;break;
+              }
             }
           }
           if(!clear)continue;

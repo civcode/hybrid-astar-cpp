@@ -238,15 +238,17 @@ TEST_CASE("Articulated precomputed primitives separate fixed-gamma driving and s
   REQUIRE(result.independentlySampledBodyValidated);
   REQUIRE(result.diagnostics.precomputedAnalyticDriveTemplates>0);
   REQUIRE(result.diagnostics.precomputedStationaryRk4Templates>0);
+  REQUIRE(result.diagnostics.precomputedCoupledRk4Templates>0);
   REQUIRE(result.diagnostics.precomputedSampleCount>
           result.diagnostics.precomputedAnalyticDriveTemplates+
           result.diagnostics.precomputedStationaryRk4Templates);
   REQUIRE(result.diagnostics.appliedPrecomputedTemplates>0);
   for(const auto& motion:result.motions) {
-    // Steering never changes while driving in this primitive library.
+    // Gamma evolution of every drive must match its control and duration.
     if(motion.control.frontSpeedMetersPerSecond!=0.0) {
-      REQUIRE(motion.control.gammaRateRadiansPerSecond==0.0);
-      REQUIRE(close(motion.start.gamma,motion.end.gamma,1e-12));
+      REQUIRE(close(motion.end.gamma-motion.start.gamma,
+                    motion.control.gammaRateRadiansPerSecond*
+                    motion.durationSeconds,1e-9));
     } else {
       REQUIRE(motion.control.gammaRateRadiansPerSecond!=0.0);
     }
@@ -256,6 +258,7 @@ TEST_CASE("Articulated precomputed primitives separate fixed-gamma driving and s
 TEST_CASE("Precomputed stationary steering reaches exact non-grid start and goal gamma",
           "[articulated][search][precomputed][joint]") {
   auto r=example();
+  r.options.enableCoupledMotion=false; // stationary-only fixture
   r.start.gamma=.13; // not a multiple of the 0.2-radian lattice step
   as::Model m(r.parameters);
   const auto q0=m.fromRear(r.start);
@@ -286,6 +289,7 @@ TEST_CASE("Precomputed analytic arcs preserve unequal-link kinematics",
   r.parameters.LrMeters=.45;
   r.parameters.minDenominatorMeters=.1;
   r.start.gamma=.4;
+  r.options.enableCoupledMotion=false; // analytic-only fixture
   r.goal=endpoint(r,{.5,0},1.0);
   auto result=as::plan(r);
   REQUIRE(result.status==as::Status::Success);
@@ -339,4 +343,70 @@ TEST_CASE("Articulated obstacle-grid guidance can be disabled for A/B testing",
   REQUIRE(result.status==as::Status::Success);
   REQUIRE(result.diagnostics.gridSettlements==0);
   REQUIRE(result.independentlySampledBodyValidated);
+}
+
+
+TEST_CASE("Coupled RK4 steering drives continuously into an exact gamma target",
+          "[articulated][search][coupled]") {
+  auto r=example();
+  r.goal=endpoint(r,{.5,.2},1.0);
+  r.options.goalXYToleranceMeters=.05;
+  r.options.goalYawToleranceRadians=.04;
+  r.options.goalGammaToleranceRadians=.04;
+  r.options.maxExpansions=20000;
+  r.options.maxGenerated=80000;
+  const auto out=as::plan(r);
+  REQUIRE(out.status==as::Status::Success);
+  REQUIRE(out.independentlySampledBodyValidated);
+  REQUIRE(out.diagnostics.precomputedCoupledRk4Templates>0);
+  REQUIRE(out.diagnostics.appliedCoupledTemplates>0);
+  bool coupled=false;
+  for(const auto& motion:out.motions) {
+    if(motion.control.frontSpeedMetersPerSecond==0.0||
+       motion.control.gammaRateRadiansPerSecond==0.0)continue;
+    coupled=true;
+    REQUIRE(close(motion.end.gamma-motion.start.gamma,
+            motion.control.gammaRateRadiansPerSecond*motion.durationSeconds,1e-9));
+    REQUIRE(motion.samples.size()>2);
+  }
+  REQUIRE(coupled);
+}
+
+TEST_CASE("Swept AABB free-space proof is conservative and can be disabled",
+          "[articulated][collision][prefilter]") {
+  auto r=example();
+  ac::ExactCollisionChecker free(*r.map,r.occupancy,r.bodies.front,0.0,true);
+  REQUIRE(free.provenEmptyMapLocalAabb(9.0,9.0,12.0,12.0));
+  REQUIRE_FALSE(free.provenEmptyMapLocalAabb(-0.01,9.0,12.0,12.0));
+  auto occupiedMap=std::make_shared<ac::MapSnapshot>(*r.map);
+  occupy(*occupiedMap,11.0,10.0);
+  ac::ExactCollisionChecker occupied(*occupiedMap,r.occupancy,r.bodies.front,0.0,true);
+  REQUIRE_FALSE(occupied.provenEmptyMapLocalAabb(9.0,9.0,12.0,12.0));
+  r.goal=endpoint(r,{.5,0},1.0);
+  const auto fast=as::plan(r);
+  REQUIRE(fast.status==as::Status::Success);
+  REQUIRE(fast.diagnostics.searchSweptAabbAccepted>0);
+  r.options.useSweptAabbPrefilter=false;
+  const auto precise=as::plan(r);
+  REQUIRE(precise.status==as::Status::Success);
+  REQUIRE(precise.diagnostics.searchSweptAabbAccepted==0);
+  REQUIRE(precise.diagnostics.searchBodyChecks>=fast.diagnostics.searchBodyChecks);
+  REQUIRE(precise.independentlySampledBodyValidated);
+}
+
+
+TEST_CASE("Swept free-space proof handles rotated map origins and inflation",
+          "[articulated][collision][prefilter][rotated]") {
+  auto r=example();
+  auto rotated=std::make_shared<ac::MapSnapshot>(*r.map);
+  rotated->origin={1.0,-0.7,.37};
+  r.map=rotated;
+  r.bodies.inflationMeters=.10;
+  r.goal=endpoint(r,{.5,.2},1.0);
+  r.options.maxExpansions=20000;
+  const auto out=as::plan(r);
+  REQUIRE(out.status==as::Status::Success);
+  REQUIRE(out.independentlySampledBodyValidated);
+  REQUIRE(out.diagnostics.searchSweptAabbAccepted>0);
+  REQUIRE(out.diagnostics.finalBodyChecks>0);
 }

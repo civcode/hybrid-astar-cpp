@@ -24,10 +24,7 @@ TEST_CASE("Planning Lab articulated adapter searches and serializes complete two
   REQUIRE(result.result.diagnostics.precomputedAnalyticDriveTemplates>0);
   REQUIRE(result.result.diagnostics.precomputedStationaryRk4Templates>0);
   REQUIRE(result.result.diagnostics.appliedPrecomputedTemplates>0);
-  // No expanded driving section may change the articulation angle.
-  for(const auto& motion:result.result.motions)
-    if(motion.control.frontSpeedMetersPerSecond!=0.0)
-      REQUIRE(motion.control.gammaRateRadiansPerSecond==0.0);
+  REQUIRE(result.result.diagnostics.precomputedCoupledRk4Templates>0);
   REQUIRE(result.parameters.LfMeters==1.0);
   REQUIRE(result.parameters.LrMeters==1.0);
   REQUIRE(result.bodies.front.rearX==-0.5);
@@ -42,6 +39,8 @@ TEST_CASE("Planning Lab articulated adapter searches and serializes complete two
   REQUIRE(json.find("\"articulatedPoints\"")!=std::string::npos);
   REQUIRE(json.find("\"precomputedAnalyticDriveTemplates\"")!=std::string::npos);
   REQUIRE(json.find("\"precomputedStationaryRk4Templates\"")!=std::string::npos);
+  REQUIRE(json.find("\"precomputedCoupledRk4Templates\"")!=std::string::npos);
+  REQUIRE(json.find("\"searchSweptAabbAccepted\"")!=std::string::npos);
   REQUIRE(json.find("\"appliedPrecomputedTemplates\"")!=std::string::npos);
   REQUIRE(json.find("\"collisionEvidence\":\"TwoCarriageIndependentAdaptiveSampled\"")!=std::string::npos);
   REQUIRE(json.find("\"actuatorFeasible\":false")!=std::string::npos);

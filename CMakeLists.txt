@@ -206,6 +206,11 @@ if(HYBRID_ASTAR_BUILD_TESTS)
 endif()
 
 if(HYBRID_ASTAR_BUILD_BENCHMARKS)
+  # Manual benchmark only, never registered as an automatic CTest.
+  add_executable(hybrid_astar_articulated_warehouse_bench
+    bench/articulated_warehouse_bench.cpp)
+  target_link_libraries(hybrid_astar_articulated_warehouse_bench PRIVATE
+    hybrid_astar::articulated_steering)
   add_executable(hybrid_astar_hotpath_bench bench/hotpath_bench.cpp)
   target_include_directories(hybrid_astar_hotpath_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(hybrid_astar_hotpath_bench PRIVATE hybrid_astar::core)

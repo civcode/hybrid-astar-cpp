@@ -78,6 +78,10 @@ public:
   PoseCollision check(const Pose2D& pose,CollisionWorkCounters* work=nullptr,
                       CollisionTimingCounters* timing=nullptr) const;
   double maxBodyRadius() const noexcept;
+  // Map-local axis-aligned free-space proof, requiring a built prefix sum.
+  // False means unknown / needs precise checking, not a collision verdict.
+  bool provenEmptyMapLocalAabb(double minX,double minY,
+                               double maxX,double maxY) const noexcept;
 private:
   const MapSnapshot& map_;
   OccupancyPolicy policy_;

@@ -15,6 +15,7 @@ namespace hybrid_astar::articulated_steering {
 // search labels. Every sampled full state checks TWO separate body footprints.
 // It is a bounded sampled-collision planner, NOT a continuous swept-volume or
 // actuator-trajectory certificate. Caller must provide real robot geometry.
+struct MapLocalAabb {double minX=0.0,minY=0.0,maxX=0.0,maxY=0.0;};
 struct BodyGeometry {
   // Invalid by default: never silently adopt the rigid Ackermann's
   // physical dimensions for a two-carriage articulated robot.
@@ -38,6 +39,13 @@ struct SearchOptions {
   double finalMaxBodyPointMotionMeters=0.025;
   double articulationCostMetersPerRadian=0.25;
   double reverseCostMultiplier=1.1;
+  // Simultaneous driving/articulation is preintegrated per lattice edge.
+  bool enableCoupledMotion=true;
+  // Favor steering while moving, retaining zero-speed steering as a fallback.
+  double stationaryArticulationPenaltyMeters=0.15;
+  // Conservative full-primitive empty-map AABB proof; false falls back to
+  // the original two-body sampled search collision checking.
+  bool useSweptAabbPrefilter=true;
   // Performance ordering only: not a certified lower bound and not optimal.
   double heuristicWeight=1.0;
   // Shared Ackermann reverse-Dijkstra occupancy guidance (performance only).
@@ -96,6 +104,10 @@ struct Diagnostics {
   // reintegrate each successor. Final strict checks still use RK4.
   std::size_t precomputedAnalyticDriveTemplates=0;
   std::size_t precomputedStationaryRk4Templates=0;
+  std::size_t precomputedCoupledRk4Templates=0;
+  std::size_t appliedCoupledTemplates=0;
+  std::size_t searchSweptAabbAccepted=0;
+  std::size_t searchSweptAabbFallback=0;
   std::size_t precomputedSampleCount=0;
   std::size_t appliedPrecomputedTemplates=0;
   // Names match the shared grid's generic diagnostics interface.
@@ -125,6 +137,9 @@ public:
                        ackermann::OccupancyPolicy occupancy,
                        BodyGeometry geometry);
   bool clear(const Model& model,const State& state) const;
+  // True only when BOTH swept reference-radius envelopes have an empty
+  // occupancy prefix region and lie strictly inside map boundaries.
+  bool provenEmptySweptAabbs(MapLocalAabb front,MapLocalAabb rear) const noexcept;
   double maxFrontBodyRadius() const noexcept;
   double maxRearBodyRadius() const noexcept;
 private:

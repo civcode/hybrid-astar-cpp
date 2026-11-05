@@ -144,11 +144,19 @@ transitions and independently validating the final path**.
   At each articulation-angle bin it provides **forward and reverse
   analytic circular arcs** with constant `gamma`; changing
   `gamma` happens **only through stationary steering transitions**
-  (`v=0`) precomputed once with our RK4. Exact start/goal
+  (`v=0`) precomputed once with our RK4 as a fallback. **Coupled
+  driving-and-articulation (`v != 0`, `gammaRate != 0`) RK4 transitions**
+  are enabled by default: steering can change while moving, instead
+  of requiring a stop for every turn. Exact start/goal
   articulation angles are inserted into the library rather than
   silently snapped. The front point remains fixed during stationary
   steering while both headings and the rear `base_link` change.
-  Both collision bodies are checked along every transformed template,
+  A conservative full-primitive swept-envelope AABB may prove both
+  carriages remain inside occupancy-free map space using existing
+  prefix sums. The conservative bounds include both filled body radii,
+  inflation and maximum motion between samples. Any inconclusive
+  candidate still runs two-body exact sampled collision checking.
+  Both collision bodies are checked along every uncertain template,
   and each accepted route is independently replayed using finer RK4
   sampling before success.
   This is **sampled collision evidence, not a continuous
@@ -163,6 +171,10 @@ transitions and independently validating the final path**.
   guarantee, certified lower bound or NoPath proof. Bounded/unsettled grid
   queries fall back to straight-line distance. The C++ option
   `useObstacleGridHeuristic=false` allows controlled A/B comparisons.
+  `enableCoupledMotion=false` restores the original stationary-only
+  primitive catalog, while `useSweptAabbPrefilter=false` disables the
+  conservative search free-space proof. Independent RK4 final validation
+  remains mandatory regardless of these performance options.
   Articulated planning honors the same user-configurable
   **1,000,000-expansion ceiling** as the three rigid models;
   its separate generated-node budget is four times the selected
@@ -1205,3 +1217,28 @@ for one Ackermann window the lowest-cost accepted candidate is selected.
 Both proposal providers, the original verified path and all existing work
 limits remain in place. This is discrete geometric shortcutting, not a
 steering-rate-continuous trajectory optimizer.
+
+
+### Manual articulated warehouse A/B benchmark
+
+The CSV fixture reproduces the built-in 200 x 160, 0.25 m warehouse map,
+with rear start (5.00, 30.56, 0, gamma 0) and goal (18.16, 27.98, 0, gamma 0),
+1 m links, two filled 1.0 x 0.6 m carriage bodies, 1M expansion budget.
+The original exported run: 717629 expansions, 1198178 generated labels,
+173160904 sampled search body checks, 13571.7 ms, 10 s stationary steering.
+Wall-clock comparisons depend on hardware and runtime conditions.
+
+Build the optional benchmark and invoke modes manually (not in CTest):
+
+```bash
+cmake --build build-docker --parallel 28 --target hybrid_astar_articulated_warehouse_bench
+./build-docker/hybrid_astar_articulated_warehouse_bench legacy
+./build-docker/hybrid_astar_articulated_warehouse_bench coupled-no-fast
+./build-docker/hybrid_astar_articulated_warehouse_bench coupled
+```
+
+Legacy disables coupled controls and the swept fast path, and removes the
+new stationary-motion cost penalty. `coupled-no-fast` isolates the
+effect of coupled controls. Each run prints measured expansion, collision,
+elapsed, stationary and coupled time counters; none of these commands runs
+GitHub Actions. Always compare actual validated status, not just speed.

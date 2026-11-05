@@ -90,6 +90,10 @@ void pathJson(std::ostream& os,const art::Result& r) {
     <<",\"searchBodyChecks\":"<<r.diagnostics.searchBodyChecks
     <<",\"precomputedAnalyticDriveTemplates\":"<<r.diagnostics.precomputedAnalyticDriveTemplates
     <<",\"precomputedStationaryRk4Templates\":"<<r.diagnostics.precomputedStationaryRk4Templates
+    <<",\"precomputedCoupledRk4Templates\":"<<r.diagnostics.precomputedCoupledRk4Templates
+    <<",\"appliedCoupledTemplates\":"<<r.diagnostics.appliedCoupledTemplates
+    <<",\"searchSweptAabbAccepted\":"<<r.diagnostics.searchSweptAabbAccepted
+    <<",\"searchSweptAabbFallback\":"<<r.diagnostics.searchSweptAabbFallback
     <<",\"precomputedSampleCount\":"<<r.diagnostics.precomputedSampleCount
     <<",\"appliedPrecomputedTemplates\":"<<r.diagnostics.appliedPrecomputedTemplates
     <<",\"gridSettlements\":"<<r.diagnostics.gridSettlements
@@ -109,7 +113,7 @@ void pathJson(std::ostream& os,const art::Result& r) {
     const char* gear=v<0.0?"reverse":v>0.0?"forward":"articulation";
     os<<"{\"gear\":";quoted(os,gear);
     os<<",\"kind\":";
-    quoted(os,v==0.0?"articulation":"translation");
+    quoted(os,v==0.0?"articulation":u!=0.0?"coupled":"translation");
     os<<",\"length\":"<<std::abs(v)*motion.durationSeconds
       <<",\"durationSeconds\":"<<motion.durationSeconds
       <<",\"frontSpeed\":"<<v

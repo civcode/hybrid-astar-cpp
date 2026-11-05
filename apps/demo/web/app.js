@@ -241,11 +241,21 @@ function stats(result) {
        :' · search exhaustion is not a proof of continuous-space infeasibility');
   const cachedArticulated=result.model==='articulated'?
     (result.original.precomputedAnalyticDriveTemplates||0)+
-    (result.original.precomputedStationaryRk4Templates||0):0;
+    (result.original.precomputedStationaryRk4Templates||0)+
+    (result.original.precomputedCoupledRk4Templates||0):0;
   const templateNote=cachedArticulated>0?
     ' · '+cachedArticulated.toLocaleString()+' cached primitives'+
     ', '+(result.original.appliedPrecomputedTemplates||0).toLocaleString()+
     ' applications':'';
+  const motionNote=result.model==='articulated'&&valid
+    ?' · stationary '+path.sections.filter(s=>s.frontSpeed===0)
+        .reduce((sum,s)=>sum+s.durationSeconds,0).toFixed(1)+'s'
+     +' · coupled '+path.sections.filter(s=>s.frontSpeed!==0&&s.gammaRate!==0)
+        .reduce((sum,s)=>sum+s.durationSeconds,0).toFixed(1)+'s'
+    :'';
+  const broadphaseNote=result.model==='articulated'
+    ?' · swept-free '+(result.original.searchSweptAabbAccepted||0).toLocaleString()
+    :'';
   const gridNote=result.model==='articulated'
     ?' · grid '+(result.original.gridSettlements||0).toLocaleString()+' settled, '
       +(result.original.gridFallbacks||0).toLocaleString()+' fallbacks'
@@ -255,7 +265,7 @@ function stats(result) {
     :'Validated geometric path · '+status+(refinement?' · refinement: '+refinement+acceptedLabel:'')+' · sampled footprint checking'):
     ('No validated path · '+status+failureDetail+
      (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions':'')))+
-    templateNote+gridNote;
+    templateNote+gridNote+broadphaseNote+motionNote;
   $('cost').textContent=valid?path.cost.toFixed(2)+' m':'—';
   $('length').textContent=valid?path.length.toFixed(2)+' m':'—';
   $('reverseLen').textContent=valid?path.reverseLength.toFixed(2)+' m':'—';
@@ -268,7 +278,7 @@ function stats(result) {
     $('curvatureVariation').textContent=valid?
       (path.goalGammaErrorRadians*180/Math.PI).toFixed(2)+'°':'—';
     $('steeringReversals').textContent=valid?
-      String(path.sections.filter(sec=>sec.kind==='articulation').length):'—';
+      String(path.sections.filter(sec=>typeof sec.gammaRate==='number'&&sec.gammaRate!==0).length):'—';
     return;
   }
   const before=steeringMetrics(result.original),after=steeringMetrics(path);

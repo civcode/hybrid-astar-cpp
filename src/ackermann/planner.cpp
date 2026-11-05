@@ -358,6 +358,30 @@ ExactCollisionChecker::ExactCollisionChecker(const MapSnapshot& map, OccupancyPo
   }
 }
 
+bool ExactCollisionChecker::provenEmptyMapLocalAabb(
+    double minX,double minY,double maxX,double maxY) const noexcept {
+  if(blockedPrefix_.empty()||!std::isfinite(minX)||!std::isfinite(minY)||
+     !std::isfinite(maxX)||!std::isfinite(maxY)||minX>maxX||minY>maxY)
+    return false;
+  // The caller already includes body footprint, inflation and motion margin.
+  // Boundary contact remains disallowed and a tiny guard absorbs roundoff.
+  constexpr double guard=1e-9;
+  const double width=map_.width*map_.resolutionMeters;
+  const double height=map_.height*map_.resolutionMeters;
+  if(minX<=guard||minY<=guard||maxX>=width-guard||maxY>=height-guard)
+    return false;
+  const double res=map_.resolutionMeters;
+  const std::size_t x0=static_cast<std::size_t>(std::floor((minX-guard)/res));
+  const std::size_t y0=static_cast<std::size_t>(std::floor((minY-guard)/res));
+  const std::size_t x1=static_cast<std::size_t>(std::floor((maxX+guard)/res));
+  const std::size_t y1=static_cast<std::size_t>(std::floor((maxY+guard)/res));
+  if(x0>x1||y0>y1||x1>=map_.width||y1>=map_.height)return false;
+  const auto left=blockedPrefix_[(y1+1)*prefixPitch_+x0]-
+                  blockedPrefix_[y0*prefixPitch_+x0];
+  const auto right=blockedPrefix_[(y1+1)*prefixPitch_+x1+1]-
+                   blockedPrefix_[y0*prefixPitch_+x1+1];
+  return left==right;
+}
 double ExactCollisionChecker::maxBodyRadius() const noexcept {
   return std::hypot(std::max(std::abs(footprint_.rearX),std::abs(footprint_.frontX)),
                     footprint_.halfWidth)+inflationMeters_;
