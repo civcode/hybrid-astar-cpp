@@ -594,6 +594,9 @@ Result plan(const Request& r) {
     best.emplace(rootKey,Best{0.0,0});
     std::priority_queue<HeapItem> open;
     open.push({estimate(r.start,primitives.initialIndex),0});
+    steering::AnalyticExpansionOptions connectorScheduleOptions;
+    connectorScheduleOptions.attemptRatio=r.options.goalConnectorAttemptRatio;
+    steering::AnalyticExpansionScheduler connectorSchedule(connectorScheduleOptions);
     bool sampledIncomplete=false;
     while(!open.empty()) {
       if(cancelled(r)){out.status=Status::Cancelled;return out;}
@@ -619,6 +622,57 @@ Result plan(const Request& r) {
           return out;
         }
         ++out.diagnostics.strictRejected;
+      }
+      // Same adaptive first-node / decreasing-interval policy as the
+      // Ackermann RS connector. The proposal itself is NOT Reeds-Shepp:
+      // only physically valid finite-rate articulated controls are allowed.
+      // A rejected tail never aborts ordinary Hybrid A* search.
+      if(r.options.enableGoalConnector &&
+         out.diagnostics.goalConnectorAttempts<r.options.maxGoalConnectorAttempts &&
+         out.diagnostics.goalConnectorBodyChecks<
+             r.options.maxGoalConnectorSearchBodyChecks) {
+        const double unweightedH=r.options.heuristicWeight>0.0
+            ?estimate(current.rear,current.gammaIndex)/r.options.heuristicWeight
+            :std::hypot(current.rear.xr-r.goal.xr,current.rear.yr-r.goal.yr);
+        if(connectorSchedule.shouldAttempt(unweightedH,r.options.xyBinMeters)) {
+          ++out.diagnostics.goalConnectorAttempts;
+          std::size_t evaluations=0;
+          const auto candidates=proposeGoalConnections(
+              model,current.rear,r.goal,r.options,evaluations);
+          out.diagnostics.goalConnectorEvaluations+=evaluations;
+          for(const auto& candidate:candidates) {
+            if(cancelled(r)){out.status=Status::Cancelled;return out;}
+            ++out.diagnostics.goalConnectorCandidates;
+            const auto preliminary=checkGoalTail(r,model,*body,current.rear,
+                                                  candidate,out);
+            if(preliminary==TailCheck::Cancelled) {
+              out.status=Status::Cancelled;return out;
+            }
+            if(preliminary==TailCheck::Collision) {
+              ++out.diagnostics.goalConnectorRejectedCollision;continue;
+            }
+            if(preliminary==TailCheck::Terminal) {
+              ++out.diagnostics.goalConnectorRejectedTerminal;continue;
+            }
+            if(preliminary==TailCheck::Incomplete) {
+              sampledIncomplete=true;continue;
+            }
+            // The independent fine-grained validator replays the original
+            // prefix plus this tail, checking both carriage footprints and
+            // the complete (XY, rear yaw, gamma) terminal goal.
+            const auto verdict=strictValidate(r,model,*body,nodes,top.node,out,
+                                              &candidate.controls,candidate.costMeters);
+            if(verdict==StrictResult::Accept) {
+              ++out.diagnostics.goalConnectorValidated;
+              return out;
+            }
+            if(verdict==StrictResult::Cancelled) {
+              out.status=Status::Cancelled;return out;
+            }
+            if(verdict==StrictResult::Incomplete)sampledIncomplete=true;
+            ++out.diagnostics.goalConnectorRejectedStrict;
+          }
+        }
       }
       for(const auto& templateMotion:primitives.atGamma[current.gammaIndex]) {
         if(cancelled(r)){out.status=Status::Cancelled;return out;}
