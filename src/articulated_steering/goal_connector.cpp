@@ -100,7 +100,7 @@ std::vector<GoalControl> makeControls(const Vector& x,const Gears& signs,
                                      RearState from,RearState goal,
                                      const SearchOptions& o) {
   std::vector<GoalControl> out;
-  out.reserve(7);
+  out.reserve(32);
   const double v=o.translationSpeedMetersPerSecond;
   const double u=o.articulationRateRadiansPerSecond;
   const auto addSteer=[&](double to) {
@@ -112,8 +112,16 @@ std::vector<GoalControl> makeControls(const Vector& x,const Gears& signs,
   };
   for(int i=0;i<3;++i) {
     addSteer(x[i]);
-    if(x[i+3]>1e-6)
-      out.push_back({{signs[i]*v,0.0},x[i+3]/v});
+    // Split long exact arcs into bounded-duration pieces. This retains the
+    // same physical motion but respects adaptive sample limits in both
+    // preliminary collision checks and independent final RK4 validation.
+    double remaining=x[i+3];
+    const double chunkMeters=std::min(2.0,o.translationPrimitiveMeters*4.0);
+    while(remaining>1e-6) {
+      const double distance=std::min(remaining,chunkMeters);
+      out.push_back({{signs[i]*v,0.0},distance/v});
+      remaining-=distance;
+    }
   }
   addSteer(goal.gamma);
   return out;
