@@ -140,6 +140,8 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
     o.articulatedEnableCoupledMotion=flag(it->second);
   if(auto it=params.find("artSweptAabb");it!=params.end())
     o.articulatedUseSweptAabbPrefilter=flag(it->second);
+  if(auto it=params.find("artGoalConnector");it!=params.end())
+    o.articulatedEnableGoalConnector=flag(it->second);
   if(auto it=params.find("refine");it!=params.end())o.refine=flag(it->second);
   if(auto it=params.find("maxAccepted");it!=params.end())
     o.maxAcceptedReplacements=acceptedReplacementLimit(it->second);
@@ -176,7 +178,8 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
        name!="artFrontHalfWidth" && name!="artRearRearX" &&
        name!="artRearFrontX" && name!="artRearHalfWidth" &&
        name!="artHeuristicMode" && name!="artHeuristicWeight" &&
-       name!="artCoupledMotion" && name!="artSweptAabb")
+       name!="artCoupledMotion" && name!="artSweptAabb" &&
+       name!="artGoalConnector")
       throw std::invalid_argument("Unknown articulated option: "+name);
     if(name!="scenario"&&name!="model"&&name!="edits"&&name!="editRevision"&&name!="refine"&&name!="maxAccepted"&&name!="curved"&&name!="steeringSmooth"&&name!="steeringWeight"&&name!="performance"&&name!="rsDistance"&&
        name!="improve"&&name!="ompl"&&name!="budget"&&name!="inflate"&&
@@ -188,7 +191,8 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
        name!="artFrontHalfWidth"&&name!="artRearRearX"&&
        name!="artRearFrontX"&&name!="artRearHalfWidth"&&
        name!="artHeuristicMode"&&name!="artHeuristicWeight"&&
-       name!="artCoupledMotion"&&name!="artSweptAabb")
+       name!="artCoupledMotion"&&name!="artSweptAabb"&&
+       name!="artGoalConnector")
       throw std::invalid_argument("Unknown option: "+name);
     if(o.model!="articulated"&&name.starts_with("art"))
       throw std::invalid_argument("Articulated parameters require the articulated model");
