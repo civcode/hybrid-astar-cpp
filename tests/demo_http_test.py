@@ -176,6 +176,12 @@ def main(exe):
         assert 'function steeringMetrics(path)' in script
         assert 'id="rsDistance"' in page and "RS distance heuristic" in page
         assert "['ompl','rsDistance','refine'" in script
+        for new_control in ("artHeuristicMode","artHeuristicWeight",
+                            "artCoupledMotion","artSweptAabb"):
+            assert f'id="{new_control}"' in page, new_control
+            assert f"params.set('{new_control}'" in script, new_control
+        assert '<option value="grid" selected>' in page
+        assert '<option value="combined">' in page
         assert "$('ompl').checked=!!caps.ompl" in script
         assert "mecanum||!$('refine').checked" in script, (
             "mecanum only disables curved CSC, not strict holonomic refinement"
@@ -363,6 +369,46 @@ def main(exe):
             payload = urlencode(fields).encode()
             return get(base + "/api/plan", method="POST", data=payload,
                        headers={"Content-Type": "application/x-www-form-urlencoded"})
+        # Articulated-specific optimizer controls must propagate through
+        # POST parsing and the 4D planner without changing rigid defaults.
+        art_form={"scenario":"open","model":"articulated",
+                  "startx":"10","starty":"15","startyaw":"0",
+                  "goalx":"10","goaly":"15","goalyaw":"0"}
+        for mode, weight in (("grid","1.0"),("analytic","1.0"),
+                             ("combined","1.2")):
+            code, _, body = post({**art_form,"artHeuristicMode":mode,
+                                   "artHeuristicWeight":weight,
+                                   "artCoupledMotion":"0","artSweptAabb":"0"})
+            parsed=json.loads(body)
+            assert code==200 and parsed["original"]["status"]=="Success", body
+            assert parsed["original"]["validated"] is True
+            assert parsed["articulatedSearch"]=={
+                "heuristicMode":mode,"heuristicWeight":float(weight),
+                "enableCoupledMotion":False,"useSweptAabbPrefilter":False
+            }
+        code, _, body=post(art_form)
+        assert code==200
+        assert json.loads(body)["articulatedSearch"]=={
+            "heuristicMode":"grid","heuristicWeight":1.0,
+            "enableCoupledMotion":True,"useSweptAabbPrefilter":True
+        }
+        for bad in (
+            {"artHeuristicMode":"unknown"},
+            {"artHeuristicMode":""},
+            {"artHeuristicWeight":"0"},
+            {"artHeuristicWeight":"-1"},
+            {"artHeuristicWeight":"3.1"},
+            {"artHeuristicWeight":"nan"},
+            {"artHeuristicWeight":"1foo"},
+            {"artCoupledMotion":"perhaps"},
+            {"artSweptAabb":"2"},
+            {"artHeuristic":"grid"},
+        ):
+            code, _, body=post({**art_form,**bad})
+            assert code==400 and "error" in json.loads(body), bad
+        code, _, body=post({"scenario":"open","model":"ackermann",
+                             "artHeuristicMode":"combined"})
+        assert code==400 and "error" in json.loads(body)
         # Differential-drive mode is served by the same C++ planner, with
         # model-specific geometry and nonzero-cost rotation in place.
         code, _, body = post({"scenario": "open", "model": "differential",
