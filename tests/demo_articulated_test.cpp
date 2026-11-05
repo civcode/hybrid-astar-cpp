@@ -2,6 +2,7 @@
 #include "apps/demo/demo.hpp"
 #include <cmath>
 #include <numbers>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -149,4 +150,65 @@ TEST_CASE("Planning Lab articulated adapter uses immutable edited map and inflat
   result=demo::runArticulated(o);
   REQUIRE(result.result.status==art::Status::StartInCollision);
   REQUIRE(result.map->revision>1);
+}
+
+TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and round-trip in JSON",
+          "[articulated][demo][heuristic][options]") {
+  demo::Options options;
+  options.model="articulated";
+  options.scenario="open";
+  options.start=hybrid_astar::Pose2D{10,15,0};
+  options.goal=options.start;
+  options.maxExpansions=1000;
+  auto defaultRun=demo::runArticulated(options);
+  REQUIRE(defaultRun.result.status==art::Status::Success);
+  REQUIRE(defaultRun.settings.heuristicMode==art::HeuristicMode::ObstacleGrid);
+  REQUIRE(defaultRun.settings.heuristicWeight==1.0);
+  REQUIRE(defaultRun.settings.enableCoupledMotion);
+  REQUIRE(defaultRun.settings.useSweptAabbPrefilter);
+  const auto defaultJson=demo::articulatedToJson(defaultRun);
+  REQUIRE(defaultJson.find(
+    "\"articulatedSearch\":{\"heuristicMode\":\"grid\",\"heuristicWeight\":1,")!=
+    std::string::npos);
+
+  for(const auto mode:{art::HeuristicMode::AnalyticOnly,art::HeuristicMode::Combined}) {
+    options.articulatedHeuristicMode=mode;
+    options.articulatedHeuristicWeight=1.2;
+    options.articulatedEnableCoupledMotion=false;
+    options.articulatedUseSweptAabbPrefilter=false;
+    const auto changed=demo::runArticulated(options);
+    REQUIRE(changed.result.status==art::Status::Success);
+    REQUIRE(changed.result.independentlySampledBodyValidated);
+    REQUIRE(changed.settings.heuristicMode==mode);
+    REQUIRE(changed.settings.heuristicWeight==1.2);
+    REQUIRE_FALSE(changed.settings.enableCoupledMotion);
+    REQUIRE_FALSE(changed.settings.useSweptAabbPrefilter);
+    const auto json=demo::articulatedToJson(changed);
+    REQUIRE(json.find("\"heuristicMode\":\""+
+      std::string(mode==art::HeuristicMode::Combined?"combined":"analytic")+"\"")!=
+      std::string::npos);
+    REQUIRE(json.find("\"heuristicWeight\":1.2")!=std::string::npos);
+    REQUIRE(json.find("\"enableCoupledMotion\":false")!=std::string::npos);
+    REQUIRE(json.find("\"useSweptAabbPrefilter\":false")!=std::string::npos);
+  }
+}
+
+TEST_CASE("Planning Lab rejects invalid articulated heuristic weights and enum values",
+          "[articulated][demo][heuristic][invalid]") {
+  demo::Options options;
+  options.model="articulated";
+  options.scenario="open";
+  options.start=hybrid_astar::Pose2D{10,15,0};
+  options.goal=options.start;
+  options.articulatedHeuristicWeight=0.0;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedHeuristicWeight=-1.0;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedHeuristicWeight=3.01;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedHeuristicWeight=std::numeric_limits<double>::infinity();
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedHeuristicWeight=1.0;
+  options.articulatedHeuristicMode=static_cast<art::HeuristicMode>(99);
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
 }
