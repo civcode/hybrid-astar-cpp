@@ -13,8 +13,10 @@ namespace ac=hybrid_astar::ackermann;
 int main(int argc,char** argv) {
   try {
     const std::string mode=argc>1?argv[1]:"coupled";
-    if(mode!="legacy"&&mode!="coupled"&&mode!="coupled-no-fast")
-      throw std::invalid_argument("Use legacy | coupled | coupled-no-fast");
+    if(mode!="legacy"&&mode!="coupled"&&mode!="coupled-no-fast"&&
+       mode!="analytic-only"&&mode!="combined"&&mode!="weighted")
+      throw std::invalid_argument(
+          "Use legacy | coupled | coupled-no-fast | analytic-only | combined | weighted");
     auto map=std::make_shared<ac::MapSnapshot>();
     map->width=200;map->height=160;map->resolutionMeters=.25;
     map->origin={0,0,0};
@@ -38,8 +40,15 @@ int main(int argc,char** argv) {
     request.options.maxExpansions=1000000;
     request.options.maxGenerated=4000000;
     request.options.enableCoupledMotion=mode!="legacy";
-    request.options.useSweptAabbPrefilter=mode=="coupled";
+    request.options.useSweptAabbPrefilter=
+        mode!="legacy"&&mode!="coupled-no-fast";
     if(mode=="legacy")request.options.stationaryArticulationPenaltyMeters=0;
+    if(mode=="analytic-only")
+      request.options.heuristicMode=as::HeuristicMode::AnalyticOnly;
+    if(mode=="combined"||mode=="weighted")
+      request.options.heuristicMode=as::HeuristicMode::Combined;
+    // Weighted is explicitly a non-optimal, experimental search ordering.
+    if(mode=="weighted")request.options.heuristicWeight=1.5;
     const auto started=std::chrono::steady_clock::now();
     const auto result=as::plan(request);
     const double elapsed=std::chrono::duration<double,std::milli>(
