@@ -1,9 +1,11 @@
 #include "hybrid_astar/articulated_steering/planner.hpp"
+#include "hybrid_astar/articulated_steering/heuristic.hpp"
 #include "hybrid_astar/ackermann/obstacle_grid.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <optional>
 #include <queue>
 #include <stdexcept>
 #include <unordered_map>
@@ -461,8 +463,25 @@ Result plan(const Request& r) {
     out.diagnostics.precomputedStationaryRk4Templates=primitives.stationaryRk4Count;
     out.diagnostics.precomputedCoupledRk4Templates=primitives.coupledRk4Count;
     out.diagnostics.precomputedSampleCount=primitives.sampleCount;
+    // Build the ODE-specific lower bound once. B(gamma), the transformed
+    // heading offset, is cached per actual articulation lattice value.
+    // No RK4 or OMPL calls occur in heuristic evaluation.
+    std::optional<AnalyticGoalHeuristic> analyticGoal;
+    std::vector<double> headingOffsets;
+    if(r.options.heuristicMode!=HeuristicMode::ObstacleGrid) {
+      analyticGoal.emplace(r.parameters,r.goal,
+          GoalHeuristicTolerances{
+              r.options.goalXYToleranceMeters,
+              r.options.goalYawToleranceRadians,
+              r.options.goalGammaToleranceRadians},
+          r.options.articulationCostMetersPerRadian);
+      headingOffsets.reserve(primitives.angles.size());
+      for(double gamma:primitives.angles)
+        headingOffsets.push_back(analyticGoal->headingOffset(gamma));
+    }
     std::unique_ptr<ackermann::LazyGrid<Diagnostics>> grid;
-    if(r.options.useObstacleGridHeuristic) {
+    if(r.options.useObstacleGridHeuristic&&
+       r.options.heuristicMode!=HeuristicMode::AnalyticOnly) {
       grid=std::make_unique<ackermann::LazyGrid<Diagnostics>>(
           *r.map,r.occupancy,
           Pose2D{r.goal.xr,r.goal.yr,r.goal.thetaRear},
@@ -471,11 +490,20 @@ Result plan(const Request& r) {
           r.options.gridMaxTotalSettlements,
           true,ackermann::OpenQueueMode::BinaryLazy,out.diagnostics);
     }
-    const auto estimate=[&](const RearState& pose) {
-      const double euclidean=std::hypot(pose.xr-r.goal.xr,pose.yr-r.goal.yr);
-      const double guidance=grid
-          ?grid->estimate({pose.xr,pose.yr,pose.thetaRear},euclidean)
-          :euclidean;
+    const auto estimate=[&](const RearState& pose,std::size_t gammaIndex) {
+      double guidance=0.0;
+      if(r.options.heuristicMode==HeuristicMode::AnalyticOnly) {
+        guidance=analyticGoal->estimate(pose,headingOffsets[gammaIndex]);
+      } else {
+        // Preserve the original rear-XY/grid fallback for the baseline and
+        // combined performance modes (this field is not a certified bound).
+        const double euclidean=std::hypot(pose.xr-r.goal.xr,pose.yr-r.goal.yr);
+        guidance=grid
+            ?grid->estimate({pose.xr,pose.yr,pose.thetaRear},euclidean)
+            :euclidean;
+        if(analyticGoal)
+          guidance=std::max(guidance,analyticGoal->estimate(pose,headingOffsets[gammaIndex]));
+      }
       return r.options.heuristicWeight*guidance;
     };
     std::vector<Node> nodes;
@@ -488,7 +516,7 @@ Result plan(const Request& r) {
     best.reserve(std::min<std::size_t>(r.options.maxGenerated,16384));
     best.emplace(rootKey,Best{0.0,0});
     std::priority_queue<HeapItem> open;
-    open.push({estimate(r.start),0});
+    open.push({estimate(r.start,primitives.initialIndex),0});
     bool sampledIncomplete=false;
     while(!open.empty()) {
       if(cancelled(r)){out.status=Status::Cancelled;return out;}
@@ -563,7 +591,7 @@ Result plan(const Request& r) {
                            newG,templateMotion.targetGammaIndex});
           best[key]={newG,id};
           ++out.diagnostics.generated;
-          open.push({newG+estimate(rear),id});
+          open.push({newG+estimate(rear,templateMotion.targetGammaIndex),id});
         } catch(const std::length_error&) {
           sampledIncomplete=true;
           ++out.diagnostics.rejectedInvalidMotion;
