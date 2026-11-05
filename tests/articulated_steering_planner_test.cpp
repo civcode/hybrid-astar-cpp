@@ -460,8 +460,11 @@ TEST_CASE("Analytic articulated bounds never exceed feasible RK4 motion cost",
       nominalGoal.yr+=.1*random(rng);
       nominalGoal.thetaRear+=.1*random(rng);
       nominalGoal.gamma+=.05*random(rng);
-      as::AnalyticGoalHeuristic h(p,nominalGoal,{.2,.15,.1},.25);
-      const double drive=std::abs(control.frontSpeedMetersPerSecond)*dt;
+      const double reverseMultiplier=i%2==0?.65:1.1;
+      as::AnalyticGoalHeuristic h(p,nominalGoal,{.2,.15,.1},.25,
+                                  reverseMultiplier);
+      const double drive=std::abs(control.frontSpeedMetersPerSecond)*dt*
+          (control.frontSpeedMetersPerSecond<0.0?reverseMultiplier:1.0);
       const double joint=std::abs(control.gammaRateRadiansPerSecond)*dt*.25;
       const double feasibleCost=drive+joint+
           (control.frontSpeedMetersPerSecond==0.0 ? .15 : 0.0);
