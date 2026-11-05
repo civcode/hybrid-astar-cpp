@@ -260,12 +260,20 @@ function stats(result) {
     ?' · grid '+(result.original.gridSettlements||0).toLocaleString()+' settled, '
       +(result.original.gridFallbacks||0).toLocaleString()+' fallbacks'
     :'';
+  const effectiveSearch=result.model==='articulated'?result.articulatedSearch:null;
+  const heuristicNote=effectiveSearch
+    ?' · '+({grid:'Obstacle grid',analytic:'Analytical',combined:'Combined'}[
+        effectiveSearch.heuristicMode]||effectiveSearch.heuristicMode)+
+      ' ×'+effectiveSearch.heuristicWeight+
+      ' · coupled '+(effectiveSearch.enableCoupledMotion?'on':'off')+
+      ' · swept-AABB '+(effectiveSearch.useSweptAabbPrefilter?'on':'off')
+    :'';
   $('message').textContent=(valid?(result.model==='articulated'
     ?'Experimental articulated path · '+status+' · two-carriage independently sampled checks · not swept certified'
     :'Validated geometric path · '+status+(refinement?' · refinement: '+refinement+acceptedLabel:'')+' · sampled footprint checking'):
     ('No validated path · '+status+failureDetail+
      (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions':'')))+
-    templateNote+gridNote+broadphaseNote+motionNote;
+    templateNote+gridNote+broadphaseNote+motionNote+heuristicNote;
   $('cost').textContent=valid?path.cost.toFixed(2)+' m':'—';
   $('length').textContent=valid?path.length.toFixed(2)+' m':'—';
   $('reverseLen').textContent=valid?path.reverseLength.toFixed(2)+' m':'—';
@@ -295,6 +303,9 @@ function syncModelOptions() {
   const ackermann=model==='ackermann';
   const articulated=model==='articulated';
   $('articulatedControls').hidden=!articulated;
+  for(const id of ['artHeuristicMode','artHeuristicWeight',
+                   'artCoupledMotion','artSweptAabb'])
+    $(id).disabled=!articulated;
   if(articulated) {
     // These features are built for rigid three-state paths. Never send an
     // unsupported RS/refinement/heuristic request to the 4D planner.
@@ -381,6 +392,10 @@ async function replan() {
                       'artFrontRearX','artFrontFrontX','artFrontHalfWidth',
                       'artRearRearX','artRearFrontX','artRearHalfWidth'])
       params.set(key,$(key).value.trim());
+    params.set('artHeuristicMode',$('artHeuristicMode').value);
+    params.set('artHeuristicWeight',$('artHeuristicWeight').value.trim());
+    params.set('artCoupledMotion',$('artCoupledMotion').checked?'1':'0');
+    params.set('artSweptAabb',$('artSweptAabb').checked?'1':'0');
   }
   if($('refine').checked)
     params.set('maxAccepted',$('maxAccepted').value);
@@ -458,6 +473,15 @@ $('refine').addEventListener('change',()=>{syncModelOptions();invalidateRoute();
 $('maxAccepted').addEventListener('change',invalidateRoute);
 $('steeringSmooth').addEventListener('change',()=>{syncModelOptions();invalidateRoute();});
 $('steeringWeight').addEventListener('change',invalidateRoute);
+$('artHeuristicMode').addEventListener('change',()=>{
+  // A selectable, measured performance preset; keep the library's default
+  // grid + weight 1.0 unchanged for existing callers and requests.
+  $('artHeuristicWeight').value=$('artHeuristicMode').value==='combined'?'1.2':'1.0';
+  invalidateRoute();
+});
+$('artHeuristicWeight').addEventListener('input',invalidateRoute);
+$('artCoupledMotion').addEventListener('change',invalidateRoute);
+$('artSweptAabb').addEventListener('change',invalidateRoute);
 $('ompl').addEventListener('change',syncModelOptions);
 $('performance').addEventListener('change',syncModelOptions);
 $('inflate').addEventListener('change',()=>{
