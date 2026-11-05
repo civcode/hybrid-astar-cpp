@@ -40,6 +40,11 @@ struct SearchOptions {
   double reverseCostMultiplier=1.1;
   // Performance ordering only: not a certified lower bound and not optimal.
   double heuristicWeight=1.0;
+  // Shared Ackermann reverse-Dijkstra occupancy guidance (performance only).
+  // The grid is a point-robot relaxation, not an articulated clearance oracle.
+  bool useObstacleGridHeuristic=true;
+  std::size_t gridMaxSettlementsPerQuery=500;
+  std::size_t gridMaxTotalSettlements=100000;
   // Match the Planning Lab's user-configurable 1M expansion ceiling.
   // Allow four generated labels per expansion on average; these are
   // independent work/memory budgets, not guaranteed memory reservations.
@@ -93,6 +98,13 @@ struct Diagnostics {
   std::size_t precomputedStationaryRk4Templates=0;
   std::size_t precomputedSampleCount=0;
   std::size_t appliedPrecomputedTemplates=0;
+  // Names match the shared grid's generic diagnostics interface.
+  std::size_t gridSettlements=0,gridFallbacks=0;
+  std::size_t gridSeedCellsExamined=0,gridSeedCellsAccepted=0;
+  std::size_t gridQueuePushes=0,gridQueuePops=0,gridQueueStalePops=0;
+  std::size_t gridQueuePeakSize=0,gridQueuePeakStorageBytes=0;
+  std::size_t gridBlockedQueryFallbacks=0,gridWorkBudgetFallbacks=0;
+  std::uint64_t gridQueueNanoseconds=0;
 };
 struct Result {
   Status status=Status::InvalidRequest;

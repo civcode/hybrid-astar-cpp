@@ -1,4 +1,5 @@
 #include "hybrid_astar/articulated_steering/planner.hpp"
+#include "hybrid_astar/ackermann/obstacle_grid.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -92,12 +93,6 @@ double transitionCost(const ControlPrimitive& primitive,
   const double cost=length*(primitive.gear<0?o.reverseCostMultiplier:1.0)+
                     joint*o.articulationCostMetersPerRadian;
   return cost;
-}
-double heuristic(const RearState& state,const RearState& goal,
-                 const SearchOptions& o) {
-  // Performance ordering only; rear translation may be induced by joint
-  // motion and the XY heuristic is NOT claimed admissible.
-  return o.heuristicWeight*std::hypot(state.xr-goal.xr,state.yr-goal.yr);
 }
 bool atGoal(const RearState& a,const RearState& b,const SearchOptions& o) {
   return std::hypot(a.xr-b.xr,a.yr-b.yr)<=o.goalXYToleranceMeters&&
@@ -399,6 +394,28 @@ Result plan(const Request& r) {
     if(!body->clear(model,start)){out.status=Status::StartInCollision;return out;}
     out.diagnostics.searchBodyChecks+=2;
     if(!body->clear(model,goal)){out.status=Status::GoalInCollision;return out;}
+    // Build the request-local lattice before reading its start index.
+    PrimitiveLibrary primitives(model,*body,r.options,r.start.gamma,r.goal.gamma);
+    out.diagnostics.precomputedAnalyticDriveTemplates=primitives.analyticDriveCount;
+    out.diagnostics.precomputedStationaryRk4Templates=primitives.stationaryRk4Count;
+    out.diagnostics.precomputedSampleCount=primitives.sampleCount;
+    std::unique_ptr<ackermann::LazyGrid<Diagnostics>> grid;
+    if(r.options.useObstacleGridHeuristic) {
+      grid=std::make_unique<ackermann::LazyGrid<Diagnostics>>(
+          *r.map,r.occupancy,
+          ackermann::Pose2D{r.goal.xr,r.goal.yr,r.goal.thetaRear},
+          r.options.goalXYToleranceMeters,
+          r.options.gridMaxSettlementsPerQuery,
+          r.options.gridMaxTotalSettlements,
+          true,ackermann::OpenQueueMode::BinaryLazy,out.diagnostics);
+    }
+    const auto estimate=[&](const RearState& pose) {
+      const double euclidean=std::hypot(pose.xr-r.goal.xr,pose.yr-r.goal.yr);
+      const double guidance=grid
+          ?grid->estimate({pose.xr,pose.yr,pose.thetaRear},euclidean)
+          :euclidean;
+      return r.options.heuristicWeight*guidance;
+    };
     std::vector<Node> nodes;
     nodes.reserve(std::min<std::size_t>(r.options.maxGenerated,16384));
     const auto rootKey=makeSearchKey(r.start,0,r.options,r.parameters);
@@ -409,11 +426,7 @@ Result plan(const Request& r) {
     best.reserve(std::min<std::size_t>(r.options.maxGenerated,16384));
     best.emplace(rootKey,Best{0.0,0});
     std::priority_queue<HeapItem> open;
-    open.push({heuristic(r.start,r.goal,r.options),0});
-    PrimitiveLibrary primitives(model,*body,r.options,r.start.gamma,r.goal.gamma);
-    out.diagnostics.precomputedAnalyticDriveTemplates=primitives.analyticDriveCount;
-    out.diagnostics.precomputedStationaryRk4Templates=primitives.stationaryRk4Count;
-    out.diagnostics.precomputedSampleCount=primitives.sampleCount;
+    open.push({estimate(r.start),0});
     bool sampledIncomplete=false;
     while(!open.empty()) {
       if(cancelled(r)){out.status=Status::Cancelled;return out;}
@@ -477,7 +490,7 @@ Result plan(const Request& r) {
                            newG,templateMotion.targetGammaIndex});
           best[key]={newG,id};
           ++out.diagnostics.generated;
-          open.push({newG+heuristic(rear,r.goal,r.options),id});
+          open.push({newG+estimate(rear),id});
         } catch(const std::length_error&) {
           sampledIncomplete=true;
           ++out.diagnostics.rejectedInvalidMotion;

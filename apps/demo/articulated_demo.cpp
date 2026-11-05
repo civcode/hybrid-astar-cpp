@@ -92,6 +92,9 @@ void pathJson(std::ostream& os,const art::Result& r) {
     <<",\"precomputedStationaryRk4Templates\":"<<r.diagnostics.precomputedStationaryRk4Templates
     <<",\"precomputedSampleCount\":"<<r.diagnostics.precomputedSampleCount
     <<",\"appliedPrecomputedTemplates\":"<<r.diagnostics.appliedPrecomputedTemplates
+    <<",\"gridSettlements\":"<<r.diagnostics.gridSettlements
+    <<",\"gridFallbacks\":"<<r.diagnostics.gridFallbacks
+    <<",\"gridWorkBudgetFallbacks\":"<<r.diagnostics.gridWorkBudgetFallbacks
     <<",\"finalChecks\":"<<r.diagnostics.finalBodyChecks
     <<",\"goalXYErrorMeters\":"<<r.goalXYErrorMeters
     <<",\"goalYawErrorRadians\":"<<r.goalYawErrorRadians

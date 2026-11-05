@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "hybrid_astar/articulated_steering/planner.hpp"
+#include "hybrid_astar/ackermann/obstacle_grid.hpp"
 #include <atomic>
 #include <cmath>
 #include <memory>
@@ -64,6 +65,7 @@ TEST_CASE("Articulated search succeeds on a full-body-checked straight route",
   REQUIRE_FALSE(out.trajectoryActuatorFeasible);
   REQUIRE(out.mapRevision==19);
   REQUIRE(out.diagnostics.generated>1);
+  REQUIRE(out.diagnostics.gridSettlements>0);
   REQUIRE(out.diagnostics.searchBodyChecks>0);
   REQUIRE(out.diagnostics.finalBodyChecks>0);
   REQUIRE(out.motions.size()>=1);
@@ -298,4 +300,43 @@ TEST_CASE("Precomputed analytic arcs preserve unequal-link kinematics",
     REQUIRE(close(motion.start.gamma,motion.end.gamma,1e-9));
   }
   REQUIRE(foundDrive);
+}
+
+
+TEST_CASE("Shared reverse-Dijkstra grid guides articulated search around a wall",
+          "[articulated][heuristic][grid]") {
+  ac::MapSnapshot map;
+  map.width=map.height=7;
+  map.resolutionMeters=1.0;
+  map.cells.assign(49,0);
+  for(std::size_t y=0;y<6;++y)map.cells[y*7+3]=100;
+  as::Diagnostics diagnostics;
+  ac::LazyGrid<as::Diagnostics> grid(map,{},ac::Pose2D{5.5,1.5,0},
+                                     0.2,100,100,true,
+                                     ac::OpenQueueMode::BinaryLazy,diagnostics);
+  // Straight-line XY distance crosses a wall; the raw-grid detour goes via y=6.
+  const double directed=grid.estimate({1.5,1.5,0},4.0);
+  REQUIRE(directed>4.0);
+  REQUIRE(diagnostics.gridSettlements>0);
+  REQUIRE(diagnostics.gridFallbacks==0);
+
+  // Low work budgets must gracefully fall back; never declare NoPath.
+  as::Diagnostics limitedDiagnostics;
+  ac::LazyGrid<as::Diagnostics> limited(map,{},ac::Pose2D{5.5,1.5,0},
+                                        0.2,1,1,true,
+                                        ac::OpenQueueMode::BinaryLazy,
+                                        limitedDiagnostics);
+  REQUIRE(close(limited.estimate({1.5,1.5,0},4.0),4.0));
+  REQUIRE(limitedDiagnostics.gridFallbacks>0);
+}
+
+TEST_CASE("Articulated obstacle-grid guidance can be disabled for A/B testing",
+          "[articulated][heuristic][grid]") {
+  auto r=example();
+  r.goal=endpoint(r,{.5,0},1.0);
+  r.options.useObstacleGridHeuristic=false;
+  const auto result=as::plan(r);
+  REQUIRE(result.status==as::Status::Success);
+  REQUIRE(result.diagnostics.gridSettlements==0);
+  REQUIRE(result.independentlySampledBodyValidated);
 }

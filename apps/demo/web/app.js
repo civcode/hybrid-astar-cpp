@@ -246,12 +246,16 @@ function stats(result) {
     ' · '+cachedArticulated.toLocaleString()+' cached primitives'+
     ', '+(result.original.appliedPrecomputedTemplates||0).toLocaleString()+
     ' applications':'';
+  const gridNote=result.model==='articulated'
+    ?' · grid '+(result.original.gridSettlements||0).toLocaleString()+' settled, '
+      +(result.original.gridFallbacks||0).toLocaleString()+' fallbacks'
+    :'';
   $('message').textContent=(valid?(result.model==='articulated'
     ?'Experimental articulated path · '+status+' · two-carriage independently sampled checks · not swept certified'
     :'Validated geometric path · '+status+(refinement?' · refinement: '+refinement+acceptedLabel:'')+' · sampled footprint checking'):
     ('No validated path · '+status+failureDetail+
      (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions':'')))+
-    templateNote;
+    templateNote+gridNote;
   $('cost').textContent=valid?path.cost.toFixed(2)+' m':'—';
   $('length').textContent=valid?path.length.toFixed(2)+' m':'—';
   $('reverseLen').textContent=valid?path.reverseLength.toFixed(2)+' m':'—';

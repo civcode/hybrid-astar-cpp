@@ -155,9 +155,14 @@ transitions and independently validating the final path**.
   swept-volume, body–body self-collision or control-feasibility
   certificate**.
 - The experimental model **does not** support the rigid
-  Reeds–Shepp connector, rigid post-path smoothing, the
-  improvement policy or obstacle-grid heuristic. Those controls
-  are disabled when articulated steering is selected.
+  Reeds–Shepp connector, rigid post-path smoothing or the
+  improvement policy. Those controls remain disabled when articulated
+  steering is selected. It **does reuse the Ackermann planner's
+  request-local lazy reverse-Dijkstra obstacle-grid heuristic** by default;
+  this is a point-robot relaxation for search ordering, not a clearance
+  guarantee, certified lower bound or NoPath proof. Bounded/unsettled grid
+  queries fall back to straight-line distance. The C++ option
+  `useObstacleGridHeuristic=false` allows controlled A/B comparisons.
   Articulated planning honors the same user-configurable
   **1,000,000-expansion ceiling** as the three rigid models;
   its separate generated-node budget is four times the selected
