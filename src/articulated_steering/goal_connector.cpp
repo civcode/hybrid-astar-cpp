@@ -5,6 +5,7 @@
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <utility>
 
 namespace hybrid_astar::articulated_steering {
 namespace {
