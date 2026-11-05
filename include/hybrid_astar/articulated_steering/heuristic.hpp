@@ -15,15 +15,17 @@ struct GoalHeuristicTolerances {
 
 // Obstacle-free lower bound on the planner's driving + articulation effort.
 // Valid for the no-slip articulated ODE, a feasible positive D(gamma),
-// nonnegative tolerances/costs and reverse driving multiplier >= 1.
+// nonnegative tolerances/costs and a positive reverse driving multiplier.
 // Does not model collisions, steering transition penalties, or time.
 class AnalyticGoalHeuristic {
 public:
   AnalyticGoalHeuristic(Parameters p, RearState goal,
                         GoalHeuristicTolerances tolerance,
-                        double articulationCostMetersPerRadian)
+                        double articulationCostMetersPerRadian,
+                        double reverseCostMultiplier=1.0)
       : p_(p),goal_(goal),tolerance_(tolerance),
-        articulationCost_(articulationCostMetersPerRadian) {
+        articulationCost_(articulationCostMetersPerRadian),
+        driveCostPerMeter_(std::min(1.0,reverseCostMultiplier)) {
     const double a=p_.LrMeters,b=p_.LfMeters;
     const auto curvature=[&](double gamma) {
       return std::abs(std::sin(gamma)/(a+b*std::cos(gamma)));
@@ -93,7 +95,7 @@ public:
         ?std::max(0.0,angle-headingTolerance_)/maxHeadingPerFrontMeter_:0.0;
     const double joint=articulationCost_*std::max(0.0,
         std::abs(goal_.gamma-from.gamma)-tolerance_.gammaRadians);
-    return std::max(front,heading)+joint;
+    return driveCostPerMeter_*std::max(front,heading)+joint;
   }
 
 private:
@@ -101,6 +103,7 @@ private:
   RearState goal_;
   GoalHeuristicTolerances tolerance_;
   double articulationCost_;
+  double driveCostPerMeter_;
   double maxHeadingPerFrontMeter_=0.0;
   double maxHeadingOffsetPerGamma_=0.0;
   double goalHeading_=0.0,goalFrontX_=0.0,goalFrontY_=0.0;
