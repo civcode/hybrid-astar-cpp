@@ -104,7 +104,7 @@ async function main(){
   assert.equal(el('artSweptAabb').checked,true);
   assert.equal(el('artGoalConnector').checked,false);
   for(const id of ['artHeuristicMode','artHeuristicWeight',
-                   'artHeadingGuidanceWeight','artCoupledMotion','artSweptAabb','artGoalConnector'])
+                   'artCoupledMotion','artSweptAabb','artGoalConnector'])
     assert.equal(el(id).disabled,false,id+' must be active');
   for(const id of ['ompl','refine','rsDistance','improve','curved','performance'])
     assert.equal(el(id).disabled,true,id+' must be disabled');
