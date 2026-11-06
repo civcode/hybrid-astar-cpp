@@ -226,6 +226,16 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     REQUIRE(json.find("\"anytimeFirstCostMeters\"")!=std::string::npos);
     REQUIRE(json.find("\"anytimeBestCostMeters\"")!=std::string::npos);
     REQUIRE(json.find("\"goalConnectorAttempts\"")!=std::string::npos);
+    REQUIRE(json.find("\"goalConnectorOneArcProposals\"")!=std::string::npos);
+    REQUIRE(json.find("\"goalConnectorTwoArcProposals\"")!=std::string::npos);
+    REQUIRE(json.find("\"goalConnectorThreeArcProposals\"")!=std::string::npos);
+    REQUIRE(json.find("\"goalConnectorTailDrivingMeters\"")!=std::string::npos);
+    REQUIRE(json.find("\"goalConnectorTailStationarySeconds\"")!=std::string::npos);
+    REQUIRE(json.find("\"goalConnectorTailArticulationReversals\"")!=std::string::npos);
+    REQUIRE(json.find("\"goalConnectorTailQualityScoreMeters\"")!=std::string::npos);
+    REQUIRE(json.find("\"anytimePacedDeferrals\"")!=std::string::npos);
+    REQUIRE(json.find("\"anytimeFirstExtraShotExpansion\"")!=std::string::npos);
+    REQUIRE(json.find("\"anytimeLastExtraShotExpansion\"")!=std::string::npos);
   }
 }
 
