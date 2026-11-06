@@ -81,6 +81,17 @@ public:
   double estimate(RearState from) const noexcept {
     return estimate(from,headingOffset(from.gamma));
   }
+  // Separate no-slip driving-distance requirement for corrected heading.
+  // May be used as an extra performance-only tie-breaking/emphasis term
+  // when the 2D obstacle grid otherwise masks large yaw discrepancies.
+  double headingDrivingCost(RearState from,double fromHeadingOffset) const noexcept {
+    const double angle=std::abs(std::remainder(
+        goalHeading_-(from.thetaRear+fromHeadingOffset),2.0*std::numbers::pi_v<double>));
+    return maxHeadingPerFrontMeter_>0.0
+        ?driveCostPerMeter_*std::max(0.0,angle-headingTolerance_)/
+             maxHeadingPerFrontMeter_:0.0;
+  }
+
   // Reuse B(gamma) precomputed for the request-local gamma lattice.
   double estimate(RearState from,double fromHeadingOffset) const noexcept {
     const double a=p_.LrMeters,b=p_.LfMeters;
