@@ -164,6 +164,7 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
   REQUIRE(defaultRun.result.status==art::Status::Success);
   REQUIRE(defaultRun.settings.heuristicMode==art::HeuristicMode::ObstacleGrid);
   REQUIRE(defaultRun.settings.heuristicWeight==1.0);
+  REQUIRE(defaultRun.settings.goalHeadingGuidanceWeight==0.8);
   REQUIRE(defaultRun.settings.enableCoupledMotion);
   REQUIRE(defaultRun.settings.useSweptAabbPrefilter);
   REQUIRE_FALSE(defaultRun.settings.enableGoalConnector);
@@ -174,9 +175,12 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     "\"articulatedSearch\":{\"heuristicMode\":\"grid\",\"heuristicWeight\":1,")!=
     std::string::npos);
 
-  for(const auto mode:{art::HeuristicMode::AnalyticOnly,art::HeuristicMode::Combined}) {
+  for(const auto mode:{art::HeuristicMode::AnalyticOnly,
+                       art::HeuristicMode::Combined,
+                       art::HeuristicMode::CombinedHeadingAware}) {
     options.articulatedHeuristicMode=mode;
     options.articulatedHeuristicWeight=1.2;
+    options.articulatedHeadingGuidanceWeight=1.4;
     options.articulatedEnableCoupledMotion=false;
     options.articulatedUseSweptAabbPrefilter=false;
     options.articulatedEnableGoalConnector=true;
@@ -185,13 +189,16 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     REQUIRE(changed.result.independentlySampledBodyValidated);
     REQUIRE(changed.settings.heuristicMode==mode);
     REQUIRE(changed.settings.heuristicWeight==1.2);
+    REQUIRE(changed.settings.goalHeadingGuidanceWeight==1.4);
     REQUIRE_FALSE(changed.settings.enableCoupledMotion);
     REQUIRE_FALSE(changed.settings.useSweptAabbPrefilter);
     REQUIRE(changed.settings.enableGoalConnector);
     const auto json=demo::articulatedToJson(changed);
-    REQUIRE(json.find("\"heuristicMode\":\""+
-      std::string(mode==art::HeuristicMode::Combined?"combined":"analytic")+"\"")!=
+    const std::string expectedMode=mode==art::HeuristicMode::AnalyticOnly
+        ?"analytic":mode==art::HeuristicMode::Combined?"combined":"heading";
+    REQUIRE(json.find("\"heuristicMode\":\""+expectedMode+"\"")!=
       std::string::npos);
+    REQUIRE(json.find("\"headingGuidanceWeight\":1.4")!=std::string::npos);
     REQUIRE(json.find("\"heuristicWeight\":1.2")!=std::string::npos);
     REQUIRE(json.find("\"enableCoupledMotion\":false")!=std::string::npos);
     REQUIRE(json.find("\"useSweptAabbPrefilter\":false")!=std::string::npos);
@@ -216,6 +223,11 @@ TEST_CASE("Planning Lab rejects invalid articulated heuristic weights and enum v
   options.articulatedHeuristicWeight=std::numeric_limits<double>::infinity();
   REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
   options.articulatedHeuristicWeight=1.0;
+  options.articulatedHeadingGuidanceWeight=-1.0;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedHeadingGuidanceWeight=3.01;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedHeadingGuidanceWeight=0.8;
   options.articulatedHeuristicMode=static_cast<art::HeuristicMode>(99);
   REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
 }
