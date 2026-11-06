@@ -3,6 +3,7 @@
 #include "hybrid_astar/articulated_steering/planner.hpp"
 #include "hybrid_astar/articulated_steering/heuristic.hpp"
 #include "hybrid_astar/articulated_steering/goal_connector.hpp"
+#include "hybrid_astar/articulated_steering/coarse_obstacle_grid.hpp"
 #include "hybrid_astar/ackermann/obstacle_grid.hpp"
 #include <array>
 #include <atomic>
@@ -703,5 +704,106 @@ TEST_CASE("Anytime articulated connector requires explicit opt-in and valid budg
   REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
   r.options.anytimeExtraExpansions=20;
   r.options.anytimeExtraConnectorAttempts=1001;
+  REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+}
+
+TEST_CASE("Coarse obstacle potential fully settles a conservative 2D detour",
+          "[articulated][heuristic][coarse]") {
+  ac::MapSnapshot map;
+  map.width=map.height=30;
+  map.resolutionMeters=.05;
+  map.cells.assign(map.width*map.height,0);
+  // This wall must be routed around at the far end. Unlike the native
+  // 500-settlement lazy search, the coarse field is fully precomputed.
+  for(std::size_t y=0;y<24;++y)
+    for(std::size_t x=14;x<=15;++x)
+      map.cells[y*map.width+x]=100;
+  as::Diagnostics diag;
+  as::CoarseObstacleGrid grid(map,{},hybrid_astar::Pose2D{1.275,.225,0},
+                               .05,.15,diag);
+  REQUIRE(grid.cellCount()==100);
+  REQUIRE(grid.resolutionMeters()==Catch::Approx(.15));
+  REQUIRE(diag.coarseGridCells==100);
+  REQUIRE(diag.coarseGridBlockedCells>0);
+  REQUIRE(diag.coarseGridSeedCells>0);
+  REQUIRE(diag.coarseGridSettlements>0);
+  const double euclidean=1.05;
+  const double detour=grid.estimate(.225,.225,euclidean);
+  REQUIRE(detour>euclidean+.05);
+  REQUIRE(diag.coarseGridQueries==1);
+  REQUIRE(diag.coarseGridFallbacks==0);
+  REQUIRE(diag.gridSettlements==0);
+  REQUIRE(diag.gridWorkBudgetFallbacks==0);
+}
+
+TEST_CASE("Conservative coarse-grid corridor loss never declares NoPath",
+          "[articulated][heuristic][coarse][narrow]") {
+  ac::MapSnapshot map;
+  map.width=map.height=30;
+  map.resolutionMeters=.05;
+  map.cells.assign(900,0);
+  // A real one-cell opening exists at y=14. The coarse bin containing
+  // the opening also contains occupied wall cells, so its entire
+  // 0.15m tile is conservatively blocked.
+  for(std::size_t y=0;y<30;++y)
+    if(y!=14)map.cells[y*30+14]=100;
+  as::Diagnostics diag;
+  as::CoarseObstacleGrid grid(map,{},hybrid_astar::Pose2D{1.275,.725,0},
+                               .05,.15,diag);
+  REQUIRE(diag.coarseGridBlockedCells>=10);
+  REQUIRE(diag.coarseGridSeedCells>0);
+  const double direct=1.05;
+  REQUIRE(grid.estimate(.225,.725,direct)==Catch::Approx(direct));
+  REQUIRE(diag.coarseGridFallbacks==1);
+  REQUIRE(diag.coarseGridQueries==1);
+}
+
+TEST_CASE("Coarse obstacle grid aligns rotated maps and unknown cells",
+          "[articulated][heuristic][coarse][rotation]") {
+  ac::MapSnapshot map;
+  map.width=map.height=12;
+  map.resolutionMeters=.05;
+  map.origin={3.0,-2.0,std::numbers::pi_v<double>/2};
+  map.cells.assign(144,0);
+  map.cells[1*12+1]=-1;
+  as::Diagnostics diag;
+  as::CoarseObstacleGrid grid(map,{},hybrid_astar::Pose2D{2.525,-1.475,0},
+                               .04,.15,diag);
+  REQUIRE(grid.cellCount()==16);
+  REQUIRE(diag.coarseGridBlockedCells>=1);
+  REQUIRE(diag.coarseGridSettlements>0);
+  const auto potential=grid.estimate(2.525,-1.475,0.0);
+  REQUIRE(std::isfinite(potential));
+  REQUIRE(diag.coarseGridFallbacks==0);
+  REQUIRE(grid.estimate(10,10,5.0)==Catch::Approx(5.0));
+  REQUIRE(diag.coarseGridFallbacks==1);
+}
+
+TEST_CASE("Combined coarse heuristic remains independently validated",
+          "[articulated][heuristic][coarse][strict]") {
+  auto r=example();
+  r.goal=endpoint(r,{.5,0},1.0);
+  r.options.heuristicMode=as::HeuristicMode::CombinedCoarseGrid;
+  r.options.heuristicWeight=1.2;
+  const auto out=as::plan(r);
+  REQUIRE(out.status==as::Status::Success);
+  REQUIRE(out.independentlySampledBodyValidated);
+  REQUIRE(out.diagnostics.gridSettlements==0);
+  REQUIRE(out.diagnostics.gridWorkBudgetFallbacks==0);
+  REQUIRE(out.diagnostics.coarseGridCells>0);
+  REQUIRE(out.diagnostics.coarseGridSeedCells>0);
+  REQUIRE(out.diagnostics.coarseGridQueries>0);
+  REQUIRE(out.diagnostics.coarseGridBuildMilliseconds>=0.0);
+  REQUIRE(out.goalXYErrorMeters<=r.options.goalXYToleranceMeters);
+  REQUIRE(out.goalYawErrorRadians<=r.options.goalYawToleranceRadians);
+  REQUIRE(out.goalGammaErrorRadians<=r.options.goalGammaToleranceRadians);
+  as::Model model(r.parameters);
+  as::BodyCollisionChecker checker(*r.map,r.occupancy,r.bodies);
+  for(const auto& motion:out.motions)
+    for(const auto& sample:motion.samples)
+      REQUIRE(checker.clear(model,sample.state));
+  r.options.coarseGridResolutionMeters=0.0;
+  REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+  r.options.coarseGridResolutionMeters=2.1;
   REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
 }
