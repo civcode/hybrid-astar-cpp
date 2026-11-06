@@ -82,490 +82,137 @@ conservatively. This is a bound for the ideal no-slip kinematic cost,
 not an actuator, obstacle, continuous swept-volume, or path-optimality
 certificate.
 
-## Native adaptive articulated goal connector (experimental)
+## Native adaptive articulated goal connector
 
-The opt-in `SearchOptions::enableGoalConnector` adds an articulated-
-specific goal connection attempt to the normal four-state search. It
-reuses the **exact same Nav2-style `AnalyticExpansionScheduler` as
-Ackermann**, including an initial attempt at the first non-stale
-expanded node, an adaptively shrinking retry interval, and **no
-fixed XY proximity gate**. A failed candidate is not fatal and A*
-continues. Default-off preserves the historic search baseline.
+`SearchOptions::enableGoalConnector` is **off by default**. When enabled,
+the articulated planner reuses Ackermann's `AnalyticExpansionScheduler`
+(ratio 3.5) to propose and independently validate terminal maneuvers.
+An unsuccessful proposal always falls back to ordinary Hybrid A*.
 
-The request-local native solver in
-`src/articulated_steering/goal_connector.cpp` uses bounded nonlinear
-terminal shooting over three signed (forward/reverse) constant-gamma
-circular arcs with intervening finite-rate **stationary articulation**
-transitions. It generates steering movements around the fixed front
-reference point, not impossible instantaneous rear chassis steering.
-Candidate endpoints are computed from exact geometric formulas
-without RK4; numerical least-squares uses a fixed iteration and
-evaluation budget (default 3,000), with no OMPL dependency.
+### Work allocation for nonzero goal headings
 
-These are a **restricted family of native articulated trajectories**:
-not a mathematically complete shortest-path solver and not yet a
-coupled-drive-plus-gamma shooting family. This may matter in cramped
-warehouse aisles. Candidate arc lengths are bounded and divided into
-short segments to respect adaptive body-motion sampling budgets.
-The connector can exploit reverse driving, including reversing away
-from the goal to realign.
+The first 4 scheduled attempts (configurable
+`goalConnectorGlobalAttempts`) remain unrestricted in distance, including
+the first expanded node. The remaining attempts are **reserved** for
+search states satisfying an adaptive near-goal gate:
 
-Once a candidate enters the three-dimensional tolerance region
-`(XY, rear heading, gamma)`, the planner replays its complete
-terminal control sequence with model RK4 and adaptive body-point
-sampling, checking **both** carriage collision footprints. Then it
-independently re-integrates the **whole preceding search chain and
-entire candidate tail** using the final fine RK4 schedule. Only this
-full-prefix verified result may become `Success`. A rejected
-connection never bypasses normal motion/collision checks.
+- Rear-reference XY distance is within `max(6 m, 20% of start-to-goal
+  XY distance)`; the 6 m floor is configurable.
+- The score `XY distance + 0.9 * rear yaw error + 0.4 * gamma error`
+  improves by at least 0.25 m-equivalent since the last reserved attempt.
 
-Work limits and diagnostics (request-local):
-`goalConnectorAttemptRatio=3.5`,
-`maxGoalConnectorAttempts=24`,
-`maxGoalConnectorEvaluationsPerAttempt=3000`,
-`maxGoalConnectorCandidatesPerAttempt=8`,
-`maxGoalConnectorSearchBodyChecks=100000` and
-`maxGoalConnectorArcMeters=40`. Counters include attempts,
-candidates, solver evaluations, connector body checks, collision
-rejections, terminal mismatch, strict rejections and validated shots.
-The normal `maxExpansions`, independent final checks and
-cancellation mechanism still apply.
+This preserves near-goal work instead of spending all 24 attempts early.
+The scheduler still controls WHEN an attempt is due; the allocation
+policy controls WHICH due attempts are worth using. Neither the first
+shot nor the early global shots have an XY proximity requirement.
 
-### Docker A/B and web UI
+Diagnostics include global vs reserved shots, deferred opportunities,
+first/last attempted expansion number, and closest rear XY goal distance.
+
+### Obstacle-aware terminal shooting
+
+The request-local `GoalConnectorObstacleGuide` builds an approximate
+8-neighbor obstacle-distance field once from the occupancy map. It
+scores distance-to-obstacle and map-boundary deficits for both carriage
+reference points, accounting conservatively for their body radii.
+The nonlinear terminal solver fits three signed arcs with finite-rate
+articulation changes and minimizes both terminal error and this
+sampled, **soft clearance cost**. It uses a damped projection of
+clearance gradients into the endpoint Jacobian's approximate nullspace.
+The soft field only influences proposal generation and ordering;
+it is NEVER accepted as proof of collision freedom.
+
+The connector interleaves stationary-then-arc and **coupled steering +
+driving** trajectory families, including reverse gears. Constant-gamma
+arcs and stationary articulation are analytic. During coupled steering,
+heading is analytic while front XY uses fixed Simpson quadrature;
+the final safety verifier independently reintegrates with RK4.
+All steering rates, gear speeds, gamma limits and segment durations
+remain bounded. This is a limited three-arc terminal family, not a
+complete articulated shortest-path method or a substitute for
+higher-level obstacle routing.
+
+Before acceptance the candidate is sampled using body-point-motion
+limits, both exact carriage footprints are collision checked, and the
+**entire search prefix plus the terminal tail** is independently
+replayed with finer RK4 samples. Only a fully accepted four-state goal
+becomes `Success`. `trajectoryActuatorFeasible` remains false.
+
+Default budgets: 24 attempts, 3,000 solver evaluations/attempt,
+8 proposed candidates/attempt, 100,000 search-stage terminal
+body checks, and 40 m maximum arc length per segment.
+These are limits, not an assurance of success. If a collision-free
+trajectory requires more than the chosen maneuver family, normal
+Hybrid A* must find it instead.
+
+### Experimental heading-aware search mode
+
+`HeuristicMode::CombinedHeadingAware` retains
+`max(obstacle-grid, articulated analytic lower bound)` and **adds**
+`goalHeadingGuidanceWeight * 8/(8+dXY) * analyticHeadingDrivingCost`.
+This deliberately re-emphasizes rear heading when the obstacle-grid
+distance otherwise hides it. The extra component may double-count
+driving cost and the mode is explicitly **performance-oriented**,
+not an admissible estimate or shortest-path certificate.
+The existing ObstacleGrid, AnalyticOnly and Combined modes and their
+defaults remain unchanged.
+
+## Planning Lab web UI
+
+Select **Articulated steering**. In the **Articulated Search
+Optimization** section, choose one of the following heuristic modes:
+Obstacle grid (default, weight 1.0), Analytical, Combined (weight 1.2
+preset), or **Combined + goal-heading emphasis** (weight 1.2 preset).
+Only the last mode activates the additional **Extra goal-heading
+guidance** setting (default 0.8, accepted range 0 through 3).
+
+Both coupled motion and swept-AABB optimization are checked by default.
+**Native articulated goal connector** remains unchecked by default.
+The browser POST, backend option parser, effective search options, and
+exported JSON now all expose the effective settings and connector
+diagnostics. Rigid Ackermann Reeds–Shepp controls remain separate.
+
+## Docker validation and exact uploaded regression fixtures
+
+The manual warehouse benchmark's optional THIRD argument chooses an
+exact screenshot/export fixture: `baseline` (historical default),
+`warehouse-heading`, or `open-heading`. The latter two reproduce
+the 2026-11-06 uploaded starts, goals, headings, map and geometry.
+No GitHub Actions are needed or triggered.
 
 ```bash
 git pull --ff-only
 BUILD_JOBS=8 docker compose build test
-docker compose run --rm test ctest --test-dir build-docker \
-  -R '^(articulated_steering_planner_test|demo_articulated_test|demo_articulated_ui_test|demo_http_test)Choose **Kinematic model → Articulated steering** and use the separate
-**ARTICULATED SEARCH OPTIMIZATION** controls. The original rigid-body
-`performance`, Reeds–Shepp and refinement widgets remain disabled for
-this model. The options are independent:
-
-- **Heuristic mode:** Obstacle grid (`grid`, default), Analytical
-  (`analytic`), or Combined (`combined`, recommended for the measured
-  warehouse experiment).
-- **Heuristic weight:** editable in `(0,3]`. It initially remains `1.0`
-  for the historical grid mode. Selecting Combined automatically presets
-  `1.2`; users may override the preset. Switching to other modes
-  presets `1.0`.
-- **Coupled steering while driving:** checked by default.
-- **Swept-AABB free-space prefilter:** checked by default; disabling it
-  restores sampled collision checks where the optimization would have
-  proven empty free space.
-- **Native articulated goal connector:** unchecked by default; enables
-  adaptively scheduled, bounded forward/reverse terminal shooting and
-  independent full-chain validation.
-
-The browser sends these values as `artHeuristicMode`,
-`artHeuristicWeight`, `artCoupledMotion`, `artSweptAabb` and
-`artGoalConnector` in the
-`/api/plan` form request. `apps/demo/main.cpp` validates them,
-`runArticulated` maps them to the real `SearchOptions`, and the
-result's top-level `articulatedSearch` object records the effective
-`heuristicMode`, `heuristicWeight`, `enableCoupledMotion` and
-`useSweptAabbPrefilter` and `enableGoalConnector` settings in
-exported JSON.
-
-The performance preset comes from one warehouse benchmark and does not
-guarantee a result on another map. The default C++ and preexisting HTTP
-behavior remain grid-only with weight 1.0.
-
-### Docker UI and regression checks
-
-```bash
-BUILD_JOBS=8 docker compose build test
-docker compose run --rm test ctest --test-dir build-docker \
-  -R '^(articulated_steering_planner_test|demo_articulated_test|demo_articulated_ui_test|demo_http_test)The planner test suite now includes finite-difference checks against
-`B'` for three asymmetric/symmetric geometries, randomized feasible
-RK4 rollouts with displaced goals inside all configured tolerance
-windows, reverse cost multipliers below and above one, and strict
-end-to-end result checks for both new modes.
-
-```bash
-cmake -S . -B build -DHYBRID_ASTAR_BUILD_TESTS=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
-cmake --build build --target hybrid_astar_articulated_steering_planner_test hybrid_astar_articulated_warehouse_bench -j
-ctest --test-dir build -R '^articulated_steering_planner_test$' --output-on-failure
-```
-
-The manual warehouse benchmark accepts the original modes plus the
-new grid-only weight control. An optional second argument overrides
-`SearchOptions::heuristicWeight` for **any** mode, accepting finite
-positive weights up to 3.0 (the planner's validated range).
-
-```bash
-./build-docker/hybrid_astar_articulated_warehouse_bench coupled
-./build-docker/hybrid_astar_articulated_warehouse_bench analytic-only
-./build-docker/hybrid_astar_articulated_warehouse_bench combined
-./build-docker/hybrid_astar_articulated_warehouse_bench weighted
-./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted
-./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.2
-./build-docker/hybrid_astar_articulated_warehouse_bench weighted 1.2
-```
-
-`weighted` (Combined) and `grid-weighted` (ObstacleGrid) **both default
-to 1.5**. `coupled` (ObstacleGrid) and `combined` (Combined) both
-default to 1.0. All four share exactly the same warehouse, kinematics,
-primitive set, costs, search budgets and swept-AABB optimization.
-The benchmark appends `heuristic_weight`, `plan_cost_m` (the actual
-accumulated planner edge cost, not just front driving distance) and
-the three terminal goal errors to its pre-existing CSV columns.
-Failed plans report zero `plan_cost_m`; exclude failed plans from
-path-cost comparisons.
-
-### Docker weight sweep, manually triggered
-
-Run the sweep from the repository root after pulling this feature branch
-and explicitly building the existing Docker Compose test image:
-
-```bash
-BUILD_JOBS=8 docker compose build test
-
-docker compose run --rm test python3 -m unittest discover \
-  -s tests -p 'test_articulated_heuristic_weight_sweep.py' -v
-
-docker compose run --rm test python3 \
-  tools/articulated_heuristic_weight_sweep.py --repeats 3 \
-  | tee articulated_weight_sweep_summary.csv
-```
-
-The script compares `grid-weighted` and `weighted` at **1.0, 1.1, 1.2,
-1.3, 1.4, and 1.5**, with three repeated runs of each configuration.
-Its stdout is a 12-row CSV reporting valid plan counts, median expansions,
-collision checks, front driving distance, **real accumulated path cost**,
-stationary and coupled steering, plus mean/median/min/max planning times.
-Progress is printed to stderr and does not contaminate the CSV.
-The two variants run at adjacent weights to minimize environmental drift.
-
-For a one-off missing-control run:
-
-```bash
 docker compose run --rm test \
-  ./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.5
-```
-
-To obtain per-run raw rows rather than an aggregated summary, pass
-`--raw` to the sweep script and save its output to a separate CSV.
-The raw mode performs fresh benchmark runs; it does not reuse earlier
-summary measurements. Neither this script nor its tests are scheduled
-or registered for automatic CI execution.
-
-The warehouse scenario is one performance sample, not a general runtime
-guarantee. A weighted or grid-based heuristic is not an admissibility or
-continuous optimality certificate. Always compare independent geometric
-validation and goal errors alongside cost and runtime.
- \
+  ctest --test-dir build-docker \
+  -R '^(articulated_steering_planner_test|demo_articulated_test|demo_articulated_ui_test|demo_http_test)$' \
   --output-on-failure
+
+# Full fixed warehouse/heading regression: compare identical weight 1.2
+for mode in weighted connector heading heading-connector; do
+  docker compose run --rm test \
+    ./build-docker/hybrid_astar_articulated_warehouse_bench \
+    "$mode" 1.2 warehouse-heading
+done
+
+# Open-field nonzero-heading regression (should remain fast):
+for mode in connector heading-connector; do
+  docker compose run --rm test \
+    ./build-docker/hybrid_astar_articulated_warehouse_bench \
+    "$mode" 1.2 open-heading
+done
 
 docker compose up --build demo
 ```
 
-The Planning Lab is then available at `http://127.0.0.1:8765`.
-Docker Compose publishes the host port on loopback only. No GitHub
-Actions workflow is needed.
+CSV output reports the existing expansions/time/path cost/goal error
+columns plus scenario, collision/terminal rejections, global/near
+attempt counts, solver evaluations, coupled candidates, and first/last
+shot expansion. Compare independent validation as well as speed;
+a lower expansion count alone does not establish a safe path.
 
-## Local verification
-
-The planner test suite now includes finite-difference checks against
-`B'` for three asymmetric/symmetric geometries, randomized feasible
-RK4 rollouts with displaced goals inside all configured tolerance
-windows, reverse cost multipliers below and above one, and strict
-end-to-end result checks for both new modes.
-
-```bash
-cmake -S . -B build -DHYBRID_ASTAR_BUILD_TESTS=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
-cmake --build build --target hybrid_astar_articulated_steering_planner_test hybrid_astar_articulated_warehouse_bench -j
-ctest --test-dir build -R '^articulated_steering_planner_test$' --output-on-failure
-```
-
-The manual warehouse benchmark accepts the original modes plus the
-new grid-only weight control. An optional second argument overrides
-`SearchOptions::heuristicWeight` for **any** mode, accepting finite
-positive weights up to 3.0 (the planner's validated range).
-
-```bash
-./build-docker/hybrid_astar_articulated_warehouse_bench coupled
-./build-docker/hybrid_astar_articulated_warehouse_bench analytic-only
-./build-docker/hybrid_astar_articulated_warehouse_bench combined
-./build-docker/hybrid_astar_articulated_warehouse_bench weighted
-./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted
-./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.2
-./build-docker/hybrid_astar_articulated_warehouse_bench weighted 1.2
-```
-
-`weighted` (Combined) and `grid-weighted` (ObstacleGrid) **both default
-to 1.5**. `coupled` (ObstacleGrid) and `combined` (Combined) both
-default to 1.0. All four share exactly the same warehouse, kinematics,
-primitive set, costs, search budgets and swept-AABB optimization.
-The benchmark appends `heuristic_weight`, `plan_cost_m` (the actual
-accumulated planner edge cost, not just front driving distance) and
-the three terminal goal errors to its pre-existing CSV columns.
-Failed plans report zero `plan_cost_m`; exclude failed plans from
-path-cost comparisons.
-
-### Docker weight sweep, manually triggered
-
-Run the sweep from the repository root after pulling this feature branch
-and explicitly building the existing Docker Compose test image:
-
-```bash
-BUILD_JOBS=8 docker compose build test
-
-docker compose run --rm test python3 -m unittest discover \
-  -s tests -p 'test_articulated_heuristic_weight_sweep.py' -v
-
-docker compose run --rm test python3 \
-  tools/articulated_heuristic_weight_sweep.py --repeats 3 \
-  | tee articulated_weight_sweep_summary.csv
-```
-
-The script compares `grid-weighted` and `weighted` at **1.0, 1.1, 1.2,
-1.3, 1.4, and 1.5**, with three repeated runs of each configuration.
-Its stdout is a 12-row CSV reporting valid plan counts, median expansions,
-collision checks, front driving distance, **real accumulated path cost**,
-stationary and coupled steering, plus mean/median/min/max planning times.
-Progress is printed to stderr and does not contaminate the CSV.
-The two variants run at adjacent weights to minimize environmental drift.
-
-For a one-off missing-control run:
-
-```bash
-docker compose run --rm test \
-  ./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.5
-```
-
-To obtain per-run raw rows rather than an aggregated summary, pass
-`--raw` to the sweep script and save its output to a separate CSV.
-The raw mode performs fresh benchmark runs; it does not reuse earlier
-summary measurements. Neither this script nor its tests are scheduled
-or registered for automatic CI execution.
-
-The warehouse scenario is one performance sample, not a general runtime
-guarantee. A weighted or grid-based heuristic is not an admissibility or
-continuous optimality certificate. Always compare independent geometric
-validation and goal errors alongside cost and runtime.
- \
-  --output-on-failure
-
-# Same warehouse, same combined heuristic and weight, connector toggled:
-docker compose run --rm test \
-  ./build-docker/hybrid_astar_articulated_warehouse_bench weighted 1.2
-docker compose run --rm test \
-  ./build-docker/hybrid_astar_articulated_warehouse_bench connector 1.2
-
-docker compose up --build demo
-```
-
-In the browser select **Articulated steering → Combined → weight 1.2**
-and opt into **Native articulated goal connector**. The checkbox is off
-by default. `articulatedSearch.enableGoalConnector` and
-`original.goalConnectorAttempts`, `goalConnectorCandidates`,
-`goalConnectorValidated`, and the other connector diagnostics are
-included in exported JSON. An accepted connection still means only
-independently sampled kinematic/geometry validation, *not* actuator
-feasibility, self-collision certification or continuous swept safety.
-
-## Planning Lab web UI (articulated steering only)
-
-Choose **Kinematic model → Articulated steering** and use the separate
-**ARTICULATED SEARCH OPTIMIZATION** controls. The original rigid-body
-`performance`, Reeds–Shepp and refinement widgets remain disabled for
-this model. The options are independent:
-
-- **Heuristic mode:** Obstacle grid (`grid`, default), Analytical
-  (`analytic`), or Combined (`combined`, recommended for the measured
-  warehouse experiment).
-- **Heuristic weight:** editable in `(0,3]`. It initially remains `1.0`
-  for the historical grid mode. Selecting Combined automatically presets
-  `1.2`; users may override the preset. Switching to other modes
-  presets `1.0`.
-- **Coupled steering while driving:** checked by default.
-- **Swept-AABB free-space prefilter:** checked by default; disabling it
-  restores sampled collision checks where the optimization would have
-  proven empty free space.
-
-The browser sends these values as `artHeuristicMode`,
-`artHeuristicWeight`, `artCoupledMotion`, and `artSweptAabb` in the
-`/api/plan` form request. `apps/demo/main.cpp` validates them,
-`runArticulated` maps them to the real `SearchOptions`, and the
-result's top-level `articulatedSearch` object records the effective
-`heuristicMode`, `heuristicWeight`, `enableCoupledMotion` and
-`useSweptAabbPrefilter` settings in exported JSON.
-
-The performance preset comes from one warehouse benchmark and does not
-guarantee a result on another map. The default C++ and preexisting HTTP
-behavior remain grid-only with weight 1.0.
-
-### Docker UI and regression checks
-
-```bash
-BUILD_JOBS=8 docker compose build test
-docker compose run --rm test ctest --test-dir build-docker \
-  -R '^(articulated_steering_planner_test|demo_articulated_test|demo_articulated_ui_test|demo_http_test)The planner test suite now includes finite-difference checks against
-`B'` for three asymmetric/symmetric geometries, randomized feasible
-RK4 rollouts with displaced goals inside all configured tolerance
-windows, reverse cost multipliers below and above one, and strict
-end-to-end result checks for both new modes.
-
-```bash
-cmake -S . -B build -DHYBRID_ASTAR_BUILD_TESTS=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
-cmake --build build --target hybrid_astar_articulated_steering_planner_test hybrid_astar_articulated_warehouse_bench -j
-ctest --test-dir build -R '^articulated_steering_planner_test$' --output-on-failure
-```
-
-The manual warehouse benchmark accepts the original modes plus the
-new grid-only weight control. An optional second argument overrides
-`SearchOptions::heuristicWeight` for **any** mode, accepting finite
-positive weights up to 3.0 (the planner's validated range).
-
-```bash
-./build-docker/hybrid_astar_articulated_warehouse_bench coupled
-./build-docker/hybrid_astar_articulated_warehouse_bench analytic-only
-./build-docker/hybrid_astar_articulated_warehouse_bench combined
-./build-docker/hybrid_astar_articulated_warehouse_bench weighted
-./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted
-./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.2
-./build-docker/hybrid_astar_articulated_warehouse_bench weighted 1.2
-```
-
-`weighted` (Combined) and `grid-weighted` (ObstacleGrid) **both default
-to 1.5**. `coupled` (ObstacleGrid) and `combined` (Combined) both
-default to 1.0. All four share exactly the same warehouse, kinematics,
-primitive set, costs, search budgets and swept-AABB optimization.
-The benchmark appends `heuristic_weight`, `plan_cost_m` (the actual
-accumulated planner edge cost, not just front driving distance) and
-the three terminal goal errors to its pre-existing CSV columns.
-Failed plans report zero `plan_cost_m`; exclude failed plans from
-path-cost comparisons.
-
-### Docker weight sweep, manually triggered
-
-Run the sweep from the repository root after pulling this feature branch
-and explicitly building the existing Docker Compose test image:
-
-```bash
-BUILD_JOBS=8 docker compose build test
-
-docker compose run --rm test python3 -m unittest discover \
-  -s tests -p 'test_articulated_heuristic_weight_sweep.py' -v
-
-docker compose run --rm test python3 \
-  tools/articulated_heuristic_weight_sweep.py --repeats 3 \
-  | tee articulated_weight_sweep_summary.csv
-```
-
-The script compares `grid-weighted` and `weighted` at **1.0, 1.1, 1.2,
-1.3, 1.4, and 1.5**, with three repeated runs of each configuration.
-Its stdout is a 12-row CSV reporting valid plan counts, median expansions,
-collision checks, front driving distance, **real accumulated path cost**,
-stationary and coupled steering, plus mean/median/min/max planning times.
-Progress is printed to stderr and does not contaminate the CSV.
-The two variants run at adjacent weights to minimize environmental drift.
-
-For a one-off missing-control run:
-
-```bash
-docker compose run --rm test \
-  ./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.5
-```
-
-To obtain per-run raw rows rather than an aggregated summary, pass
-`--raw` to the sweep script and save its output to a separate CSV.
-The raw mode performs fresh benchmark runs; it does not reuse earlier
-summary measurements. Neither this script nor its tests are scheduled
-or registered for automatic CI execution.
-
-The warehouse scenario is one performance sample, not a general runtime
-guarantee. A weighted or grid-based heuristic is not an admissibility or
-continuous optimality certificate. Always compare independent geometric
-validation and goal errors alongside cost and runtime.
- \
-  --output-on-failure
-
-docker compose up --build demo
-```
-
-The Planning Lab is then available at `http://127.0.0.1:8765`.
-Docker Compose publishes the host port on loopback only. No GitHub
-Actions workflow is needed.
-
-## Local verification
-
-The planner test suite now includes finite-difference checks against
-`B'` for three asymmetric/symmetric geometries, randomized feasible
-RK4 rollouts with displaced goals inside all configured tolerance
-windows, reverse cost multipliers below and above one, and strict
-end-to-end result checks for both new modes.
-
-```bash
-cmake -S . -B build -DHYBRID_ASTAR_BUILD_TESTS=ON -DHYBRID_ASTAR_BUILD_BENCHMARKS=ON
-cmake --build build --target hybrid_astar_articulated_steering_planner_test hybrid_astar_articulated_warehouse_bench -j
-ctest --test-dir build -R '^articulated_steering_planner_test$' --output-on-failure
-```
-
-The manual warehouse benchmark accepts the original modes plus the
-new grid-only weight control. An optional second argument overrides
-`SearchOptions::heuristicWeight` for **any** mode, accepting finite
-positive weights up to 3.0 (the planner's validated range).
-
-```bash
-./build-docker/hybrid_astar_articulated_warehouse_bench coupled
-./build-docker/hybrid_astar_articulated_warehouse_bench analytic-only
-./build-docker/hybrid_astar_articulated_warehouse_bench combined
-./build-docker/hybrid_astar_articulated_warehouse_bench weighted
-./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted
-./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.2
-./build-docker/hybrid_astar_articulated_warehouse_bench weighted 1.2
-```
-
-`weighted` (Combined) and `grid-weighted` (ObstacleGrid) **both default
-to 1.5**. `coupled` (ObstacleGrid) and `combined` (Combined) both
-default to 1.0. All four share exactly the same warehouse, kinematics,
-primitive set, costs, search budgets and swept-AABB optimization.
-The benchmark appends `heuristic_weight`, `plan_cost_m` (the actual
-accumulated planner edge cost, not just front driving distance) and
-the three terminal goal errors to its pre-existing CSV columns.
-Failed plans report zero `plan_cost_m`; exclude failed plans from
-path-cost comparisons.
-
-### Docker weight sweep, manually triggered
-
-Run the sweep from the repository root after pulling this feature branch
-and explicitly building the existing Docker Compose test image:
-
-```bash
-BUILD_JOBS=8 docker compose build test
-
-docker compose run --rm test python3 -m unittest discover \
-  -s tests -p 'test_articulated_heuristic_weight_sweep.py' -v
-
-docker compose run --rm test python3 \
-  tools/articulated_heuristic_weight_sweep.py --repeats 3 \
-  | tee articulated_weight_sweep_summary.csv
-```
-
-The script compares `grid-weighted` and `weighted` at **1.0, 1.1, 1.2,
-1.3, 1.4, and 1.5**, with three repeated runs of each configuration.
-Its stdout is a 12-row CSV reporting valid plan counts, median expansions,
-collision checks, front driving distance, **real accumulated path cost**,
-stationary and coupled steering, plus mean/median/min/max planning times.
-Progress is printed to stderr and does not contaminate the CSV.
-The two variants run at adjacent weights to minimize environmental drift.
-
-For a one-off missing-control run:
-
-```bash
-docker compose run --rm test \
-  ./build-docker/hybrid_astar_articulated_warehouse_bench grid-weighted 1.5
-```
-
-To obtain per-run raw rows rather than an aggregated summary, pass
-`--raw` to the sweep script and save its output to a separate CSV.
-The raw mode performs fresh benchmark runs; it does not reuse earlier
-summary measurements. Neither this script nor its tests are scheduled
-or registered for automatic CI execution.
-
-The warehouse scenario is one performance sample, not a general runtime
-guarantee. A weighted or grid-based heuristic is not an admissibility or
-continuous optimality certificate. Always compare independent geometric
-validation and goal errors alongside cost and runtime.
+**Success criterion**: independently sampled two-body collision-free
+planning within XY, rear-yaw and gamma tolerances, with materially fewer
+warehouse expansions and lower runtime, while preserving the fast
+open-field case. No such runtime improvement is claimed until the
+above manually executed Docker measurements confirm it.
