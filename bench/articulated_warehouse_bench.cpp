@@ -152,7 +152,13 @@ int main(int argc,char** argv) {
       "anytime_first_cost_m,anytime_best_cost_m,"
       "coarse_resolution_m,coarse_cells,coarse_blocked,coarse_seed_cells,"
       "coarse_settlements,coarse_queries,coarse_fallbacks,"
-      "coarse_build_ms,coarse_skipped\n";
+      "coarse_build_ms,coarse_skipped,"
+      "connector_1arc_proposals,connector_2arc_proposals,connector_3arc_proposals,"
+      "tail_drive_m,tail_reverse_m,tail_steering_rad,tail_stationary_s,"
+      "tail_peak_gamma_rad,tail_gear_changes,tail_steering_reversals,"
+      "tail_drive_arcs,tail_fitted_arcs,tail_operational_penalty_m,"
+      "tail_quality_score_m,anytime_paced_deferrals,"
+      "anytime_first_extra_shot_expansion,anytime_last_extra_shot_expansion\n";
     std::cout<<mode<<','<<static_cast<int>(result.status)<<','
       <<result.independentlySampledBodyValidated<<','
       <<result.diagnostics.expanded<<','<<result.diagnostics.generated<<','
@@ -196,7 +202,24 @@ int main(int argc,char** argv) {
       <<result.diagnostics.coarseGridQueries<<','
       <<result.diagnostics.coarseGridFallbacks<<','
       <<result.diagnostics.coarseGridBuildMilliseconds<<','
-      <<result.diagnostics.coarseGridSkipped<<'\n';
+      <<result.diagnostics.coarseGridSkipped<<','
+      <<result.diagnostics.goalConnectorOneArcProposals<<','
+      <<result.diagnostics.goalConnectorTwoArcProposals<<','
+      <<result.diagnostics.goalConnectorThreeArcProposals<<','
+      <<result.diagnostics.goalConnectorTailDrivingMeters<<','
+      <<result.diagnostics.goalConnectorTailReverseMeters<<','
+      <<result.diagnostics.goalConnectorTailArticulationRadians<<','
+      <<result.diagnostics.goalConnectorTailStationarySeconds<<','
+      <<result.diagnostics.goalConnectorTailPeakGammaRadians<<','
+      <<result.diagnostics.goalConnectorTailGearChanges<<','
+      <<result.diagnostics.goalConnectorTailArticulationReversals<<','
+      <<result.diagnostics.goalConnectorTailDriveArcs<<','
+      <<result.diagnostics.goalConnectorTailFittedArcs<<','
+      <<result.diagnostics.goalConnectorTailOperationalPenaltyMeters<<','
+      <<result.diagnostics.goalConnectorTailQualityScoreMeters<<','
+      <<result.diagnostics.anytimePacedDeferrals<<','
+      <<result.diagnostics.anytimeFirstExtraShotExpansion<<','
+      <<result.diagnostics.anytimeLastExtraShotExpansion<<'\n';
     return result.status==as::Status::Success?0:2;
   } catch(const std::exception& e) {
     std::cerr<<e.what()<<'\n';
