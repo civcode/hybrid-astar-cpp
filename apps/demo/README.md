@@ -183,10 +183,12 @@ transitions and independently validating the final path**.
   mode adds a configurable near-goal rear-heading signal (default 0.8)
   even when the obstacle-grid cost dominates the heuristic. This extra
   term intentionally has no admissibility or optimality guarantee.
-  The default remains **Obstacle grid, weight 1.0** for compatibility.
-  Selecting **Combined** presets the separately editable **Heuristic
-  weight** to **1.2**, based on one warehouse weight-sweep experiment; it
-  is not guaranteed optimal or fastest on other maps. The maximum
+  The C++ and API defaults remain **Obstacle grid, weight 1.0** for
+  compatibility, but the browser starts at **weight 1.2**, regardless
+  of the selected articulated heuristic mode. Switching modes retains
+  any custom weight instead of resetting it. Weight 1.2 is an
+  experimental warehouse-tuned starting value, not an optimality or
+  cross-map performance guarantee. The maximum
   accepted weight is 3.0. Two articulated-only checkboxes enable or
   disable **coupled steering while driving** and the **swept-AABB
   free-space prefilter**, both checked by default. A separate
@@ -208,6 +210,15 @@ transitions and independently validating the final path**.
   accepted tails, collision rejects and solver evaluation counts appear
   in the `original` diagnostics. The status line reports the selected
   mode and connector status too.
+  **Improve first validated path** is a separate, unchecked anytime
+  option available after enabling the native goal connector. It
+  continues for up to **2,000 extra expansions** by default (editable
+  up to 100,000), preserving a strictly validated incumbent. A
+  replacement must be cheaper by actual planner cost and pass
+  independent full-path RK4 validation; exhausting the search budget
+  returns the best already validated solution. The exported search
+  options and path diagnostics report the selected work budget,
+  initial/best path cost, accepted improvements and extra work.
   Articulated planning honors the same user-configurable
   **1,000,000-expansion ceiling** as the three rigid models;
   its separate generated-node budget is four times the selected
