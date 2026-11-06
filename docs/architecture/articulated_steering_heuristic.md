@@ -163,10 +163,11 @@ The request-local `GoalConnectorObstacleGuide` builds an approximate
 8-neighbor obstacle-distance field once from the occupancy map. It
 scores distance-to-obstacle and map-boundary deficits for both carriage
 reference points, accounting conservatively for their body radii.
-The nonlinear terminal solver fits three signed arcs with finite-rate
-articulation changes and minimizes both terminal error and this
-sampled, **soft clearance cost**. It uses a damped projection of
-clearance gradients into the endpoint Jacobian's approximate nullspace.
+The nonlinear terminal solver tries one-, two-, then three-arc
+signed forward/reverse families with finite-rate articulation changes.
+It first minimizes terminal error and sampled, **soft clearance**.
+A second, feasible-only stage projects operational-effort gradients
+into the endpoint Jacobian's approximate nullspace.
 The soft field only influences proposal generation and ordering;
 it is NEVER accepted as proof of collision freedom.
 
@@ -431,10 +432,11 @@ The request-local `GoalConnectorObstacleGuide` builds an approximate
 8-neighbor obstacle-distance field once from the occupancy map. It
 scores distance-to-obstacle and map-boundary deficits for both carriage
 reference points, accounting conservatively for their body radii.
-The nonlinear terminal solver fits three signed arcs with finite-rate
-articulation changes and minimizes both terminal error and this
-sampled, **soft clearance cost**. It uses a damped projection of
-clearance gradients into the endpoint Jacobian's approximate nullspace.
+The nonlinear terminal solver tries one-, two-, then three-arc
+signed forward/reverse families with finite-rate articulation changes.
+It first minimizes terminal error and sampled, **soft clearance**.
+A second, feasible-only stage projects operational-effort gradients
+into the endpoint Jacobian's approximate nullspace.
 The soft field only influences proposal generation and ordering;
 it is NEVER accepted as proof of collision freedom.
 
