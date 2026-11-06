@@ -513,6 +513,31 @@ double BodyCollisionChecker::maxRearBodyRadius() const noexcept {
 }
 Result plan(const Request& r) {
   Result out;
+  // Keep validated paths across all bounded-work exits, including an
+  // unexpected numerical/motion-limit exception during later refinement.
+  struct Incumbent {
+    std::vector<Motion> motions;
+    RearState reached;
+    double cost=0.0;
+    double xy=0.0,yaw=0.0,gamma=0.0;
+  };
+  std::optional<Incumbent> incumbent;
+  std::size_t firstSolutionExpansion=0;
+  auto finishIncumbent=[&]() -> Result {
+    if(incumbent) {
+      out.motions=std::move(incumbent->motions);
+      out.reached=incumbent->reached;
+      out.costMeters=incumbent->cost;
+      out.goalXYErrorMeters=incumbent->xy;
+      out.goalYawErrorRadians=incumbent->yaw;
+      out.goalGammaErrorRadians=incumbent->gamma;
+      out.independentlySampledBodyValidated=true;
+      out.status=Status::Success;
+      out.diagnostics.anytimeExtraExpansions=
+          out.diagnostics.expanded-firstSolutionExpansion;
+    }
+    return std::move(out);
+  };
   if(r.map)out.mapRevision=r.map->revision;
   if(!r.map||!validOptions(r.options)||!finiteRear(r.start)||
      !finiteRear(r.goal)||!nonnegative(r.bodies.inflationMeters)||
@@ -632,18 +657,9 @@ Result plan(const Request& r) {
                                          0.2*startGoalDistance);
     double bestNearApproach=std::numeric_limits<double>::infinity();
     out.diagnostics.goalConnectorClosestXYMeters=startGoalDistance;
-    // Store only one strictly validated incumbent; diagnostics remain live
-    // in `out` throughout refinement. A solver's unvalidated proposal can
-    // NEVER replace it, even when global search budgets are exhausted.
-    struct Incumbent {
-      std::vector<Motion> motions;
-      RearState reached;
-      double cost=0.0;
-      double xy=0.0,yaw=0.0,gamma=0.0;
-    };
+    // Only the independent strict validator may create or replace the
+    // incumbent. Diagnostics continue accumulating until refinement ends.
     const bool anytime=r.options.enableAnytimeGoalRefinement;
-    std::optional<Incumbent> incumbent;
-    std::size_t firstSolutionExpansion=0;
     auto captureAccepted=[&]() {
       ++out.diagnostics.anytimeValidatedCandidates;
       if(incumbent&&out.costMeters>=incumbent->cost-1e-9) {
@@ -659,21 +675,6 @@ Result plan(const Request& r) {
                           out.goalXYErrorMeters,out.goalYawErrorRadians,
                           out.goalGammaErrorRadians};
       out.diagnostics.anytimeBestCostMeters=incumbent->cost;
-    };
-    auto finishIncumbent=[&]() -> Result {
-      if(incumbent) {
-        out.motions=std::move(incumbent->motions);
-        out.reached=incumbent->reached;
-        out.costMeters=incumbent->cost;
-        out.goalXYErrorMeters=incumbent->xy;
-        out.goalYawErrorRadians=incumbent->yaw;
-        out.goalGammaErrorRadians=incumbent->gamma;
-        out.independentlySampledBodyValidated=true;
-        out.status=Status::Success;
-        out.diagnostics.anytimeExtraExpansions=
-            out.diagnostics.expanded-firstSolutionExpansion;
-      }
-      return std::move(out);
     };
     const auto optimisticCost=[&](const Node& node) {
       return node.g+(analyticGoal
@@ -895,12 +896,15 @@ Result plan(const Request& r) {
                Status::NoPath;
     return out;
   } catch(const std::invalid_argument&) {
+    if(incumbent)return finishIncumbent();
     out.status=Status::InvalidRequest;
     return out;
   } catch(const std::length_error&) {
+    if(incumbent)return finishIncumbent();
     out.status=Status::ValidationIncomplete;
     return out;
   } catch(const std::out_of_range&) {
+    if(incumbent)return finishIncumbent();
     out.status=Status::ValidationIncomplete;
     return out;
   }
