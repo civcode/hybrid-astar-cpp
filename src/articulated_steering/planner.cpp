@@ -1,5 +1,6 @@
 #include "hybrid_astar/articulated_steering/planner.hpp"
 #include "hybrid_astar/articulated_steering/heuristic.hpp"
+#include "hybrid_astar/articulated_steering/coarse_obstacle_grid.hpp"
 #include "hybrid_astar/articulated_steering/goal_connector.hpp"
 #include "hybrid_astar/steering/analytic_expansion.hpp"
 #include "hybrid_astar/ackermann/obstacle_grid.hpp"
@@ -55,6 +56,8 @@ bool validOptions(const SearchOptions& o) {
          nonnegative(o.heuristicWeight)&&o.heuristicWeight<=3.0&&
          nonnegative(o.goalHeadingGuidanceWeight)&&
          o.goalHeadingGuidanceWeight<=3.0&&
+         positive(o.coarseGridResolutionMeters)&&
+         o.coarseGridResolutionMeters<=2.0&&
          std::isfinite(o.goalConnectorAttemptRatio)&&
          o.goalConnectorAttemptRatio>=1.0&&
          positive(o.maxGoalConnectorArcMeters)&&
@@ -594,9 +597,21 @@ Result plan(const Request& r) {
       for(double gamma:primitives.angles)
         headingOffsets.push_back(analyticGoal->headingOffset(gamma));
     }
+    std::unique_ptr<CoarseObstacleGrid> coarseGrid;
+    if(r.options.useObstacleGridHeuristic&&
+       r.options.heuristicMode==HeuristicMode::CombinedCoarseGrid) {
+      // One full map-independent-of-heading field per planning request.
+      // Its conservative blocked tiles can disconnect narrow passages;
+      // those queries explicitly revert to Euclidean/analytic guidance.
+      coarseGrid=std::make_unique<CoarseObstacleGrid>(
+          *r.map,r.occupancy,Pose2D{r.goal.xr,r.goal.yr,r.goal.thetaRear},
+          r.options.goalXYToleranceMeters,
+          r.options.coarseGridResolutionMeters,out.diagnostics);
+    }
     std::unique_ptr<ackermann::LazyGrid<Diagnostics>> grid;
     if(r.options.useObstacleGridHeuristic&&
-       r.options.heuristicMode!=HeuristicMode::AnalyticOnly) {
+       r.options.heuristicMode!=HeuristicMode::AnalyticOnly&&
+       r.options.heuristicMode!=HeuristicMode::CombinedCoarseGrid) {
       grid=std::make_unique<ackermann::LazyGrid<Diagnostics>>(
           *r.map,r.occupancy,
           Pose2D{r.goal.xr,r.goal.yr,r.goal.thetaRear},
@@ -613,9 +628,11 @@ Result plan(const Request& r) {
         // Preserve the original rear-XY/grid fallback for the baseline and
         // combined performance modes (this field is not a certified bound).
         const double euclidean=std::hypot(pose.xr-r.goal.xr,pose.yr-r.goal.yr);
-        guidance=grid
-            ?grid->estimate({pose.xr,pose.yr,pose.thetaRear},euclidean)
-            :euclidean;
+        guidance=coarseGrid
+            ?coarseGrid->estimate(pose.xr,pose.yr,euclidean)
+            :grid
+                ?grid->estimate({pose.xr,pose.yr,pose.thetaRear},euclidean)
+                :euclidean;
         if(analyticGoal&&r.options.heuristicMode!=HeuristicMode::ObstacleGrid) {
           guidance=std::max(guidance,analyticGoal->estimate(
               pose,headingOffsets[gammaIndex]));
