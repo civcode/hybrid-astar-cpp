@@ -2,6 +2,7 @@
 #include "hybrid_astar/articulated_steering/heuristic.hpp"
 #include "hybrid_astar/articulated_steering/coarse_obstacle_grid.hpp"
 #include "hybrid_astar/articulated_steering/goal_connector.hpp"
+#include "hybrid_astar/articulated_steering/anytime_goal_schedule.hpp"
 #include "hybrid_astar/steering/analytic_expansion.hpp"
 #include "hybrid_astar/ackermann/obstacle_grid.hpp"
 #include <algorithm>
@@ -809,19 +810,14 @@ Result plan(const Request& r) {
             optimisticCost(current)<incumbent->cost-1e-9;
         bool paced=false;
         if(incumbent&&r.options.anytimeExtraConnectorAttempts>0) {
-          const std::size_t slot=
-              (out.diagnostics.anytimeExtraConnectorAttempts+1)*
-              r.options.anytimeExtraExpansions/
-              (r.options.anytimeExtraConnectorAttempts+1);
           const std::size_t elapsed=
               out.diagnostics.expanded-firstSolutionExpansion;
-          const std::size_t headroom=std::max<std::size_t>(
-              1,r.options.anytimeExtraExpansions/
-                (5*(r.options.anytimeExtraConnectorAttempts+1)));
           const bool exceptional=optimisticCost(current)<
               .85*incumbent->cost;
-          paced=elapsed>=slot||
-                (exceptional&&elapsed+headroom>=slot);
+          paced=anytimeGoalShotDue(elapsed,
+              out.diagnostics.anytimeExtraConnectorAttempts,
+              r.options.anytimeExtraExpansions,
+              r.options.anytimeExtraConnectorAttempts,exceptional);
           if(promising&&!paced)++out.diagnostics.anytimePacedDeferrals;
         }
         const bool due=incumbent?paced:connectorSchedule.shouldAttempt(
