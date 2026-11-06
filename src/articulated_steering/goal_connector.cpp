@@ -370,8 +370,8 @@ std::vector<GoalConnection> proposeGoalConnections(
   // Constant-gamma families first (exact circular arcs). Follow with
   // coupled articulation-rate families, using analytic yaw and quadrature
   // for the front reference, not a rigid-car instantaneous steering step.
-  for(const bool coupled:{false,true}) {
-    for(const Gears& signs:patterns) {
+  for(const Gears& signs:patterns) {
+    for(const bool coupled:{false,true}) {
       for(const auto& seed:seeds) {
         if(evaluations>=budget)break;
         Vector x{seed[0],seed[1],seed[2],
@@ -462,9 +462,14 @@ std::vector<GoalConnection> proposeGoalConnections(
         auto controls=makeControls(x,signs,from,goal,options,coupled);
         if(controls.empty())continue;
         const double cost=costOf(controls,options);
+        const bool hasCoupled=std::any_of(controls.begin(),controls.end(),
+            [](const GoalControl& control) {
+              return control.control.frontSpeedMetersPerSecond!=0.0&&
+                     control.control.gammaRateRadiansPerSecond!=0.0;
+            });
         if(std::isfinite(cost))
           found.push_back({std::move(controls),best.end,cost,
-                           best.obstaclePenalty,coupled});
+                           best.obstaclePenalty,hasCoupled});
       }
       if(evaluations>=budget)break;
     }
