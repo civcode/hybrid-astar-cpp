@@ -178,7 +178,11 @@ transitions and independently validating the final path**.
 - **Articulated search optimization controls are now exposed in Planning
   Lab.** The independent **Heuristic mode** selector offers Obstacle grid
   (existing default), Analytical articulated (obstacle-free), and
-  Combined grid + analytical (recommended warehouse performance mode).
+  Combined grid + analytical (recommended warehouse performance mode),
+  and **Combined + goal-heading emphasis (experimental)**. The last
+  mode adds a configurable near-goal rear-heading signal (default 0.8)
+  even when the obstacle-grid cost dominates the heuristic. This extra
+  term intentionally has no admissibility or optimality guarantee.
   The default remains **Obstacle grid, weight 1.0** for compatibility.
   Selecting **Combined** presets the separately editable **Heuristic
   weight** to **1.2**, based on one warehouse weight-sweep experiment; it
@@ -189,13 +193,18 @@ transitions and independently validating the final path**.
   **Native articulated goal connector** checkbox is off by default;
   it performs adaptively scheduled, bounded forward/reverse terminal
   shooting with both-body collision checks and independent full-path
-  RK4 validation. The connector uses native articulated controls, not
-  rigid Reeds–Shepp curves, and is not a complete shortest-path solver.
+  RK4 validation. Most attempts are now reserved for improving near-goal
+  states, while the first four remain distance-unrestricted. Candidate
+  shooting also penalizes nearby obstacles via a **noncertifying**
+  clearance field, and supports finite-rate coupled drive/steering
+  alongside stationary steering arcs. This is not a complete shortest
+  path solver; every accepted shot is independently validated.
   These options do not enable the disabled rigid-body RS or smoothing controls.
   The backend validates all values, and each exported path JSON records
   the effective configuration in `articulatedSearch`:
-  `heuristicMode`, `heuristicWeight`, `enableCoupledMotion`,
-  `useSweptAabbPrefilter`, and `enableGoalConnector`. Connector attempts,
+  `heuristicMode`, `heuristicWeight`, `headingGuidanceWeight`,
+  `enableCoupledMotion`, `useSweptAabbPrefilter`, and
+  `enableGoalConnector`. Connector attempts,
   accepted tails, collision rejects and solver evaluation counts appear
   in the `original` diagnostics. The status line reports the selected
   mode and connector status too.
