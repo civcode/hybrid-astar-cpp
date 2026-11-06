@@ -100,17 +100,73 @@ Phase phasePlan(double currentGamma,double targetGamma,double length,
   const double preGamma=targetGamma-std::copysign(jointCoupled,delta);
   return {preGamma,coupledMeters,length-coupledMeters};
 }
+// Operational quality is a secondary objective, NOT a substitute for
+// geometric/clearance feasibility. The fitting stage first reaches a valid
+// endpoint; only then does projected nullspace descent shorten maneuvers.
+// The weights are metre-equivalent preferences, not actuator certification.
+double operationalPenalty(double stationarySeconds,double jointRadians,
+                          std::size_t gearChanges,std::size_t reversals,
+                          double peakGamma,std::size_t arcs) {
+  const double excess=std::max(0.0,peakGamma-0.75);
+  return 0.12*stationarySeconds+0.12*jointRadians+
+         0.60*double(gearChanges)+0.55*double(reversals)+
+         1.4*excess*excess+
+         0.12*double(arcs>0?arcs-1:0);
+}
+struct EstimatedEffort {
+  double physicalCost=0.0,operationalCost=0.0,qualityCost=0.0;
+};
+EstimatedEffort estimateEffort(RearState start,RearState goal,
+                               const Vector& x,const Gears& signs,
+                               const SearchOptions& o,bool coupled) {
+  double gamma=start.gamma,peak=std::abs(gamma),joint=0.0,stationary=0.0;
+  double physical=0.0;
+  std::size_t gearChanges=0,reversals=0,arcs=0;
+  int previousGear=0,previousSteer=0;
+  const auto changeSteer=[&](double delta,double stationaryDelta) {
+    if(std::abs(delta)<=1e-9)return;
+    const int direction=delta>0.0?1:-1;
+    if(previousSteer&&direction!=previousSteer)++reversals;
+    previousSteer=direction;
+    joint+=std::abs(delta);
+    stationary+=std::abs(stationaryDelta)/
+                o.articulationRateRadiansPerSecond;
+    if(std::abs(stationaryDelta)>1e-9)
+      physical+=o.stationaryArticulationPenaltyMeters;
+  };
+  for(int i=0;i<3;++i) {
+    const auto phase=phasePlan(gamma,x[i],x[i+3],coupled,o);
+    changeSteer(phase.preGamma-gamma,phase.preGamma-gamma);
+    changeSteer(x[i]-phase.preGamma,0.0);
+    peak=std::max({peak,std::abs(phase.preGamma),std::abs(x[i])});
+    gamma=x[i];
+    const double distance=x[i+3];
+    if(distance<=1e-9)continue;
+    ++arcs;
+    if(previousGear&&previousGear!=signs[i])++gearChanges;
+    previousGear=signs[i];
+    physical+=distance*(signs[i]<0?o.reverseCostMultiplier:1.0);
+  }
+  changeSteer(goal.gamma-gamma,goal.gamma-gamma);
+  peak=std::max(peak,std::abs(goal.gamma));
+  physical+=joint*o.articulationCostMetersPerRadian;
+  const double extra=operationalPenalty(stationary,joint,gearChanges,
+                                         reversals,peak,arcs);
+  return {physical,extra,physical+extra};
+}
 struct Eval {
   RearState end;
   Error error{};
   double norm=std::numeric_limits<double>::infinity();
   double obstaclePenalty=0.0;
   double score=std::numeric_limits<double>::infinity();
+  double qualityScore=std::numeric_limits<double>::infinity();
 };
 Eval evaluate(RearState from,RearState goal,const Vector& x,const Gears& signs,
               const Parameters& p,const AnalyticGoalHeuristic& B,
               const SearchOptions& o,bool coupled,
               const GoalConnectorObstacleGuide* guide) {
+  const RearState startPose=from;
   double obstacle=0.0;
   std::size_t samples=0;
   const auto sample=[&](RearState r) {
@@ -155,7 +211,9 @@ Eval evaluate(RearState from,RearState goal,const Vector& x,const Gears& signs,
                 2.0*std::remainder(from.thetaRear-goal.thetaRear,2*pi)};
   const double norm=e[0]*e[0]+e[1]*e[1]+e[2]*e[2];
   const double penalty=samples?obstacle/double(samples):0.0;
-  return {from,e,norm,penalty,norm+8.0*penalty};
+  const auto effort=estimateEffort(startPose,goal,x,signs,o,coupled);
+  return {from,e,norm,penalty,norm+8.0*penalty,
+          effort.qualityCost+12.0*penalty};
 }
 // Small, pivoted 3x3 solve for a damped least-squares step.
 // A=J*J^T+lambda*I is SPD for positive lambda, including singular J.
