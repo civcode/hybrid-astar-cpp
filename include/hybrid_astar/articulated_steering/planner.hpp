@@ -26,7 +26,8 @@ struct BodyGeometry {
 // ObstacleGrid preserves the established search ordering. The two new
 // modes use obstacle-free, tolerance-aware articulated effort lower bounds.
 // Combined is performance guidance only: the raw grid is not certified.
-enum class HeuristicMode { ObstacleGrid, AnalyticOnly, Combined };
+enum class HeuristicMode { ObstacleGrid, AnalyticOnly, Combined,
+                           CombinedHeadingAware };
 
 struct SearchOptions {
   double translationSpeedMetersPerSecond=0.5;
@@ -56,6 +57,10 @@ struct SearchOptions {
   HeuristicMode heuristicMode=HeuristicMode::ObstacleGrid;
   // Multiplies the selected heuristic; values >1 intentionally favor speed.
   double heuristicWeight=1.0;
+  // Experimental performance-only heading emphasis. This intentionally
+  // double-counts a kinematic lower-bound component on top of max(grid,art).
+  // It is NOT admissible or an optimality certificate.
+  double goalHeadingGuidanceWeight=0.8;
   // Optional native articulated terminal connector. Disabled by default so
   // existing plans and benchmark baselines remain byte-for-byte comparable.
   // Adaptive attempts reuse the Ackermann scheduler, but all proposed motions
@@ -67,6 +72,11 @@ struct SearchOptions {
   std::size_t maxGoalConnectorCandidatesPerAttempt=8;
   std::size_t maxGoalConnectorSearchBodyChecks=100000;
   double maxGoalConnectorArcMeters=40.0;
+  // The first tranche of attempts remains distance-unrestricted, like
+  // Ackermann. Reserve the remaining attempts for improved near-goal states.
+  std::size_t goalConnectorGlobalAttempts=4;
+  double goalConnectorNearRadiusMeters=6.0;
+  double goalConnectorMinProgressMeters=0.25;
   // Shared Ackermann reverse-Dijkstra occupancy guidance (performance only).
   // The grid is a point-robot relaxation, not an articulated clearance oracle.
   bool useObstacleGridHeuristic=true;
@@ -122,6 +132,11 @@ struct Diagnostics {
   std::size_t goalConnectorValidated=0,goalConnectorRejectedCollision=0;
   std::size_t goalConnectorRejectedTerminal=0,goalConnectorRejectedStrict=0;
   std::size_t goalConnectorEvaluations=0,goalConnectorBodyChecks=0;
+  std::size_t goalConnectorGlobalUsed=0,goalConnectorNearUsed=0;
+  std::size_t goalConnectorDeferred=0,goalConnectorCoupledCandidates=0;
+  std::size_t goalConnectorClearancePenalized=0;
+  std::size_t goalConnectorFirstExpansion=0,goalConnectorLastExpansion=0;
+  double goalConnectorClosestXYMeters=0.0;
   // Primitive generation is map-independent and performed once per plan.
   // Search applies these rigidly transformed templates; it does NOT
   // reintegrate each successor. Final strict checks still use RK4.
