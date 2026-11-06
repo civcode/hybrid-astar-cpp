@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include "hybrid_astar/articulated_steering/planner.hpp"
 #include "hybrid_astar/articulated_steering/heuristic.hpp"
 #include "hybrid_astar/articulated_steering/goal_connector.hpp"
@@ -626,5 +627,81 @@ TEST_CASE("Adaptive connector reserves later shots for near-goal improvements",
   REQUIRE(result.diagnostics.goalConnectorDeferred>=1);
   r.options.goalConnectorGlobalAttempts=
       r.options.maxGoalConnectorAttempts+1;
+  REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+}
+
+TEST_CASE("Anytime articulated connector preserves a verified incumbent at the expansion limit",
+          "[articulated][connector][anytime][strict]") {
+  auto r=example();
+  r.goal={9.0,10.0,0.0,0.0};
+  r.options.enableGoalConnector=true;
+  r.options.maxExpansions=1; // Force termination immediately after the first shot.
+  r.options.maxGenerated=100;
+  const auto first=as::plan(r);
+  REQUIRE(first.status==as::Status::Success);
+  REQUIRE(first.independentlySampledBodyValidated);
+  r.options.enableAnytimeGoalRefinement=true;
+  r.options.anytimeExtraExpansions=20;
+  const auto refined=as::plan(r);
+  REQUIRE(refined.status==as::Status::Success);
+  REQUIRE(refined.independentlySampledBodyValidated);
+  REQUIRE(refined.diagnostics.expanded==1);
+  REQUIRE(refined.diagnostics.anytimeFirstSolutionExpansion==1);
+  REQUIRE(refined.diagnostics.anytimeExtraExpansions==0);
+  REQUIRE(refined.diagnostics.anytimeValidatedCandidates>=1);
+  REQUIRE(refined.diagnostics.anytimeImprovements==0);
+  REQUIRE(refined.diagnostics.anytimeFirstCostMeters==
+          Catch::Approx(first.costMeters));
+  REQUIRE(refined.costMeters==Catch::Approx(first.costMeters));
+  REQUIRE(refined.diagnostics.anytimeBestCostMeters==
+          Catch::Approx(refined.costMeters));
+  REQUIRE_FALSE(refined.motions.empty());
+  as::Model model(r.parameters);
+  as::BodyCollisionChecker body(*r.map,r.occupancy,r.bodies);
+  for(const auto& motion:refined.motions)
+    for(const auto& sample:motion.samples)
+      REQUIRE(body.clear(model,sample.state));
+}
+
+TEST_CASE("Anytime articulated connector improves only through independently verified trajectories",
+          "[articulated][connector][anytime][cost]") {
+  auto r=example();
+  r.goal={9.0,10.0,0.0,0.0};
+  r.options.enableGoalConnector=true;
+  r.options.maxExpansions=120;
+  r.options.maxGenerated=1000;
+  const auto first=as::plan(r);
+  REQUIRE(first.status==as::Status::Success);
+  r.options.enableAnytimeGoalRefinement=true;
+  r.options.anytimeExtraExpansions=32;
+  r.options.anytimeExtraConnectorAttempts=4;
+  const auto refined=as::plan(r);
+  REQUIRE(refined.status==as::Status::Success);
+  REQUIRE(refined.independentlySampledBodyValidated);
+  REQUIRE(refined.costMeters<=first.costMeters+1e-9);
+  REQUIRE(refined.diagnostics.anytimeFirstCostMeters==
+          Catch::Approx(first.costMeters));
+  REQUIRE(refined.diagnostics.anytimeBestCostMeters==
+          Catch::Approx(refined.costMeters));
+  REQUIRE(refined.diagnostics.anytimeExtraExpansions<=32);
+  REQUIRE(refined.diagnostics.anytimeExtraConnectorAttempts<=4);
+  REQUIRE(refined.diagnostics.goalConnectorValidated>=1);
+  REQUIRE(refined.goalXYErrorMeters<=r.options.goalXYToleranceMeters);
+  REQUIRE(refined.goalYawErrorRadians<=r.options.goalYawToleranceRadians);
+  REQUIRE(refined.goalGammaErrorRadians<=r.options.goalGammaToleranceRadians);
+}
+
+TEST_CASE("Anytime articulated connector requires explicit opt-in and valid budgets",
+          "[articulated][connector][anytime][options]") {
+  auto r=example();
+  r.options.enableAnytimeGoalRefinement=true;
+  REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+  r.options.enableGoalConnector=true;
+  r.options.anytimeExtraExpansions=0;
+  REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+  r.options.anytimeExtraExpansions=100001;
+  REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+  r.options.anytimeExtraExpansions=20;
+  r.options.anytimeExtraConnectorAttempts=1001;
   REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
 }
