@@ -157,27 +157,71 @@ not an admissible estimate or shortest-path certificate.
 The existing ObstacleGrid, AnalyticOnly and Combined modes and their
 defaults remain unchanged.
 
+## Optional cost-aware bounded anytime refinement
+
+With `enableGoalConnector=true`, selecting
+`enableAnytimeGoalRefinement=true` **retains the first strictly validated
+trajectory** instead of immediately ending the search. It explores at
+most `anytimeExtraExpansions=2000` further expanded states (per-plan
+total expansion and generation caps still apply). At most
+`anytimeExtraConnectorAttempts=8` additional terminal shots are
+allowed after the first success, and all connector collision/check
+budgets remain in effect.
+
+Post-incumbent connector opportunities must be near the goal and pass a
+cost-to-come plus analytical obstacle-free effort lower-bound filter.
+The earlier XY-improvement-only gate no longer prevents later, cheaper
+approach poses from being considered. All terminal candidates whose
+prefix cost plus candidate cost cannot beat the incumbent are skipped.
+Successors with accumulated cost at or above the incumbent are also
+pruned. The extra connector attempts still obey the adaptive scheduling
+policy; no guarantee exists that additional shots will succeed.
+
+For every promising candidate, the **complete search prefix plus tail**
+must pass the independent fine-step RK4, both-body collision and
+four-dimensional terminal checks before it can replace the incumbent.
+A validated goal reached through ordinary A* also competes on cost.
+If the extra budget, global expansion limit, or generated-node limit is
+reached, the best retained strictly validated path is returned as
+`Success` instead of being replaced by `BudgetExceeded`.
+Cancellation remains cancellation and does not bypass safety policy.
+
+This is a **bounded anytime, not globally optimal** approach: heuristic
+weighting, state quantization and the limited 3-arc shooting family
+preclude an optimality certificate. It may not improve the first path;
+it deliberately costs extra planning time. Defaults stay **off** in C++
+and the browser. Diagnostics record
+`anytimeFirstSolutionExpansion`, `anytimeExtraExpansions`,
+`anytimeExtraConnectorAttempts`, `anytimeValidatedCandidates`,
+`anytimeImprovements`, `anytimeCostBoundPrunes`,
+`anytimeFirstCostMeters` and `anytimeBestCostMeters`.
+
 ## Planning Lab web UI
 
-Select **Articulated steering**. In the **Articulated Search
-Optimization** section, choose one of the following heuristic modes:
-Obstacle grid (default, weight 1.0), Analytical, Combined (weight 1.2
-preset), or **Combined + goal-heading emphasis** (weight 1.2 preset).
-Only the last mode activates the additional **Extra goal-heading
-guidance** setting (default 0.8, accepted range 0 through 3).
+Select **Articulated steering**. The heuristic mode remains Obstacle
+grid by default. The **browser** now initializes heuristic weight to
+**1.2 for any articulated mode**, and switching modes preserves any
+user-entered value. Existing non-browser C++/HTTP requests default
+to weight 1.0, preserving API compatibility. Combined and
+Combined + goal-heading emphasis remain selectable (the latter
+enables a separate optional guidance strength, initially 0.8).
 
-Both coupled motion and swept-AABB optimization are checked by default.
 **Native articulated goal connector** remains unchecked by default.
-The browser POST, backend option parser, effective search options, and
-exported JSON now all expose the effective settings and connector
-diagnostics. Rigid Ackermann Reeds–Shepp controls remain separate.
+Once enabled, **Improve first validated path** can be selected, exposing
+the extra-expansion budget (default 2,000; 1–100,000). Coupled motion
+and swept-AABB remain enabled by default. All effective options and
+anytime quality diagnostics appear in exported JSON. These controls
+do not enable rigid-car RS curves.
 
 ## Docker validation and exact uploaded regression fixtures
 
 The manual warehouse benchmark's optional THIRD argument chooses an
 exact screenshot/export fixture: `baseline` (historical default),
-`warehouse-heading`, or `open-heading`. The latter two reproduce
-the 2026-11-06 uploaded starts, goals, headings, map and geometry.
+`warehouse-heading`, `open-heading`, or `uploaded-heading`.
+The last scenario reproduces the two most recent uploaded warehouse
+plans: rear start (4.70, 30.49, 0°, gamma 0), rear goal
+(31.24, 5.85, -90°, gamma 0). The other named scenarios preserve
+the earlier warehouse/open-heading fixtures.
 No GitHub Actions are needed or triggered.
 
 ```bash
@@ -195,6 +239,19 @@ for mode in weighted connector heading heading-connector; do
     "$mode" 1.2 warehouse-heading
 done
 
+# First-solution vs anytime on the uploaded warehouse poses.
+# Extra-expansion budgets are independent from the overall 1M limit:
+for mode in connector anytime heading-connector heading-anytime; do
+  docker compose run --rm test \
+    ./build-docker/hybrid_astar_articulated_warehouse_bench \
+    "$mode" 1.2 uploaded-heading 2000
+done
+
+# Try a larger quality budget only when quality justifies the extra work:
+docker compose run --rm test \
+  ./build-docker/hybrid_astar_articulated_warehouse_bench \
+  anytime 1.2 uploaded-heading 5000
+
 # Open-field nonzero-heading regression (should remain fast):
 for mode in connector heading-connector; do
   docker compose run --rm test \
@@ -207,8 +264,8 @@ docker compose up --build demo
 
 CSV output reports the existing expansions/time/path cost/goal error
 columns plus scenario, collision/terminal rejections, global/near
-attempt counts, solver evaluations, coupled candidates, and first/last
-shot expansion. Compare independent validation as well as speed;
+attempt counts, solver evaluations, coupled candidates, first/last
+shot expansion, first/best validated cost and anytime improvement counts. Compare independent validation as well as speed;
 a lower expansion count alone does not establish a safe path.
 
 **Success criterion**: independently sampled two-body collision-free
