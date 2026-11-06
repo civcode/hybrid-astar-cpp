@@ -77,6 +77,12 @@ struct SearchOptions {
   std::size_t goalConnectorGlobalAttempts=4;
   double goalConnectorNearRadiusMeters=6.0;
   double goalConnectorMinProgressMeters=0.25;
+  // Optional bounded anytime improvement after the first independently
+  // validated solution. The incumbent is never replaced by an invalid or
+  // higher-cost path. Off by default to retain legacy first-solution behavior.
+  bool enableAnytimeGoalRefinement=false;
+  std::size_t anytimeExtraExpansions=2000;
+  std::size_t anytimeExtraConnectorAttempts=8;
   // Shared Ackermann reverse-Dijkstra occupancy guidance (performance only).
   // The grid is a point-robot relaxation, not an articulated clearance oracle.
   bool useObstacleGridHeuristic=true;
@@ -137,6 +143,16 @@ struct Diagnostics {
   std::size_t goalConnectorClearancePenalized=0;
   std::size_t goalConnectorFirstExpansion=0,goalConnectorLastExpansion=0;
   double goalConnectorClosestXYMeters=0.0;
+  // First-solution and anytime improvement accounting. Recorded only for
+  // a strictly validated incumbent, never a geometric-only proposal.
+  std::size_t anytimeFirstSolutionExpansion=0;
+  std::size_t anytimeExtraExpansions=0;
+  std::size_t anytimeExtraConnectorAttempts=0;
+  std::size_t anytimeValidatedCandidates=0;
+  std::size_t anytimeImprovements=0;
+  std::size_t anytimeCostBoundPrunes=0;
+  double anytimeFirstCostMeters=0.0;
+  double anytimeBestCostMeters=0.0;
   // Primitive generation is map-independent and performed once per plan.
   // Search applies these rigidly transformed templates; it does NOT
   // reintegrate each successor. Final strict checks still use RK4.
