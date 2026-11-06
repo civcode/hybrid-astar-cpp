@@ -56,9 +56,13 @@
 <option value="analytic">Analytical articulated (obstacle-free)</option>
 <option value="combined">Combined grid + analytical (recommended)</option>
 <option value="heading">Combined + goal-heading emphasis (experimental)</option>
+<option value="coarse">Combined + complete coarse obstacle grid (experimental)</option>
 </select>
 <label class="label" for="artHeuristicWeight">Heuristic weight <small>1.2 UI default · editable</small></label>
 <input id="artHeuristicWeight" type="number" min="0.01" max="3" step="0.1" value="1.2"/>
+<label class="label" for="artCoarseGridResolution">Coarse guidance grid resolution (m) <small>coarse mode only</small></label>
+<input id="artCoarseGridResolution" type="number" min="0.01" max="2" step="0.03" value="0.15"/>
+<div class="hint">The coarse field is built completely once per plan (0.15 m default), while collision checks still use the original map resolution. Very narrow passages can be blocked in the coarse field; those queries safely fall back to geometric guidance. Experimental, not optimality-certified.</div>
 <label class="label" for="artHeadingGuidanceWeight">Extra goal-heading guidance <small>heading mode only · 0–3</small></label>
 <input id="artHeadingGuidanceWeight" type="number" min="0" max="3" step="0.1" value="0.8"/>
 <div class="hint">Heading mode emphasizes final yaw even when the 2D obstacle grid dominates; it is deliberately non-admissible and must be benchmarked separately.</div>
