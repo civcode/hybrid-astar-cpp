@@ -207,8 +207,12 @@ transitions and independently validating the final path**.
   states, while the first four remain distance-unrestricted. Candidate
   shooting also penalizes nearby obstacles via a **noncertifying**
   clearance field, and supports finite-rate coupled drive/steering
-  alongside stationary steering arcs. This is not a complete shortest
-  path solver; every accepted shot is independently validated.
+  alongside stationary steering arcs. It now tries one-arc and two-arc
+  candidates before the general three-arc fallback, and polishes
+  endpoint-feasible candidates for shorter driving, less stationary
+  steering, fewer articulation reversals/gear shifts and less steering
+  near the articulation limits. No reverse or large steering maneuver
+  is prohibited; every accepted shot is independently validated.
   These options do not enable the disabled rigid-body RS or smoothing controls.
   The backend validates all values, and each exported path JSON records
   the effective configuration in `articulatedSearch`:
@@ -230,6 +234,13 @@ transitions and independently validating the final path**.
   returns the best already validated solution. The exported search
   options and path diagnostics report the selected work budget,
   initial/best path cost, accepted improvements and extra work.
+  Extra terminal shots are now spread across the entire refinement
+  window rather than spent immediately after the first valid path.
+  The exported JSON and status line show the selected connector tail's
+  driving distance, stationary steering, articulation travel,
+  gear changes and articulation reversals (not merely the last
+  inspected proposal). Actual planner cost remains distinct from
+  the optional operational quality score.
   Articulated planning honors the same user-configurable
   **1,000,000-expansion ceiling** as the three rigid models;
   its separate generated-node budget is four times the selected
