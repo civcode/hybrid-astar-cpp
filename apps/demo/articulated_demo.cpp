@@ -112,6 +112,14 @@ void pathJson(std::ostream& os,const art::Result& r) {
     <<",\"goalConnectorFirstExpansion\":"<<r.diagnostics.goalConnectorFirstExpansion
     <<",\"goalConnectorLastExpansion\":"<<r.diagnostics.goalConnectorLastExpansion
     <<",\"goalConnectorClosestXYMeters\":"<<r.diagnostics.goalConnectorClosestXYMeters
+    <<",\"anytimeFirstSolutionExpansion\":"<<r.diagnostics.anytimeFirstSolutionExpansion
+    <<",\"anytimeExtraExpansions\":"<<r.diagnostics.anytimeExtraExpansions
+    <<",\"anytimeExtraConnectorAttempts\":"<<r.diagnostics.anytimeExtraConnectorAttempts
+    <<",\"anytimeValidatedCandidates\":"<<r.diagnostics.anytimeValidatedCandidates
+    <<",\"anytimeImprovements\":"<<r.diagnostics.anytimeImprovements
+    <<",\"anytimeCostBoundPrunes\":"<<r.diagnostics.anytimeCostBoundPrunes
+    <<",\"anytimeFirstCostMeters\":"<<r.diagnostics.anytimeFirstCostMeters
+    <<",\"anytimeBestCostMeters\":"<<r.diagnostics.anytimeBestCostMeters
     <<",\"searchBodyChecks\":"<<r.diagnostics.searchBodyChecks
     <<",\"precomputedAnalyticDriveTemplates\":"<<r.diagnostics.precomputedAnalyticDriveTemplates
     <<",\"precomputedStationaryRk4Templates\":"<<r.diagnostics.precomputedStationaryRk4Templates
@@ -262,6 +270,15 @@ ArticulatedOutcome runArticulated(const Options& opt) {
   out.settings.enableCoupledMotion=opt.articulatedEnableCoupledMotion;
   out.settings.useSweptAabbPrefilter=opt.articulatedUseSweptAabbPrefilter;
   out.settings.enableGoalConnector=opt.articulatedEnableGoalConnector;
+  if(opt.articulatedEnableAnytimeGoalRefinement&&
+     !opt.articulatedEnableGoalConnector)
+    throw std::invalid_argument("Articulated anytime refinement requires native goal connector");
+  if(opt.articulatedAnytimeExtraExpansions<1||
+     opt.articulatedAnytimeExtraExpansions>100000)
+    throw std::invalid_argument("Articulated anytime extra expansions must be in [1, 100000]");
+  out.settings.enableAnytimeGoalRefinement=
+      opt.articulatedEnableAnytimeGoalRefinement;
+  out.settings.anytimeExtraExpansions=opt.articulatedAnytimeExtraExpansions;
   art::Request request;
   request.map=out.map;
   request.parameters=out.parameters;
@@ -314,6 +331,8 @@ std::string articulatedToJson(const ArticulatedOutcome& out) {
     <<",\"enableCoupledMotion\":"<<(out.settings.enableCoupledMotion?"true":"false")
     <<",\"useSweptAabbPrefilter\":"<<(out.settings.useSweptAabbPrefilter?"true":"false")
     <<",\"enableGoalConnector\":"<<(out.settings.enableGoalConnector?"true":"false")
+    <<",\"enableAnytimeGoalRefinement\":"<<(out.settings.enableAnytimeGoalRefinement?"true":"false")
+    <<",\"anytimeExtraExpansions\":"<<out.settings.anytimeExtraExpansions
     <<"},\"mapRuns\":[";
   bool first=true;
   for(std::size_t y=0;y<m.height;++y) {
