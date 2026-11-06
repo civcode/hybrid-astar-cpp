@@ -205,6 +205,54 @@ not an admissible estimate or shortest-path certificate.
 The existing ObstacleGrid, AnalyticOnly and Combined modes and their
 defaults remain unchanged.
 
+### Operationally simpler terminal fitting
+
+The native terminal generator now attempts **one driving arc**, then
+**two driving arcs**, before its general **three-arc** forward/reverse
+family. Each family supports stationary or finite-rate coupled steering.
+The total 3,000-evaluation-per-shot ceiling is unchanged: approximately
+one eighth of the budget is reserved for one-arc fits, one third total
+for one-/two-arc fits, and the remainder for unrestricted three-arc
+fallback. Shorter families do not make complicated parking cases
+unreachable; they simply get evaluated first.
+
+For each candidate the solver first minimizes endpoint error and
+sampled soft obstacle clearance. Once feasible, a damped projection into
+the endpoint Jacobian's approximate nullspace polishes a separate
+**operational quality score**. It includes actual driving cost, reverse
+driving, total articulation effort, stationary steering duration,
+steering-direction changes, gear switches, steering-limit excursions,
+and unnecessary drive-arc fragmentation. A polishing step is accepted
+only when the terminal fit and soft-clearance threshold remain feasible.
+The complete control sequence is still checked against *both real
+carriage footprints* and independently replayed with RK4 before success.
+No finite set of maneuver families certifies shortest or simplest paths.
+
+The operational penalty is used for candidate fitting and provisional
+ranking, **not hidden inside the planner's path cost**. The existing
+strictly validated incumbent is still replaced only by a candidate
+with lower actual accumulated `costMeters`; this protects the existing
+anytime non-worsening planner-cost contract. A feasible higher-cost
+path with fewer steering reversals may therefore *not* replace a
+cheaper existing incumbent. Connector effort remains a preference,
+not a hard constraint on steering, reverse or joint limits.
+
+The JSON `original` object now exports:
+`goalConnectorTailDrivingMeters`,
+`goalConnectorTailReverseMeters`,
+`goalConnectorTailArticulationRadians`,
+`goalConnectorTailStationarySeconds`,
+`goalConnectorTailPeakGammaRadians`,
+`goalConnectorTailGearChanges`,
+`goalConnectorTailArticulationReversals`,
+`goalConnectorTailDriveArcs`,
+`goalConnectorTailFittedArcs`,
+`goalConnectorTailOperationalPenaltyMeters`, and
+`goalConnectorTailQualityScoreMeters` for the **actually returned
+incumbent**, not an arbitrary rejected or superseded proposal.
+Plain search solutions without terminal shooting have zero tail
+metrics. Proposal counts by one-/two-/three-arc family are included.
+
 ## Optional cost-aware bounded anytime refinement
 
 With `enableGoalConnector=true`, selecting
@@ -222,8 +270,18 @@ The earlier XY-improvement-only gate no longer prevents later, cheaper
 approach poses from being considered. All terminal candidates whose
 prefix cost plus candidate cost cannot beat the incumbent are skipped.
 Successors with accumulated cost at or above the incumbent are also
-pruned. The extra connector attempts still obey the adaptive scheduling
-policy; no guarantee exists that additional shots will succeed.
+pruned. After the first validated solution, extra attempts are
+**paced across the whole anytime expansion budget** rather than
+consumed in the first few dozen expansions. The default 2,000 extra
+expansions and eight extra shots yield slots near +222, +444, ...,
++1778 expansions; exceptionally promising kinematic lower-bound
+states may shoot up to about 44 expansions ahead of their slot.
+An unpromising state simply leaves its slot unused. Before the first
+solution, the existing adaptive first-node/near-goal scheduler is
+unchanged. Diagnostics `anytimePacedDeferrals`,
+`anytimeFirstExtraShotExpansion`, and
+`anytimeLastExtraShotExpansion` show when shooting happened.
+No guarantee exists that any further shot will succeed.
 
 For every promising candidate, the **complete search prefix plus tail**
 must pass the independent fine-step RK4, both-body collision and
