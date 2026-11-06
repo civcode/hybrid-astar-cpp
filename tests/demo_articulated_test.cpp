@@ -164,6 +164,7 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
   REQUIRE(defaultRun.result.status==art::Status::Success);
   REQUIRE(defaultRun.settings.heuristicMode==art::HeuristicMode::ObstacleGrid);
   REQUIRE(defaultRun.settings.heuristicWeight==1.0);
+  REQUIRE(defaultRun.settings.coarseGridResolutionMeters==0.15);
   REQUIRE(defaultRun.settings.goalHeadingGuidanceWeight==0.8);
   REQUIRE(defaultRun.settings.enableCoupledMotion);
   REQUIRE(defaultRun.settings.useSweptAabbPrefilter);
@@ -179,9 +180,11 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
 
   for(const auto mode:{art::HeuristicMode::AnalyticOnly,
                        art::HeuristicMode::Combined,
-                       art::HeuristicMode::CombinedHeadingAware}) {
+                       art::HeuristicMode::CombinedHeadingAware,
+                       art::HeuristicMode::CombinedCoarseGrid}) {
     options.articulatedHeuristicMode=mode;
     options.articulatedHeuristicWeight=1.2;
+    options.articulatedCoarseGridResolutionMeters=0.18;
     options.articulatedHeadingGuidanceWeight=1.4;
     options.articulatedEnableCoupledMotion=false;
     options.articulatedUseSweptAabbPrefilter=false;
@@ -193,6 +196,7 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     REQUIRE(changed.result.independentlySampledBodyValidated);
     REQUIRE(changed.settings.heuristicMode==mode);
     REQUIRE(changed.settings.heuristicWeight==1.2);
+    REQUIRE(changed.settings.coarseGridResolutionMeters==0.18);
     REQUIRE(changed.settings.goalHeadingGuidanceWeight==1.4);
     REQUIRE_FALSE(changed.settings.enableCoupledMotion);
     REQUIRE_FALSE(changed.settings.useSweptAabbPrefilter);
@@ -202,10 +206,17 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     REQUIRE(changed.result.diagnostics.anytimeFirstSolutionExpansion>=1);
     const auto json=demo::articulatedToJson(changed);
     const std::string expectedMode=mode==art::HeuristicMode::AnalyticOnly
-        ?"analytic":mode==art::HeuristicMode::Combined?"combined":"heading";
+        ?"analytic":mode==art::HeuristicMode::Combined?"combined":
+        mode==art::HeuristicMode::CombinedHeadingAware?"heading":"coarse";
     REQUIRE(json.find("\"heuristicMode\":\""+expectedMode+"\"")!=
       std::string::npos);
     REQUIRE(json.find("\"headingGuidanceWeight\":1.4")!=std::string::npos);
+    REQUIRE(json.find("\"coarseGridResolutionMeters\":0.18")!=std::string::npos);
+    REQUIRE(json.find("\"coarseGridCells\"")!=std::string::npos);
+    if(mode==art::HeuristicMode::CombinedCoarseGrid) {
+      REQUIRE(changed.result.diagnostics.coarseGridSettlements>0);
+      REQUIRE(changed.result.diagnostics.gridSettlements==0);
+    }
     REQUIRE(json.find("\"heuristicWeight\":1.2")!=std::string::npos);
     REQUIRE(json.find("\"enableCoupledMotion\":false")!=std::string::npos);
     REQUIRE(json.find("\"useSweptAabbPrefilter\":false")!=std::string::npos);
@@ -234,6 +245,11 @@ TEST_CASE("Planning Lab rejects invalid articulated heuristic weights and enum v
   options.articulatedHeuristicWeight=std::numeric_limits<double>::infinity();
   REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
   options.articulatedHeuristicWeight=1.0;
+  options.articulatedCoarseGridResolutionMeters=0.0;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedCoarseGridResolutionMeters=2.1;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedCoarseGridResolutionMeters=0.15;
   options.articulatedHeadingGuidanceWeight=-1.0;
   REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
   options.articulatedHeadingGuidanceWeight=3.01;
