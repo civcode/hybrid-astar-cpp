@@ -179,7 +179,7 @@ def main(exe):
         for new_control in ("artHeuristicMode","artHeuristicWeight",
                             "artCoupledMotion","artSweptAabb","artGoalConnector",
                             "artHeadingGuidanceWeight","artAnytimeRefinement",
-                            "artAnytimeExtraExpansions"):
+                            "artAnytimeExtraExpansions","artCoarseGridResolution"):
             assert f'id="{new_control}"' in page, new_control
             assert f"params.set('{new_control}'" in script, new_control
         assert '<option value="grid" selected>' in page
@@ -386,6 +386,7 @@ def main(exe):
             assert parsed["original"]["validated"] is True
             assert parsed["articulatedSearch"]=={
                 "heuristicMode":mode,"heuristicWeight":float(weight),
+                "coarseGridResolutionMeters":0.15,
                 "headingGuidanceWeight":0.8,
                 "enableCoupledMotion":False,"useSweptAabbPrefilter":False,
                 "enableGoalConnector":False,
@@ -396,6 +397,7 @@ def main(exe):
         assert code==200
         assert json.loads(body)["articulatedSearch"]=={
             "heuristicMode":"grid","heuristicWeight":1.0,
+            "coarseGridResolutionMeters":0.15,
             "headingGuidanceWeight":0.8,
             "enableCoupledMotion":True,"useSweptAabbPrefilter":True,
             "enableGoalConnector":False,
@@ -434,6 +436,19 @@ def main(exe):
             assert heading["original"]["validated"] is True
             assert heading["articulatedSearch"]["heuristicMode"]=="heading"
             assert heading["articulatedSearch"]["headingGuidanceWeight"]==1.4
+        for resolution in ("0.12","0.15","0.18"):
+            code, _, body=post({**art_form,"artHeuristicMode":"coarse",
+                                 "artHeuristicWeight":"1.2",
+                                 "artCoarseGridResolution":resolution})
+            assert code==200, body
+            coarse=json.loads(body)
+            assert coarse["original"]["status"]=="Success"
+            assert coarse["original"]["validated"] is True
+            assert coarse["articulatedSearch"]["heuristicMode"]=="coarse"
+            assert coarse["articulatedSearch"]["coarseGridResolutionMeters"]==float(resolution)
+            assert coarse["original"]["coarseGridCells"]>0
+            assert coarse["original"]["coarseGridSettlements"]>0
+            assert coarse["original"]["gridWorkBudgetFallbacks"]==0
         for bad in (
             {"artHeuristicMode":"unknown"},
             {"artHeuristicMode":""},
@@ -445,6 +460,11 @@ def main(exe):
             {"artHeadingGuidanceWeight":"-1"},
             {"artHeadingGuidanceWeight":"3.1"},
             {"artHeadingGuidanceWeight":"nan"},
+            {"artCoarseGridResolution":"-1"},
+            {"artCoarseGridResolution":"0"},
+            {"artCoarseGridResolution":"2.1"},
+            {"artCoarseGridResolution":"nan"},
+            {"artCoarseGridResolution":"hello"},
             {"artCoupledMotion":"perhaps"},
             {"artSweptAabb":"2"},
             {"artGoalConnector":"maybe"},
