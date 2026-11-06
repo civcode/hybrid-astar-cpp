@@ -35,6 +35,7 @@ struct Options {
   articulated_steering::HeuristicMode articulatedHeuristicMode=
       articulated_steering::HeuristicMode::ObstacleGrid;
   double articulatedHeuristicWeight=1.0;
+  double articulatedHeadingGuidanceWeight=0.8; // performance-only opt-in
   bool articulatedEnableCoupledMotion=true;
   bool articulatedUseSweptAabbPrefilter=true;
   bool articulatedEnableGoalConnector=false; // optional native 4D terminal solver
