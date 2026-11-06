@@ -178,7 +178,8 @@ def main(exe):
         assert "['ompl','rsDistance','refine'" in script
         for new_control in ("artHeuristicMode","artHeuristicWeight",
                             "artCoupledMotion","artSweptAabb","artGoalConnector",
-                            "artHeadingGuidanceWeight"):
+                            "artHeadingGuidanceWeight","artAnytimeRefinement",
+                            "artAnytimeExtraExpansions"):
             assert f'id="{new_control}"' in page, new_control
             assert f"params.set('{new_control}'" in script, new_control
         assert '<option value="grid" selected>' in page
@@ -387,7 +388,9 @@ def main(exe):
                 "heuristicMode":mode,"heuristicWeight":float(weight),
                 "headingGuidanceWeight":0.8,
                 "enableCoupledMotion":False,"useSweptAabbPrefilter":False,
-                "enableGoalConnector":False
+                "enableGoalConnector":False,
+                "enableAnytimeGoalRefinement":False,
+                "anytimeExtraExpansions":2000
             }
         code, _, body=post(art_form)
         assert code==200
@@ -395,7 +398,9 @@ def main(exe):
             "heuristicMode":"grid","heuristicWeight":1.0,
             "headingGuidanceWeight":0.8,
             "enableCoupledMotion":True,"useSweptAabbPrefilter":True,
-            "enableGoalConnector":False
+            "enableGoalConnector":False,
+                "enableAnytimeGoalRefinement":False,
+                "anytimeExtraExpansions":2000
         }
         # Opt-in request/response is explicit and stays independent of RS.
         code, _, body=post({**art_form,"artHeuristicMode":"combined",
@@ -405,6 +410,21 @@ def main(exe):
         assert connected["articulatedSearch"]["enableGoalConnector"] is True
         assert connected["original"]["goalConnectorAttempts"] >= 0
         assert connected["original"]["goalConnectorValidated"] >= 0
+        code, _, body=post({**art_form,"artHeuristicMode":"combined",
+                             "artHeuristicWeight":"1.2","artGoalConnector":"1",
+                             "artAnytimeRefinement":"1",
+                             "artAnytimeExtraExpansions":"12"})
+        assert code==200, body
+        refined=json.loads(body)
+        assert refined["original"]["status"]=="Success"
+        assert refined["original"]["validated"] is True
+        assert refined["articulatedSearch"]["enableAnytimeGoalRefinement"] is True
+        assert refined["articulatedSearch"]["anytimeExtraExpansions"]==12
+        assert refined["original"]["anytimeFirstSolutionExpansion"]>=1
+        assert refined["original"]["anytimeFirstCostMeters"]>=refined["original"]["cost"]
+        assert refined["original"]["anytimeBestCostMeters"]==refined["original"]["cost"]
+        assert refined["original"]["anytimeExtraExpansions"]<=12
+        assert refined["original"]["anytimeImprovements"]>=0
         for mode in ("heading",):
             code, _, body=post({**art_form,"artHeuristicMode":mode,
                                  "artHeuristicWeight":"1.2",
@@ -428,6 +448,12 @@ def main(exe):
             {"artCoupledMotion":"perhaps"},
             {"artSweptAabb":"2"},
             {"artGoalConnector":"maybe"},
+            {"artAnytimeRefinement":"perhaps"},
+            {"artAnytimeExtraExpansions":"0"},
+            {"artAnytimeExtraExpansions":"2.5"},
+            {"artAnytimeExtraExpansions":"100001"},
+            {"artAnytimeExtraExpansions":"nan"},
+            {"artAnytimeRefinement":"1"},
             {"artHeuristic":"grid"},
         ):
             code, _, body=post({**art_form,**bad})
