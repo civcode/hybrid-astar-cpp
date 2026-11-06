@@ -143,6 +143,89 @@ double costOf(const std::vector<GoalControl>& segments,const SearchOptions& o) {
 }
 } // namespace
 
+GoalConnectorObstacleGuide::GoalConnectorObstacleGuide(
+    const ackermann::MapSnapshot& map,ackermann::OccupancyPolicy occupancy,
+    BodyGeometry geometry)
+    : width_(map.width),height_(map.height),resolution_(map.resolutionMeters),
+      originX_(map.origin.x),originY_(map.origin.y),
+      cosYaw_(std::cos(map.origin.yaw)),sinYaw_(std::sin(map.origin.yaw)) {
+  const auto radius=[](ackermann::Footprint b,double inflation) {
+    return std::hypot(std::max(std::abs(b.frontX),std::abs(b.rearX)),
+                      b.halfWidth)+inflation;
+  };
+  frontRadius_=radius(geometry.front,geometry.inflationMeters);
+  rearRadius_=radius(geometry.rear,geometry.inflationMeters);
+  clearance_.assign(width_*height_,std::numeric_limits<double>::infinity());
+  for(std::size_t i=0;i<clearance_.size();++i) {
+    const int cell=map.cells[i];
+    const bool blocked=cell<0
+        ?occupancy.unknown!=ackermann::UnknownPolicy::Free
+        :cell>occupancy.maxTraversableOccupancy;
+    if(blocked) {
+      clearance_[i]=0.0;
+      hasObstacles_=true;
+    }
+  }
+  if(!hasObstacles_)return;
+  const auto improve=[&](std::size_t x,std::size_t y,
+                         std::size_t nx,std::size_t ny,double step) {
+    auto& d=clearance_[y*width_+x];
+    d=std::min(d,clearance_[ny*width_+nx]+step);
+  };
+  // Two-pass 8-neighbor chamfer distance transform, O(map cells).
+  // It is only a smooth optimization guide, never safety evidence.
+  for(std::size_t y=0;y<height_;++y)for(std::size_t x=0;x<width_;++x) {
+    if(x>0)improve(x,y,x-1,y,1.0);
+    if(y>0) {
+      improve(x,y,x,y-1,1.0);
+      if(x>0)improve(x,y,x-1,y-1,std::numbers::sqrt2_v<double>);
+      if(x+1<width_)improve(x,y,x+1,y-1,std::numbers::sqrt2_v<double>);
+    }
+  }
+  for(std::size_t y=height_;y-->0;)for(std::size_t x=width_;x-->0;) {
+    if(x+1<width_)improve(x,y,x+1,y,1.0);
+    if(y+1<height_) {
+      improve(x,y,x,y+1,1.0);
+      if(x>0)improve(x,y,x-1,y+1,std::numbers::sqrt2_v<double>);
+      if(x+1<width_)improve(x,y,x+1,y+1,std::numbers::sqrt2_v<double>);
+    }
+  }
+}
+
+double GoalConnectorObstacleGuide::at(double worldX,double worldY,
+                                      double radius) const noexcept {
+  const double dx=worldX-originX_,dy=worldY-originY_;
+  const double x=cosYaw_*dx+sinYaw_*dy,y=-sinYaw_*dx+cosYaw_*dy;
+  const double edge=std::min({x,y,width_*resolution_-x,height_*resolution_-y});
+  if(edge<=0.0)return 16.0;
+  double occupied=std::numeric_limits<double>::infinity();
+  if(hasObstacles_) {
+    const double gx=std::clamp(x/resolution_-0.5,0.0,double(width_-1));
+    const double gy=std::clamp(y/resolution_-0.5,0.0,double(height_-1));
+    const auto x0=std::size_t(gx),y0=std::size_t(gy);
+    const auto x1=std::min(x0+1,width_-1),y1=std::min(y0+1,height_-1);
+    const double tx=gx-x0,ty=gy-y0;
+    const double v0=std::lerp(clearance_[y0*width_+x0],
+                              clearance_[y0*width_+x1],tx);
+    const double v1=std::lerp(clearance_[y1*width_+x0],
+                              clearance_[y1*width_+x1],tx);
+    occupied=std::lerp(v0,v1,ty)*resolution_-
+             std::numbers::sqrt2_v<double>*resolution_/2.0;
+  }
+  const double clearance=std::min(edge,occupied);
+  const double deficit=std::max(0.0,radius+0.25-clearance);
+  return deficit*deficit;
+}
+
+double GoalConnectorObstacleGuide::penalty(
+    RearState pose,const Parameters& geometry) const noexcept {
+  const double fx=pose.xr+geometry.LrMeters*std::cos(pose.thetaRear)+
+                  geometry.LfMeters*std::cos(pose.thetaRear+pose.gamma);
+  const double fy=pose.yr+geometry.LrMeters*std::sin(pose.thetaRear)+
+                  geometry.LfMeters*std::sin(pose.thetaRear+pose.gamma);
+  return at(pose.xr,pose.yr,rearRadius_)+at(fx,fy,frontRadius_);
+}
+
 std::vector<GoalConnection> proposeGoalConnections(
     const Model& model,RearState from,RearState goal,
     const SearchOptions& options,std::size_t& evaluations) {
