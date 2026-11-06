@@ -53,6 +53,7 @@ const char* heuristicModeName(art::HeuristicMode mode) {
     case art::HeuristicMode::ObstacleGrid:return "grid";
     case art::HeuristicMode::AnalyticOnly:return "analytic";
     case art::HeuristicMode::Combined:return "combined";
+    case art::HeuristicMode::CombinedHeadingAware:return "heading";
   }
   throw std::invalid_argument("Invalid articulated heuristic mode");
 }
@@ -103,6 +104,14 @@ void pathJson(std::ostream& os,const art::Result& r) {
     <<",\"goalConnectorRejectedStrict\":"<<r.diagnostics.goalConnectorRejectedStrict
     <<",\"goalConnectorEvaluations\":"<<r.diagnostics.goalConnectorEvaluations
     <<",\"goalConnectorBodyChecks\":"<<r.diagnostics.goalConnectorBodyChecks
+    <<",\"goalConnectorGlobalUsed\":"<<r.diagnostics.goalConnectorGlobalUsed
+    <<",\"goalConnectorNearUsed\":"<<r.diagnostics.goalConnectorNearUsed
+    <<",\"goalConnectorDeferred\":"<<r.diagnostics.goalConnectorDeferred
+    <<",\"goalConnectorCoupledCandidates\":"<<r.diagnostics.goalConnectorCoupledCandidates
+    <<",\"goalConnectorClearancePenalized\":"<<r.diagnostics.goalConnectorClearancePenalized
+    <<",\"goalConnectorFirstExpansion\":"<<r.diagnostics.goalConnectorFirstExpansion
+    <<",\"goalConnectorLastExpansion\":"<<r.diagnostics.goalConnectorLastExpansion
+    <<",\"goalConnectorClosestXYMeters\":"<<r.diagnostics.goalConnectorClosestXYMeters
     <<",\"searchBodyChecks\":"<<r.diagnostics.searchBodyChecks
     <<",\"precomputedAnalyticDriveTemplates\":"<<r.diagnostics.precomputedAnalyticDriveTemplates
     <<",\"precomputedStationaryRk4Templates\":"<<r.diagnostics.precomputedStationaryRk4Templates
@@ -245,6 +254,11 @@ ArticulatedOutcome runArticulated(const Options& opt) {
   (void)heuristicModeName(opt.articulatedHeuristicMode); // reject invalid enum values
   out.settings.heuristicMode=opt.articulatedHeuristicMode;
   out.settings.heuristicWeight=opt.articulatedHeuristicWeight;
+  if(!std::isfinite(opt.articulatedHeadingGuidanceWeight)||
+     opt.articulatedHeadingGuidanceWeight<0.0||
+     opt.articulatedHeadingGuidanceWeight>3.0)
+    throw std::invalid_argument("Articulated heading guidance weight must be in [0, 3]");
+  out.settings.goalHeadingGuidanceWeight=opt.articulatedHeadingGuidanceWeight;
   out.settings.enableCoupledMotion=opt.articulatedEnableCoupledMotion;
   out.settings.useSweptAabbPrefilter=opt.articulatedUseSweptAabbPrefilter;
   out.settings.enableGoalConnector=opt.articulatedEnableGoalConnector;
@@ -296,6 +310,7 @@ std::string articulatedToJson(const ArticulatedOutcome& out) {
     <<"},\"articulatedSearch\":{\"heuristicMode\":";
   quoted(os,heuristicModeName(out.settings.heuristicMode));
   os<<",\"heuristicWeight\":"<<out.settings.heuristicWeight
+    <<",\"headingGuidanceWeight\":"<<out.settings.goalHeadingGuidanceWeight
     <<",\"enableCoupledMotion\":"<<(out.settings.enableCoupledMotion?"true":"false")
     <<",\"useSweptAabbPrefilter\":"<<(out.settings.useSweptAabbPrefilter?"true":"false")
     <<",\"enableGoalConnector\":"<<(out.settings.enableGoalConnector?"true":"false")
