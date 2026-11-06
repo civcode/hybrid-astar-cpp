@@ -192,11 +192,12 @@ bool nearTarget(const Eval& e,const SearchOptions& o) {
 }
 std::vector<GoalControl> makeControls(const Vector& x,const Gears& signs,
                                      RearState from,RearState goal,
-                                     const SearchOptions& o) {
+                                     const SearchOptions& o,bool coupled) {
   std::vector<GoalControl> out;
-  out.reserve(32);
+  out.reserve(64);
   const double v=o.translationSpeedMetersPerSecond;
   const double u=o.articulationRateRadiansPerSecond;
+  const double chunkMeters=std::clamp(o.translationPrimitiveMeters*2.0,.25,1.0);
   const auto addSteer=[&](double to) {
     const double delta=to-from.gamma;
     if(std::abs(delta)>1e-8) {
@@ -205,12 +206,21 @@ std::vector<GoalControl> makeControls(const Vector& x,const Gears& signs,
     }
   };
   for(int i=0;i<3;++i) {
-    addSteer(x[i]);
-    // Split long exact arcs into bounded-duration pieces. This retains the
-    // same physical motion but respects adaptive sample limits in both
-    // preliminary collision checks and independent final RK4 validation.
-    double remaining=x[i+3];
-    const double chunkMeters=std::clamp(o.translationPrimitiveMeters*2.0,.25,1.0);
+    const auto phase=phasePlan(from.gamma,x[i],x[i+3],coupled,o);
+    addSteer(phase.preGamma);
+    if(phase.coupledMeters>1e-8) {
+      const double rate=std::copysign(u,x[i]-phase.preGamma);
+      double remaining=phase.coupledMeters;
+      while(remaining>1e-6) {
+        const double distance=std::min(remaining,chunkMeters);
+        out.push_back({{signs[i]*v,rate},distance/v});
+        remaining-=distance;
+      }
+      from.gamma=x[i];
+    }
+    // Split long arcs to respect both the preliminary and strict sample
+    // budgets. Identical adjacent controls remain physically continuous.
+    double remaining=phase.remainingMeters;
     while(remaining>1e-6) {
       const double distance=std::min(remaining,chunkMeters);
       out.push_back({{signs[i]*v,0.0},distance/v});
