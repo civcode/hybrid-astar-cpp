@@ -331,7 +331,8 @@ double GoalConnectorObstacleGuide::penalty(
 
 std::vector<GoalConnection> proposeGoalConnections(
     const Model& model,RearState from,RearState goal,
-    const SearchOptions& options,std::size_t& evaluations) {
+    const SearchOptions& options,std::size_t& evaluations,
+    const GoalConnectorObstacleGuide* guide) {
   evaluations=0;
   std::vector<GoalConnection> found;
   const auto& p=model.parameters();
@@ -342,8 +343,6 @@ std::vector<GoalConnection> proposeGoalConnections(
   const double distance=std::hypot(goal.xr-from.xr,goal.yr-from.yr);
   const double ahead=(goal.xr-from.xr)*std::cos(from.thetaRear)+
                      (goal.yr-from.yr)*std::sin(from.thetaRear);
-  // Reverse-first ordering matters for small work budgets and goals behind
-  // the vehicle. Every family is tried with bounded signed arc lengths.
   const std::array<Gears,8> patterns=ahead<0.0
       ?std::array<Gears,8>{{{-1,-1,-1},{-1,-1,1},{-1,1,1},
                             {-1,1,-1},{1,-1,-1},{1,1,-1},
@@ -356,87 +355,126 @@ std::vector<GoalConnection> proposeGoalConnections(
       bearing-from.thetaRear,2*pi),p.minGammaRadians,p.maxGammaRadians);
   const double turn=std::remainder(goal.thetaRear-from.thetaRear,2*pi);
   const double steerSign=turn<0?-1.0:1.0;
-  const double amp=std::min(.85,std::max(0.0,p.maxGammaRadians));
+  const double amp=std::min(.85,p.maxGammaRadians);
   const double minusAmp=std::max(-.85,p.minGammaRadians);
-  // Small S-shaped arcs often provide a clean path between separated
-  // poses with the SAME heading; try them before large-articulation seeds.
-  // This also helps eliminate avoidable open-field steering oscillations.
   const double approachSign=aimed<0.0?-1.0:1.0;
-  const std::array<std::array<double,3>,5> seeds{{
+  const std::array<std::array<double,3>,6> seeds{{
+      {from.gamma,from.gamma,from.gamma},
       {approachSign*.12,0.0,-approachSign*.12},
       {aimed,aimed,aimed},
       {steerSign*amp,-steerSign*amp,steerSign*amp},
       {-steerSign*amp,steerSign*amp,-steerSign*amp},
       {minusAmp,0.0,amp}
   }};
-  for(const Gears& signs:patterns) {
-    for(const auto& seed:seeds) {
-      if(evaluations>=budget)break;
-      Vector x{seed[0],seed[1],seed[2],
-               distance/3.0+.2,distance/3.0+.2,distance/3.0+.2};
-      clampVector(x,p,maxArc);
-      Eval best=evaluate(from,goal,x,signs,p,B);++evaluations;
-      double lambda=.03;
-      for(int iteration=0;iteration<21&&!nearTarget(best,options);++iteration) {
-        if(evaluations+6>=budget)break;
-        std::array<std::array<double,6>,3> J{};
-        for(int j=0;j<6;++j) {
-          auto perturbed=x;
-          const double step=j<3?1e-4:1e-3;
-          perturbed[j]+=step;
-          clampVector(perturbed,p,maxArc);
-          const double actual=perturbed[j]-x[j];
-          if(std::abs(actual)<1e-10) {
-            perturbed=x;perturbed[j]-=step;
+  const bool useGuide=guide&&guide->hasObstacles();
+  // Constant-gamma families first (exact circular arcs). Follow with
+  // coupled articulation-rate families, using analytic yaw and quadrature
+  // for the front reference, not a rigid-car instantaneous steering step.
+  for(const bool coupled:{false,true}) {
+    for(const Gears& signs:patterns) {
+      for(const auto& seed:seeds) {
+        if(evaluations>=budget)break;
+        Vector x{seed[0],seed[1],seed[2],
+                 distance/3.0+.2,distance/3.0+.2,distance/3.0+.2};
+        if(std::abs(turn)<options.goalYawToleranceRadians &&
+           std::abs(from.gamma-goal.gamma)<options.goalGammaToleranceRadians &&
+           std::abs(seed[0]-from.gamma)<1e-8) {
+          x[3]=std::abs(ahead);x[4]=0.0;x[5]=0.0;
+        }
+        clampVector(x,p,maxArc);
+        Eval best=evaluate(from,goal,x,signs,p,B,options,coupled,
+                           useGuide?guide:nullptr);
+        ++evaluations;
+        double lambda=.03;
+        for(int iteration=0;iteration<24;++iteration) {
+          if(nearTarget(best,options)&&
+             (!useGuide||best.obstaclePenalty<.002))break;
+          if(evaluations+7>=budget)break;
+          std::array<std::array<double,6>,3> J{};
+          Vector obstacleGrad{};
+          for(int j=0;j<6;++j) {
+            auto perturbed=x;
+            const double step=j<3?1e-4:1e-3;
+            perturbed[j]+=step;
             clampVector(perturbed,p,maxArc);
+            if(std::abs(perturbed[j]-x[j])<1e-10) {
+              perturbed=x;perturbed[j]-=step;
+              clampVector(perturbed,p,maxArc);
+            }
+            const double d=perturbed[j]-x[j];
+            if(std::abs(d)<1e-10)continue;
+            const Eval next=evaluate(from,goal,perturbed,signs,p,B,options,
+                                     coupled,useGuide?guide:nullptr);
+            ++evaluations;
+            for(int k=0;k<3;++k)
+              J[k][j]=k==2
+                  ?2.0*std::remainder((next.error[k]-best.error[k])/2.0,2*pi)/d
+                  :(next.error[k]-best.error[k])/d;
+            if(useGuide)
+              obstacleGrad[j]=(next.obstaclePenalty-best.obstaclePenalty)/d;
           }
-          const double d=perturbed[j]-x[j];
-          if(std::abs(d)<1e-10)continue;
-          const Eval next=evaluate(from,goal,perturbed,signs,p,B);
-          ++evaluations;
-          for(int k=0;k<3;++k)
-            J[k][j]=k==2
-                ?2.0*std::remainder((next.error[k]-best.error[k])/2.0,2*pi)/d
-                :(next.error[k]-best.error[k])/d;
-        }
-        std::array<std::array<double,3>,3> A{};
-        for(int row=0;row<3;++row)for(int col=0;col<3;++col) {
-          for(int j=0;j<6;++j)A[row][col]+=J[row][j]*J[col][j];
-          if(row==col)A[row][col]+=lambda;
-        }
-        Error direction{};
-        if(!solve3(A,best.error,direction))break;
-        Vector delta{};
-        for(int j=0;j<6;++j) {
-          for(int k=0;k<3;++k)delta[j]-=J[k][j]*direction[k];
-          delta[j]=std::clamp(delta[j],j<3?-.5:-3.0,j<3?.5:3.0);
-        }
-        bool improved=false;
-        for(double scale:{1.0,.5,.25,.125}) {
-          if(evaluations>=budget)break;
-          auto trial=x;
-          for(int j=0;j<6;++j)trial[j]+=scale*delta[j];
-          clampVector(trial,p,maxArc);
-          const Eval next=evaluate(from,goal,trial,signs,p,B);
-          ++evaluations;
-          if(next.norm+1e-10<best.norm) {
-            x=trial;best=next;improved=true;break;
+          std::array<std::array<double,3>,3> A{};
+          for(int row=0;row<3;++row)for(int col=0;col<3;++col) {
+            for(int j=0;j<6;++j)A[row][col]+=J[row][j]*J[col][j];
+            if(row==col)A[row][col]+=lambda;
           }
+          Error direction{};
+          if(!solve3(A,best.error,direction))break;
+          Vector delta{};
+          for(int j=0;j<6;++j)
+            for(int k=0;k<3;++k)delta[j]-=J[k][j]*direction[k];
+          if(useGuide&&best.obstaclePenalty>.001) {
+            // Move in a damped approximate null space of endpoint Jacobian:
+            // lower obstacle penalty without unnecessarily losing the
+            // terminal four-state fit. Collision is STILL checked exactly.
+            Error projected{};
+            for(int k=0;k<3;++k)for(int j=0;j<6;++j)
+              projected[k]+=J[k][j]*obstacleGrad[j];
+            Error correction{};
+            if(solve3(A,projected,correction)) {
+              for(int j=0;j<6;++j) {
+                double nullGrad=obstacleGrad[j];
+                for(int k=0;k<3;++k)
+                  nullGrad-=J[k][j]*correction[k];
+                delta[j]-=1.4*nullGrad;
+              }
+            }
+          }
+          for(int j=0;j<6;++j)
+            delta[j]=std::clamp(delta[j],j<3?-.5:-3.0,j<3?.5:3.0);
+          bool improved=false;
+          for(double scale:{1.0,.5,.25,.125}) {
+            if(evaluations>=budget)break;
+            auto trial=x;
+            for(int j=0;j<6;++j)trial[j]+=scale*delta[j];
+            clampVector(trial,p,maxArc);
+            const Eval next=evaluate(from,goal,trial,signs,p,B,options,
+                                     coupled,useGuide?guide:nullptr);
+            ++evaluations;
+            if(next.score+1e-10<best.score) {
+              x=trial;best=next;improved=true;break;
+            }
+          }
+          lambda=std::clamp(lambda*(improved?.7:4.0),1e-5,1e7);
+          if(lambda>=1e6)break;
         }
-        lambda=std::clamp(lambda*(improved?.7:4.0),1e-5,1e7);
-        if(lambda>=1e6)break;
+        if(!nearTarget(best,options))continue;
+        auto controls=makeControls(x,signs,from,goal,options,coupled);
+        if(controls.empty())continue;
+        const double cost=costOf(controls,options);
+        if(std::isfinite(cost))
+          found.push_back({std::move(controls),best.end,cost,
+                           best.obstaclePenalty,coupled});
       }
-      if(!nearTarget(best,options))continue;
-      auto controls=makeControls(x,signs,from,goal,options);
-      if(controls.empty())continue;
-      const double cost=costOf(controls,options);
-      if(std::isfinite(cost))
-        found.push_back({std::move(controls),best.end,cost});
+      if(evaluations>=budget)break;
     }
     if(evaluations>=budget)break;
   }
+  // Prefer lower-cost, higher-clearance candidates for expensive exact
+  // collision checks. Never label this approximation a clearance proof.
   std::stable_sort(found.begin(),found.end(),[](const auto& a,const auto& b) {
-    return a.costMeters<b.costMeters;
+    return a.costMeters+12*a.clearancePenalty<
+           b.costMeters+12*b.clearancePenalty;
   });
   if(found.size()>options.maxGoalConnectorCandidatesPerAttempt)
     found.resize(options.maxGoalConnectorCandidatesPerAttempt);
