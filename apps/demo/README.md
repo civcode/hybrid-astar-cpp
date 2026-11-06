@@ -255,7 +255,9 @@ node tests/demo_articulated_ui_test.js
 docker compose build test
 docker compose --profile test run --rm test \
   ctest --test-dir build-docker --output-on-failure \
-  -R '^(articulated_steering_.*_test|demo_articulated_test|demo_articulated_ui_test|demo_http_test)
+  -R '^(articulated_steering_.*_test|demo_articulated_test|demo_articulated_ui_test|demo_http_test)$'
+```
+
 - Five reproducible static 50 × 40 m occupancy-map scenarios plus two
   optional prepared Nav2 warehouse maps at 0.03 m/cell: open field,
   straight reverse, parking approach, warehouse obstacles, and a fully
@@ -763,7 +765,6 @@ Both proposal providers, the original verified path and all existing work
 limits remain in place. This is discrete geometric shortcutting, not a
 steering-rate-continuous trajectory optimizer.
 
-```
 
 The Python `demo_http_test` exercises the real server's
 `/api/plan` and `/api/capabilities` endpoints, including
