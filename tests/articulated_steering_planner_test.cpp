@@ -575,3 +575,56 @@ TEST_CASE("Native terminal connection never tunnels through a wall",
   REQUIRE(out.diagnostics.goalConnectorAttempts>0);
   REQUIRE(out.diagnostics.goalConnectorValidated==0);
 }
+
+TEST_CASE("Goal clearance guide distinguishes obstructed from free articulated poses",
+          "[articulated][connector][clearance]") {
+  auto r=example();
+  auto& map=const_cast<ac::MapSnapshot&>(*r.map);
+  occupy(map,10.0,10.0);
+  occupy(map,10.1,10.0);
+  as::GoalConnectorObstacleGuide guide(map,r.occupancy,r.bodies);
+  REQUIRE(guide.hasObstacles());
+  REQUIRE(guide.penalty(r.start,r.parameters)>
+          guide.penalty({5.0,5.0,0.0,0.0},r.parameters));
+  // The field only ranks shooting candidates; it does NOT certify collision
+  // freedom or replace the independently sampled body-footprint checker.
+}
+
+TEST_CASE("Heading-distance guidance emphasizes nonzero yaw goal error",
+          "[articulated][heuristic][heading-aware]") {
+  auto r=example();
+  r.goal={10,10,-std::numbers::pi_v<double>/2,0};
+  as::AnalyticGoalHeuristic heuristic(r.parameters,r.goal,
+      {.2,.15,.1},r.options.articulationCostMetersPerRadian,
+      r.options.reverseCostMultiplier);
+  REQUIRE(heuristic.headingDrivingCost(r.start,
+          heuristic.headingOffset(r.start.gamma))>1.0);
+  REQUIRE(heuristic.headingDrivingCost(r.goal,
+          heuristic.headingOffset(r.goal.gamma))==0.0);
+  r.options.heuristicMode=as::HeuristicMode::CombinedHeadingAware;
+  r.options.goalHeadingGuidanceWeight=.8;
+  r.options.maxExpansions=1;
+  const auto result=as::plan(r);
+  REQUIRE(result.status==as::Status::BudgetExceeded);
+  r.options.goalHeadingGuidanceWeight=-.1;
+  REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+}
+
+TEST_CASE("Adaptive connector reserves later shots for near-goal improvements",
+          "[articulated][connector][schedule]") {
+  auto r=example();
+  r.goal={15,10,0,0};
+  r.options.enableGoalConnector=true;
+  r.options.goalConnectorGlobalAttempts=0;
+  r.options.goalConnectorNearRadiusMeters=.5;
+  r.options.maxExpansions=1;
+  r.options.maxGenerated=100;
+  const auto result=as::plan(r);
+  REQUIRE(result.status==as::Status::BudgetExceeded);
+  REQUIRE(result.diagnostics.goalConnectorAttempts==0);
+  REQUIRE(result.diagnostics.goalConnectorGlobalUsed==0);
+  REQUIRE(result.diagnostics.goalConnectorDeferred>=1);
+  r.options.goalConnectorGlobalAttempts=
+      r.options.maxGoalConnectorAttempts+1;
+  REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+}
