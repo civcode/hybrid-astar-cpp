@@ -27,7 +27,7 @@ struct BodyGeometry {
 // modes use obstacle-free, tolerance-aware articulated effort lower bounds.
 // Combined is performance guidance only: the raw grid is not certified.
 enum class HeuristicMode { ObstacleGrid, AnalyticOnly, Combined,
-                           CombinedHeadingAware };
+                           CombinedHeadingAware, CombinedCoarseGrid };
 
 struct SearchOptions {
   double translationSpeedMetersPerSecond=0.5;
@@ -88,6 +88,10 @@ struct SearchOptions {
   bool useObstacleGridHeuristic=true;
   std::size_t gridMaxSettlementsPerQuery=500;
   std::size_t gridMaxTotalSettlements=100000;
+  // Experimental fully precomputed, conservative aligned coarse occupancy
+  // potential. Only used by CombinedCoarseGrid; the actual collision map is
+  // NEVER coarsened. Effective resolution rounds UP to whole native cells.
+  double coarseGridResolutionMeters=0.15;
   // Match the Planning Lab's user-configurable 1M expansion ceiling.
   // Allow four generated labels per expansion on average; these are
   // independent work/memory budgets, not guaranteed memory reservations.
@@ -166,6 +170,12 @@ struct Diagnostics {
   std::size_t appliedPrecomputedTemplates=0;
   // Names match the shared grid's generic diagnostics interface.
   std::size_t gridSettlements=0,gridFallbacks=0;
+  std::size_t coarseGridCells=0,coarseGridBlockedCells=0;
+  std::size_t coarseGridSeedCells=0,coarseGridSettlements=0;
+  std::size_t coarseGridQueries=0,coarseGridFallbacks=0;
+  bool coarseGridSkipped=false;
+  double coarseGridResolutionMeters=0.0;
+  double coarseGridBuildMilliseconds=0.0;
   std::size_t gridSeedCellsExamined=0,gridSeedCellsAccepted=0;
   std::size_t gridQueuePushes=0,gridQueuePops=0,gridQueueStalePops=0;
   std::size_t gridQueuePeakSize=0,gridQueuePeakStorageBytes=0;
