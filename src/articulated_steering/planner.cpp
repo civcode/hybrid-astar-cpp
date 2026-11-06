@@ -69,6 +69,9 @@ bool validOptions(const SearchOptions& o) {
          o.goalConnectorGlobalAttempts<=o.maxGoalConnectorAttempts&&
          positive(o.goalConnectorNearRadiusMeters)&&
          nonnegative(o.goalConnectorMinProgressMeters)&&
+         (!o.enableAnytimeGoalRefinement||o.enableGoalConnector)&&
+         o.anytimeExtraExpansions>0&&o.anytimeExtraExpansions<=100000&&
+         o.anytimeExtraConnectorAttempts<=1000&&
          o.maxExpansions>0&&o.maxGenerated>1&&
          o.maxSamplesPerPrimitive>=2&&o.maxFinalSamplesPerPrimitive>=2&&
          o.maxTotalFinalBodyChecks>=2;
@@ -553,7 +556,8 @@ Result plan(const Request& r) {
     // No RK4 or OMPL calls occur in heuristic evaluation.
     std::optional<AnalyticGoalHeuristic> analyticGoal;
     std::vector<double> headingOffsets;
-    if(r.options.heuristicMode!=HeuristicMode::ObstacleGrid) {
+    if(r.options.heuristicMode!=HeuristicMode::ObstacleGrid||
+       r.options.enableAnytimeGoalRefinement) {
       analyticGoal.emplace(r.parameters,r.goal,
           GoalHeuristicTolerances{
               r.options.goalXYToleranceMeters,
@@ -587,7 +591,7 @@ Result plan(const Request& r) {
         guidance=grid
             ?grid->estimate({pose.xr,pose.yr,pose.thetaRear},euclidean)
             :euclidean;
-        if(analyticGoal) {
+        if(analyticGoal&&r.options.heuristicMode!=HeuristicMode::ObstacleGrid) {
           guidance=std::max(guidance,analyticGoal->estimate(
               pose,headingOffsets[gammaIndex]));
           if(r.options.heuristicMode==HeuristicMode::CombinedHeadingAware) {
@@ -628,6 +632,54 @@ Result plan(const Request& r) {
                                          0.2*startGoalDistance);
     double bestNearApproach=std::numeric_limits<double>::infinity();
     out.diagnostics.goalConnectorClosestXYMeters=startGoalDistance;
+    // Store only one strictly validated incumbent; diagnostics remain live
+    // in `out` throughout refinement. A solver's unvalidated proposal can
+    // NEVER replace it, even when global search budgets are exhausted.
+    struct Incumbent {
+      std::vector<Motion> motions;
+      RearState reached;
+      double cost=0.0;
+      double xy=0.0,yaw=0.0,gamma=0.0;
+    };
+    const bool anytime=r.options.enableAnytimeGoalRefinement;
+    std::optional<Incumbent> incumbent;
+    std::size_t firstSolutionExpansion=0;
+    auto captureAccepted=[&]() {
+      ++out.diagnostics.anytimeValidatedCandidates;
+      if(incumbent&&out.costMeters>=incumbent->cost-1e-9) {
+        out.motions.clear(); // Do not replace the cheaper validated path.
+        return;
+      }
+      if(!incumbent) {
+        firstSolutionExpansion=out.diagnostics.expanded;
+        out.diagnostics.anytimeFirstSolutionExpansion=firstSolutionExpansion;
+        out.diagnostics.anytimeFirstCostMeters=out.costMeters;
+      } else ++out.diagnostics.anytimeImprovements;
+      incumbent=Incumbent{std::move(out.motions),out.reached,out.costMeters,
+                          out.goalXYErrorMeters,out.goalYawErrorRadians,
+                          out.goalGammaErrorRadians};
+      out.diagnostics.anytimeBestCostMeters=incumbent->cost;
+    };
+    auto finishIncumbent=[&]() -> Result {
+      if(incumbent) {
+        out.motions=std::move(incumbent->motions);
+        out.reached=incumbent->reached;
+        out.costMeters=incumbent->cost;
+        out.goalXYErrorMeters=incumbent->xy;
+        out.goalYawErrorRadians=incumbent->yaw;
+        out.goalGammaErrorRadians=incumbent->gamma;
+        out.independentlySampledBodyValidated=true;
+        out.status=Status::Success;
+        out.diagnostics.anytimeExtraExpansions=
+            out.diagnostics.expanded-firstSolutionExpansion;
+      }
+      return std::move(out);
+    };
+    const auto optimisticCost=[&](const Node& node) {
+      return node.g+(analyticGoal
+          ?analyticGoal->estimate(node.rear,headingOffsets[node.gammaIndex])
+          :0.0);
+    };
     bool sampledIncomplete=false;
     while(!open.empty()) {
       if(cancelled(r)){out.status=Status::Cancelled;return out;}
@@ -637,18 +689,33 @@ Result plan(const Request& r) {
       if(it==best.end()||it->second.id!=top.node) {
         ++out.diagnostics.stalePops;continue;
       }
+      if(incumbent&&out.diagnostics.expanded-firstSolutionExpansion>=
+          r.options.anytimeExtraExpansions)
+        return finishIncumbent();
       if(out.diagnostics.expanded>=r.options.maxExpansions) {
+        if(incumbent)return finishIncumbent();
         out.status=Status::BudgetExceeded;return out;
+      }
+      // All edge costs are nonnegative. The tolerance-aware analytical
+      // cost bound excludes optimistic paths that cannot beat the incumbent.
+      if(incumbent&&optimisticCost(current)>=incumbent->cost-1e-9) {
+        ++out.diagnostics.anytimeCostBoundPrunes;
+        continue;
       }
       ++out.diagnostics.expanded;
       if(atGoal(current.rear,r.goal,r.options)) {
         ++out.diagnostics.strictGoalCandidates;
         const auto verdict=strictValidate(r,model,*body,nodes,top.node,out);
-        if(verdict==StrictResult::Accept)return out;
+        if(verdict==StrictResult::Accept) {
+          if(!anytime)return out;
+          captureAccepted();
+          continue; // A goal-region node cannot improve by extending it.
+        }
         if(verdict==StrictResult::Cancelled){out.status=Status::Cancelled;return out;}
         if(verdict==StrictResult::Incomplete) {
-          // A feasible-looking candidate must never be reported as a safe
-          // path when the independent final validation budget is exhausted.
+          // Never overwrite a previously validated incumbent if further
+          // candidate validation exhausts the independent replay budget.
+          if(incumbent)return finishIncumbent();
           out.status=Status::ValidationIncomplete;
           return out;
         }
@@ -658,8 +725,12 @@ Result plan(const Request& r) {
       // Ackermann RS connector. The proposal itself is NOT Reeds-Shepp:
       // only physically valid finite-rate articulated controls are allowed.
       // A rejected tail never aborts ordinary Hybrid A* search.
-      if(r.options.enableGoalConnector &&
-         out.diagnostics.goalConnectorAttempts<r.options.maxGoalConnectorAttempts &&
+      const bool availableShots=incumbent
+          ?out.diagnostics.anytimeExtraConnectorAttempts<
+               r.options.anytimeExtraConnectorAttempts
+          :out.diagnostics.goalConnectorAttempts<
+               r.options.maxGoalConnectorAttempts;
+      if(r.options.enableGoalConnector&&availableShots&&
          out.diagnostics.goalConnectorBodyChecks<
              r.options.maxGoalConnectorSearchBodyChecks) {
         const double xyDistance=std::hypot(current.rear.xr-r.goal.xr,
@@ -672,8 +743,9 @@ Result plan(const Request& r) {
         // First-node and broad adaptive shots remain unrestricted. Once the
         // small broad-phase tranche is spent, save work for states with
         // improved XY + rear heading near the actual four-state goal.
-        const bool global=out.diagnostics.goalConnectorGlobalUsed<
-                          r.options.goalConnectorGlobalAttempts;
+        const bool global=!incumbent&&
+             out.diagnostics.goalConnectorGlobalUsed<
+                 r.options.goalConnectorGlobalAttempts;
         const bool nearby=xyDistance<=nearGoalRadius;
         const double approachScore=xyDistance+
             0.9*yawError(current.rear.thetaRear,r.goal.thetaRear)+
@@ -682,8 +754,14 @@ Result plan(const Request& r) {
             r.options.goalConnectorMinProgressMeters<bestNearApproach;
         const bool due=connectorSchedule.shouldAttempt(
             unweightedH,r.options.xyBinMeters);
-        if(due&&(global||(nearby&&improving))) {
-          if(global)++out.diagnostics.goalConnectorGlobalUsed;
+        // Once an incumbent exists, the progress filter switches from
+        // nearest-XY score to actual cost-to-come + a kinematic lower bound.
+        // Otherwise a successful early shot can prevent all later shots.
+        const bool promising=incumbent&&nearby&&
+            optimisticCost(current)<incumbent->cost-1e-9;
+        if(due&&(incumbent?promising:(global||(nearby&&improving)))) {
+          if(incumbent)++out.diagnostics.anytimeExtraConnectorAttempts;
+          else if(global)++out.diagnostics.goalConnectorGlobalUsed;
           else {
             ++out.diagnostics.goalConnectorNearUsed;
             bestNearApproach=approachScore;
@@ -704,6 +782,11 @@ Result plan(const Request& r) {
               ++out.diagnostics.goalConnectorCoupledCandidates;
             if(candidate.clearancePenalty>0.002)
               ++out.diagnostics.goalConnectorClearancePenalized;
+            if(incumbent&&current.g+candidate.costMeters>=
+                incumbent->cost-1e-9) {
+              ++out.diagnostics.anytimeCostBoundPrunes;
+              continue;
+            }
             const auto preliminary=checkGoalTail(r,model,*body,current.rear,
                                                   candidate,out);
             if(preliminary==TailCheck::Cancelled) {
@@ -725,7 +808,12 @@ Result plan(const Request& r) {
                                               &candidate.controls,candidate.costMeters);
             if(verdict==StrictResult::Accept) {
               ++out.diagnostics.goalConnectorValidated;
-              return out;
+              if(!anytime)return out;
+              captureAccepted();
+              // Continue evaluating other candidates from this approach
+              // state. Only a lower-cost independently validated solution
+              // replaces the retained incumbent.
+              continue;
             }
             if(verdict==StrictResult::Cancelled) {
               out.status=Status::Cancelled;return out;
@@ -773,11 +861,16 @@ Result plan(const Request& r) {
           const auto key=makeSearchKey(rear,command.gear,r.options,r.parameters);
           const double newG=current.g+transitionCost(command,r.options);
           if(!std::isfinite(newG))continue;
+          if(incumbent&&newG>=incumbent->cost-1e-9) {
+            ++out.diagnostics.anytimeCostBoundPrunes;
+            continue;
+          }
           const auto prev=best.find(key);
           if(prev!=best.end()&&newG>=prev->second.g-1e-12) {
             ++out.diagnostics.pruned;continue;
           }
           if(nodes.size()>=r.options.maxGenerated) {
+            if(incumbent)return finishIncumbent();
             out.status=Status::BudgetExceeded;return out;
           }
           const auto id=nodes.size();
@@ -796,6 +889,7 @@ Result plan(const Request& r) {
         }
       }
     }
+    if(incumbent)return finishIncumbent();
     out.status=sampledIncomplete ? Status::ValidationIncomplete :
                out.diagnostics.strictRejected ? Status::StrictValidationFailed :
                Status::NoPath;
