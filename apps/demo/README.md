@@ -179,10 +179,18 @@ transitions and independently validating the final path**.
   Lab.** The independent **Heuristic mode** selector offers Obstacle grid
   (existing default), Analytical articulated (obstacle-free), and
   Combined grid + analytical (recommended warehouse performance mode),
-  and **Combined + goal-heading emphasis (experimental)**. The last
-  mode adds a configurable near-goal rear-heading signal (default 0.8)
-  even when the obstacle-grid cost dominates the heuristic. This extra
-  term intentionally has no admissibility or optimality guarantee.
+  **Combined + goal-heading emphasis (experimental)**, and
+  **Combined + complete coarse obstacle grid (experimental)**. The
+  heading mode adds a near-goal rear-heading signal (default 0.8)
+  even when the 2D obstacle grid dominates. The coarse-grid mode
+  instead constructs a fully settled, conservatively downsampled
+  reverse-Dijkstra potential at **0.15 m** by default (editable from
+  0 to 2 m, excluding zero), with constant-time subsequent queries.
+  It is designed for high-resolution imported maps where the old
+  lazy grid exhausts its work budget. A conservatively blocked coarse
+  narrow passage falls back to Euclidean/analytical guidance; it
+  never proves that no route exists. Both modes are performance
+  guidance, not admissibility or optimality guarantees.
   The C++ and API defaults remain **Obstacle grid, weight 1.0** for
   compatibility, but the browser starts at **weight 1.2**, regardless
   of the selected articulated heuristic mode. Switching modes retains
@@ -204,9 +212,12 @@ transitions and independently validating the final path**.
   These options do not enable the disabled rigid-body RS or smoothing controls.
   The backend validates all values, and each exported path JSON records
   the effective configuration in `articulatedSearch`:
-  `heuristicMode`, `heuristicWeight`, `headingGuidanceWeight`,
+  `heuristicMode`, `heuristicWeight`,
+  `coarseGridResolutionMeters`, `headingGuidanceWeight`,
   `enableCoupledMotion`, `useSweptAabbPrefilter`, and
-  `enableGoalConnector`. Connector attempts,
+  `enableGoalConnector`. The `original` diagnostics include
+  coarse-grid size, settlement/query/fallback counts, effective
+  resolution and one-time field construction time. Connector attempts,
   accepted tails, collision rejects and solver evaluation counts appear
   in the `original` diagnostics. The status line reports the selected
   mode and connector status too.
