@@ -39,6 +39,8 @@ struct Options {
   bool articulatedEnableCoupledMotion=true;
   bool articulatedUseSweptAabbPrefilter=true;
   bool articulatedEnableGoalConnector=false; // optional native 4D terminal solver
+  bool articulatedEnableAnytimeGoalRefinement=false; // preserve first validated solution
+  std::size_t articulatedAnytimeExtraExpansions=2000;
 
   // Optional work-budget override in expanded nodes. Empty keeps the
   // scenario default. Clamped by the callers to a demo-safe range.
