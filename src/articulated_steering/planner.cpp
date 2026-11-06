@@ -680,8 +680,9 @@ Result plan(const Request& r) {
             0.4*std::abs(current.rear.gamma-r.goal.gamma);
         const bool improving=approachScore+
             r.options.goalConnectorMinProgressMeters<bestNearApproach;
-        if(connectorSchedule.shouldAttempt(unweightedH,r.options.xyBinMeters)&&
-           (global||(nearby&&improving))) {
+        const bool due=connectorSchedule.shouldAttempt(
+            unweightedH,r.options.xyBinMeters);
+        if(due&&(global||(nearby&&improving))) {
           if(global)++out.diagnostics.goalConnectorGlobalUsed;
           else {
             ++out.diagnostics.goalConnectorNearUsed;
@@ -732,7 +733,7 @@ Result plan(const Request& r) {
             if(verdict==StrictResult::Incomplete)sampledIncomplete=true;
             ++out.diagnostics.goalConnectorRejectedStrict;
           }
-        } else if(!global) {
+        } else if(due&&!global) {
           ++out.diagnostics.goalConnectorDeferred;
         }
       }
