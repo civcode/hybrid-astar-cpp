@@ -18,7 +18,7 @@ const controls=['artStartGamma','artGoalGamma','artLf','artLr',
   'artFrontRearX','artFrontFrontX','artFrontHalfWidth',
   'artRearRearX','artRearFrontX','artRearHalfWidth'];
 for(const id of [...controls,'artHeuristicMode','artHeuristicWeight',
-                  'artHeadingGuidanceWeight','artCoupledMotion','artSweptAabb',
+                  'artCoarseGridResolution','artHeadingGuidanceWeight','artCoupledMotion','artSweptAabb',
                   'artGoalConnector','artAnytimeRefinement','artAnytimeExtraExpansions'])
   assert.ok(ids.has(id),'Missing articulated input '+id);
 assert.match(html, /<option value="grid" selected>/,
@@ -99,6 +99,8 @@ async function main(){
   assert.equal(el('articulatedControls').hidden,false);
   assert.equal(el('artHeuristicMode').value,'grid');
   assert.equal(el('artHeuristicWeight').value,'1.2');
+  assert.equal(el('artCoarseGridResolution').value,'0.15');
+  assert.equal(el('artCoarseGridResolution').disabled,true);
   assert.equal(el('artHeadingGuidanceWeight').value,'0.8');
   assert.equal(el('artHeadingGuidanceWeight').disabled,true);
   assert.equal(el('artCoupledMotion').checked,true);
@@ -144,6 +146,7 @@ async function main(){
   for(const id of controls)assert.ok(posted.has(id),'Missing POST '+id);
   assert.equal(posted.get('artHeuristicMode'),'grid');
   assert.equal(posted.get('artHeuristicWeight'),'1.2');
+  assert.equal(posted.get('artCoarseGridResolution'),'0.15');
   assert.equal(posted.get('artHeadingGuidanceWeight'),'0.8');
   assert.equal(posted.get('artCoupledMotion'),'1');
   assert.equal(posted.get('artSweptAabb'),'1');
@@ -189,6 +192,17 @@ async function main(){
   await call('replan()');
   assert.equal(posted.get('artHeuristicMode'),'heading');
   assert.equal(posted.get('artHeadingGuidanceWeight'),'1.4');
+  el('artHeuristicMode').value='coarse';
+  el('artHeuristicMode').listeners.change();
+  assert.equal(el('artCoarseGridResolution').disabled,false);
+  assert.equal(el('artHeuristicWeight').value,'1.4');
+  el('artCoarseGridResolution').value='0.18';
+  el('artCoarseGridResolution').listeners.input();
+  assert.equal(el('exportButton').disabled,true);
+  await call('replan()');
+  assert.equal(posted.get('artHeuristicMode'),'coarse');
+  assert.equal(posted.get('artCoarseGridResolution'),'0.18');
+  assert.equal(posted.get('artHeuristicWeight'),'1.4');
   el('artGoalConnector').checked=true;
   el('artGoalConnector').listeners.change();
   await call('replan()');
@@ -213,6 +227,7 @@ async function main(){
   assert.equal(el('artHeuristicWeight').value,'1.4',
     'Custom weight must persist when selecting analytic mode');
   assert.equal(el('artHeadingGuidanceWeight').disabled,true);
+  assert.equal(el('artCoarseGridResolution').disabled,true);
   await call('replan()');
   assert.equal(posted.get('artHeuristicMode'),'analytic');
 
@@ -227,7 +242,7 @@ async function main(){
   call('syncModelOptions()');
   assert.equal(el('articulatedControls').hidden,true);
   for(const id of ['artHeuristicMode','artHeuristicWeight',
-                   'artHeadingGuidanceWeight','artCoupledMotion','artSweptAabb',
+                   'artCoarseGridResolution','artHeadingGuidanceWeight','artCoupledMotion','artSweptAabb',
                   'artGoalConnector','artAnytimeRefinement','artAnytimeExtraExpansions'])
     assert.equal(el(id).disabled,true,id+' must not affect rigid models');
   console.log('PASS: articulated UI selection, optimizations, presets, POST and replay');
