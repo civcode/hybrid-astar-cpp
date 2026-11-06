@@ -262,7 +262,8 @@ function stats(result) {
     :'';
   const effectiveSearch=result.model==='articulated'?result.articulatedSearch:null;
   const heuristicNote=effectiveSearch
-    ?' · '+({grid:'Obstacle grid',analytic:'Analytical',combined:'Combined'}[
+    ?' · '+({grid:'Obstacle grid',analytic:'Analytical',combined:'Combined',
+        heading:'Heading-aware combined'}[
         effectiveSearch.heuristicMode]||effectiveSearch.heuristicMode)+
       ' ×'+effectiveSearch.heuristicWeight+
       ' · coupled '+(effectiveSearch.enableCoupledMotion?'on':'off')+
@@ -308,8 +309,11 @@ function syncModelOptions() {
   const articulated=model==='articulated';
   $('articulatedControls').hidden=!articulated;
   for(const id of ['artHeuristicMode','artHeuristicWeight',
-                   'artCoupledMotion','artSweptAabb','artGoalConnector'])
+                   'artHeadingGuidanceWeight','artCoupledMotion',
+                   'artSweptAabb','artGoalConnector'])
     $(id).disabled=!articulated;
+  if(articulated)
+    $('artHeadingGuidanceWeight').disabled=$('artHeuristicMode').value!=='heading';
   if(articulated) {
     // These features are built for rigid three-state paths. Never send an
     // unsupported RS/refinement/heuristic request to the 4D planner.
@@ -398,6 +402,7 @@ async function replan() {
       params.set(key,$(key).value.trim());
     params.set('artHeuristicMode',$('artHeuristicMode').value);
     params.set('artHeuristicWeight',$('artHeuristicWeight').value.trim());
+    params.set('artHeadingGuidanceWeight',$('artHeadingGuidanceWeight').value.trim());
     params.set('artCoupledMotion',$('artCoupledMotion').checked?'1':'0');
     params.set('artSweptAabb',$('artSweptAabb').checked?'1':'0');
     params.set('artGoalConnector',$('artGoalConnector').checked?'1':'0');
@@ -481,10 +486,13 @@ $('steeringWeight').addEventListener('change',invalidateRoute);
 $('artHeuristicMode').addEventListener('change',()=>{
   // A selectable, measured performance preset; keep the library's default
   // grid + weight 1.0 unchanged for existing callers and requests.
-  $('artHeuristicWeight').value=$('artHeuristicMode').value==='combined'?'1.2':'1.0';
+  $('artHeuristicWeight').value=['combined','heading'].includes(
+    $('artHeuristicMode').value)?'1.2':'1.0';
+  syncModelOptions();
   invalidateRoute();
 });
 $('artHeuristicWeight').addEventListener('input',invalidateRoute);
+$('artHeadingGuidanceWeight').addEventListener('input',invalidateRoute);
 $('artCoupledMotion').addEventListener('change',invalidateRoute);
 $('artSweptAabb').addEventListener('change',invalidateRoute);
 $('artGoalConnector').addEventListener('change',invalidateRoute);
