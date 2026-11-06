@@ -48,21 +48,114 @@ RearState drive(RearState r,double signedFrontMeters,const Parameters& p) {
   r.thetaRear+=yaw;
   return r;
 }
+// Coupled steering: integrate front-reference XY by fixed Simpson quadrature,
+// while transforming rear heading analytically. This avoids per-evaluation
+// RK4 and respects nonzero chassis motion during articulation changes.
+// Full independent RK4 and exact two-body checks still decide acceptance.
+RearState coupledDrive(RearState r,double signedFrontMeters,double gamma,
+                       const Parameters& p,const AnalyticGoalHeuristic& B) {
+  const double delta=gamma-r.gamma;
+  if(std::abs(delta)<1e-10)return drive(r,signedFrontMeters,p);
+  const double d0=p.LrMeters+p.LfMeters*std::cos(r.gamma);
+  const double beta0=r.thetaRear+B.headingOffset(r.gamma);
+  const double ratio=signedFrontMeters/(delta*p.LfMeters);
+  const auto beta=[&](double g) {
+    return beta0-ratio*std::log((p.LrMeters+p.LfMeters*std::cos(g))/d0);
+  };
+  const auto thetaFront=[&](double s) {
+    const double g=r.gamma+s*delta;
+    return beta(g)-B.headingOffset(g)+g;
+  };
+  double fx=r.xr+p.LrMeters*std::cos(r.thetaRear)+
+            p.LfMeters*std::cos(r.thetaRear+r.gamma);
+  double fy=r.yr+p.LrMeters*std::sin(r.thetaRear)+
+            p.LfMeters*std::sin(r.thetaRear+r.gamma);
+  constexpr int steps=8;
+  for(int i=0;i<steps;++i) {
+    const double s0=double(i)/steps,s1=double(i+1)/steps;
+    const double t0=thetaFront(s0),tm=thetaFront((s0+s1)/2),t1=thetaFront(s1);
+    const double ds=signedFrontMeters/(6.0*steps);
+    fx+=ds*(std::cos(t0)+4.0*std::cos(tm)+std::cos(t1));
+    fy+=ds*(std::sin(t0)+4.0*std::sin(tm)+std::sin(t1));
+  }
+  r.thetaRear=beta(gamma)-B.headingOffset(gamma);
+  r.gamma=gamma;
+  r.xr=fx-p.LrMeters*std::cos(r.thetaRear)-
+       p.LfMeters*std::cos(r.thetaRear+gamma);
+  r.yr=fy-p.LrMeters*std::sin(r.thetaRear)-
+       p.LfMeters*std::sin(r.thetaRear+gamma);
+  return r;
+}
+struct Phase {
+  double preGamma=0.0, coupledMeters=0.0, remainingMeters=0.0;
+};
+Phase phasePlan(double currentGamma,double targetGamma,double length,
+                bool coupled,const SearchOptions& o) {
+  const double delta=targetGamma-currentGamma;
+  const double coupledMeters=coupled?std::min(length,
+      std::abs(delta)*o.translationSpeedMetersPerSecond/
+                      o.articulationRateRadiansPerSecond):0.0;
+  const double jointCoupled=coupledMeters*
+      o.articulationRateRadiansPerSecond/o.translationSpeedMetersPerSecond;
+  const double preGamma=targetGamma-std::copysign(jointCoupled,delta);
+  return {preGamma,coupledMeters,length-coupledMeters};
+}
 struct Eval {
   RearState end;
   Error error{};
   double norm=std::numeric_limits<double>::infinity();
+  double obstaclePenalty=0.0;
+  double score=std::numeric_limits<double>::infinity();
 };
 Eval evaluate(RearState from,RearState goal,const Vector& x,const Gears& signs,
-              const Parameters& p,const AnalyticGoalHeuristic& offset) {
+              const Parameters& p,const AnalyticGoalHeuristic& B,
+              const SearchOptions& o,bool coupled,
+              const GoalConnectorObstacleGuide* guide) {
+  double obstacle=0.0;
+  std::size_t samples=0;
+  const auto sample=[&](RearState r) {
+    if(guide) {obstacle+=guide->penalty(r,p);++samples;}
+  };
   for(int i=0;i<3;++i) {
-    from=steer(from,x[i],p,offset);
-    from=drive(from,signs[i]*x[i+3],p);
+    const auto phase=phasePlan(from.gamma,x[i],x[i+3],coupled,o);
+    const auto begin=from;
+    if(guide)for(int j=1;j<=3;++j)
+      sample(steer(begin,begin.gamma+
+               (phase.preGamma-begin.gamma)*double(j)/3.0,p,B));
+    from=steer(from,phase.preGamma,p,B);
+    if(phase.coupledMeters>1e-10) {
+      const auto start=from;
+      const int steps=guide?std::clamp(
+          int(std::ceil(phase.coupledMeters/.5)),3,16):1;
+      if(guide)for(int j=1;j<=steps;++j) {
+        const double fraction=double(j)/steps;
+        sample(coupledDrive(start,
+          signs[i]*phase.coupledMeters*fraction,
+          start.gamma+(x[i]-start.gamma)*fraction,p,B));
+      }
+      from=coupledDrive(start,signs[i]*phase.coupledMeters,x[i],p,B);
+    }
+    if(phase.remainingMeters>1e-10) {
+      const auto start=from;
+      if(guide) {
+        const int steps=std::clamp(int(
+            std::ceil(phase.remainingMeters/.5)),3,60);
+        for(int j=1;j<=steps;++j)
+          sample(drive(start,signs[i]*phase.remainingMeters*
+                        double(j)/steps,p));
+      }
+      from=drive(from,signs[i]*phase.remainingMeters,p);
+    }
   }
-  from=steer(from,goal.gamma,p,offset);
+  if(guide)for(int j=1;j<=3;++j)
+    sample(steer(from,from.gamma+(goal.gamma-from.gamma)*
+        double(j)/3.0,p,B));
+  from=steer(from,goal.gamma,p,B);
   const Error e{from.xr-goal.xr,from.yr-goal.yr,
                 2.0*std::remainder(from.thetaRear-goal.thetaRear,2*pi)};
-  return {from,e,e[0]*e[0]+e[1]*e[1]+e[2]*e[2]};
+  const double norm=e[0]*e[0]+e[1]*e[1]+e[2]*e[2];
+  const double penalty=samples?obstacle/double(samples):0.0;
+  return {from,e,norm,penalty,norm+8.0*penalty};
 }
 // Small, pivoted 3x3 solve for a damped least-squares step.
 // A=J*J^T+lambda*I is SPD for positive lambda, including singular J.
