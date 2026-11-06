@@ -168,6 +168,8 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
   REQUIRE(defaultRun.settings.enableCoupledMotion);
   REQUIRE(defaultRun.settings.useSweptAabbPrefilter);
   REQUIRE_FALSE(defaultRun.settings.enableGoalConnector);
+  REQUIRE_FALSE(defaultRun.settings.enableAnytimeGoalRefinement);
+  REQUIRE(defaultRun.settings.anytimeExtraExpansions==2000);
   REQUIRE(demo::articulatedToJson(defaultRun).find(
     "\"enableGoalConnector\":false")!=std::string::npos);
   const auto defaultJson=demo::articulatedToJson(defaultRun);
@@ -184,6 +186,8 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     options.articulatedEnableCoupledMotion=false;
     options.articulatedUseSweptAabbPrefilter=false;
     options.articulatedEnableGoalConnector=true;
+    options.articulatedEnableAnytimeGoalRefinement=true;
+    options.articulatedAnytimeExtraExpansions=16;
     const auto changed=demo::runArticulated(options);
     REQUIRE(changed.result.status==art::Status::Success);
     REQUIRE(changed.result.independentlySampledBodyValidated);
@@ -193,6 +197,9 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     REQUIRE_FALSE(changed.settings.enableCoupledMotion);
     REQUIRE_FALSE(changed.settings.useSweptAabbPrefilter);
     REQUIRE(changed.settings.enableGoalConnector);
+    REQUIRE(changed.settings.enableAnytimeGoalRefinement);
+    REQUIRE(changed.settings.anytimeExtraExpansions==16);
+    REQUIRE(changed.result.diagnostics.anytimeFirstSolutionExpansion>=1);
     const auto json=demo::articulatedToJson(changed);
     const std::string expectedMode=mode==art::HeuristicMode::AnalyticOnly
         ?"analytic":mode==art::HeuristicMode::Combined?"combined":"heading";
@@ -203,6 +210,10 @@ TEST_CASE("Planning Lab articulated optimizer settings preserve defaults and rou
     REQUIRE(json.find("\"enableCoupledMotion\":false")!=std::string::npos);
     REQUIRE(json.find("\"useSweptAabbPrefilter\":false")!=std::string::npos);
     REQUIRE(json.find("\"enableGoalConnector\":true")!=std::string::npos);
+    REQUIRE(json.find("\"enableAnytimeGoalRefinement\":true")!=std::string::npos);
+    REQUIRE(json.find("\"anytimeExtraExpansions\":16")!=std::string::npos);
+    REQUIRE(json.find("\"anytimeFirstCostMeters\"")!=std::string::npos);
+    REQUIRE(json.find("\"anytimeBestCostMeters\"")!=std::string::npos);
     REQUIRE(json.find("\"goalConnectorAttempts\"")!=std::string::npos);
   }
 }
@@ -228,6 +239,14 @@ TEST_CASE("Planning Lab rejects invalid articulated heuristic weights and enum v
   options.articulatedHeadingGuidanceWeight=3.01;
   REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
   options.articulatedHeadingGuidanceWeight=0.8;
+  options.articulatedEnableAnytimeGoalRefinement=true;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedEnableGoalConnector=true;
+  options.articulatedAnytimeExtraExpansions=0;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedAnytimeExtraExpansions=100001;
+  REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
+  options.articulatedAnytimeExtraExpansions=2000;
   options.articulatedHeuristicMode=static_cast<art::HeuristicMode>(99);
   REQUIRE_THROWS_AS(demo::runArticulated(options),std::invalid_argument);
 }
