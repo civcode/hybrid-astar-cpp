@@ -54,6 +54,7 @@ const char* heuristicModeName(art::HeuristicMode mode) {
     case art::HeuristicMode::AnalyticOnly:return "analytic";
     case art::HeuristicMode::Combined:return "combined";
     case art::HeuristicMode::CombinedHeadingAware:return "heading";
+    case art::HeuristicMode::CombinedCoarseGrid:return "coarse";
   }
   throw std::invalid_argument("Invalid articulated heuristic mode");
 }
@@ -132,6 +133,15 @@ void pathJson(std::ostream& os,const art::Result& r) {
     <<",\"gridSettlements\":"<<r.diagnostics.gridSettlements
     <<",\"gridFallbacks\":"<<r.diagnostics.gridFallbacks
     <<",\"gridWorkBudgetFallbacks\":"<<r.diagnostics.gridWorkBudgetFallbacks
+    <<",\"coarseGridCells\":"<<r.diagnostics.coarseGridCells
+    <<",\"coarseGridBlockedCells\":"<<r.diagnostics.coarseGridBlockedCells
+    <<",\"coarseGridSeedCells\":"<<r.diagnostics.coarseGridSeedCells
+    <<",\"coarseGridSettlements\":"<<r.diagnostics.coarseGridSettlements
+    <<",\"coarseGridQueries\":"<<r.diagnostics.coarseGridQueries
+    <<",\"coarseGridFallbacks\":"<<r.diagnostics.coarseGridFallbacks
+    <<",\"coarseGridSkipped\":"<<(r.diagnostics.coarseGridSkipped?"true":"false")
+    <<",\"coarseGridResolutionMeters\":"<<r.diagnostics.coarseGridResolutionMeters
+    <<",\"coarseGridBuildMilliseconds\":"<<r.diagnostics.coarseGridBuildMilliseconds
     <<",\"finalChecks\":"<<r.diagnostics.finalBodyChecks
     <<",\"goalXYErrorMeters\":"<<r.goalXYErrorMeters
     <<",\"goalYawErrorRadians\":"<<r.goalYawErrorRadians
@@ -262,6 +272,11 @@ ArticulatedOutcome runArticulated(const Options& opt) {
   (void)heuristicModeName(opt.articulatedHeuristicMode); // reject invalid enum values
   out.settings.heuristicMode=opt.articulatedHeuristicMode;
   out.settings.heuristicWeight=opt.articulatedHeuristicWeight;
+  if(!std::isfinite(opt.articulatedCoarseGridResolutionMeters)||
+     opt.articulatedCoarseGridResolutionMeters<=0.0||
+     opt.articulatedCoarseGridResolutionMeters>2.0)
+    throw std::invalid_argument("Articulated coarse grid resolution must be in (0, 2] metres");
+  out.settings.coarseGridResolutionMeters=opt.articulatedCoarseGridResolutionMeters;
   if(!std::isfinite(opt.articulatedHeadingGuidanceWeight)||
      opt.articulatedHeadingGuidanceWeight<0.0||
      opt.articulatedHeadingGuidanceWeight>3.0)
@@ -327,6 +342,7 @@ std::string articulatedToJson(const ArticulatedOutcome& out) {
     <<"},\"articulatedSearch\":{\"heuristicMode\":";
   quoted(os,heuristicModeName(out.settings.heuristicMode));
   os<<",\"heuristicWeight\":"<<out.settings.heuristicWeight
+    <<",\"coarseGridResolutionMeters\":"<<out.settings.coarseGridResolutionMeters
     <<",\"headingGuidanceWeight\":"<<out.settings.goalHeadingGuidanceWeight
     <<",\"enableCoupledMotion\":"<<(out.settings.enableCoupledMotion?"true":"false")
     <<",\"useSweptAabbPrefilter\":"<<(out.settings.useSweptAabbPrefilter?"true":"false")
