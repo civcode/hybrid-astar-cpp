@@ -17,6 +17,8 @@ struct GoalConnection {
   std::vector<GoalControl> controls;
   RearState estimatedEnd;
   double costMeters=0.0;
+  double clearancePenalty=0.0; // approximate ranking only; no clearance proof
+  bool includesCoupledMotion=false;
 };
 
 // Request-local approximate clearance guide for nonlinear proposal fitting.
