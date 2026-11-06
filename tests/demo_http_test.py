@@ -177,7 +177,8 @@ def main(exe):
         assert 'id="rsDistance"' in page and "RS distance heuristic" in page
         assert "['ompl','rsDistance','refine'" in script
         for new_control in ("artHeuristicMode","artHeuristicWeight",
-                            "artCoupledMotion","artSweptAabb","artGoalConnector"):
+                            "artCoupledMotion","artSweptAabb","artGoalConnector",
+                            "artHeadingGuidanceWeight"):
             assert f'id="{new_control}"' in page, new_control
             assert f"params.set('{new_control}'" in script, new_control
         assert '<option value="grid" selected>' in page
@@ -384,6 +385,7 @@ def main(exe):
             assert parsed["original"]["validated"] is True
             assert parsed["articulatedSearch"]=={
                 "heuristicMode":mode,"heuristicWeight":float(weight),
+                "headingGuidanceWeight":0.8,
                 "enableCoupledMotion":False,"useSweptAabbPrefilter":False,
                 "enableGoalConnector":False
             }
@@ -391,6 +393,7 @@ def main(exe):
         assert code==200
         assert json.loads(body)["articulatedSearch"]=={
             "heuristicMode":"grid","heuristicWeight":1.0,
+            "headingGuidanceWeight":0.8,
             "enableCoupledMotion":True,"useSweptAabbPrefilter":True,
             "enableGoalConnector":False
         }
@@ -402,6 +405,15 @@ def main(exe):
         assert connected["articulatedSearch"]["enableGoalConnector"] is True
         assert connected["original"]["goalConnectorAttempts"] >= 0
         assert connected["original"]["goalConnectorValidated"] >= 0
+        for mode in ("heading",):
+            code, _, body=post({**art_form,"artHeuristicMode":mode,
+                                 "artHeuristicWeight":"1.2",
+                                 "artHeadingGuidanceWeight":"1.4"})
+            assert code==200, body
+            heading=json.loads(body)
+            assert heading["original"]["validated"] is True
+            assert heading["articulatedSearch"]["heuristicMode"]=="heading"
+            assert heading["articulatedSearch"]["headingGuidanceWeight"]==1.4
         for bad in (
             {"artHeuristicMode":"unknown"},
             {"artHeuristicMode":""},
@@ -410,6 +422,9 @@ def main(exe):
             {"artHeuristicWeight":"3.1"},
             {"artHeuristicWeight":"nan"},
             {"artHeuristicWeight":"1foo"},
+            {"artHeadingGuidanceWeight":"-1"},
+            {"artHeadingGuidanceWeight":"3.1"},
+            {"artHeadingGuidanceWeight":"nan"},
             {"artCoupledMotion":"perhaps"},
             {"artSweptAabb":"2"},
             {"artGoalConnector":"maybe"},
