@@ -145,6 +145,23 @@ struct Diagnostics {
   std::size_t goalConnectorGlobalUsed=0,goalConnectorNearUsed=0;
   std::size_t goalConnectorDeferred=0,goalConnectorCoupledCandidates=0;
   std::size_t goalConnectorClearancePenalized=0;
+  // Candidate proposal counts by actual fit-family size, not chunked
+  // segments. Controls remain bounded and strictly replayed.
+  std::size_t goalConnectorOneArcProposals=0;
+  std::size_t goalConnectorTwoArcProposals=0;
+  std::size_t goalConnectorThreeArcProposals=0;
+  // The accepted incumbent's terminal maneuver only (0 for plain A*).
+  double goalConnectorTailDrivingMeters=0.0;
+  double goalConnectorTailReverseMeters=0.0;
+  double goalConnectorTailArticulationRadians=0.0;
+  double goalConnectorTailStationarySeconds=0.0;
+  double goalConnectorTailPeakGammaRadians=0.0;
+  double goalConnectorTailOperationalPenaltyMeters=0.0;
+  double goalConnectorTailQualityScoreMeters=0.0;
+  std::size_t goalConnectorTailGearChanges=0;
+  std::size_t goalConnectorTailArticulationReversals=0;
+  std::size_t goalConnectorTailDriveArcs=0;
+  std::size_t goalConnectorTailFittedArcs=0;
   std::size_t goalConnectorFirstExpansion=0,goalConnectorLastExpansion=0;
   double goalConnectorClosestXYMeters=0.0;
   // First-solution and anytime improvement accounting. Recorded only for
@@ -155,6 +172,11 @@ struct Diagnostics {
   std::size_t anytimeValidatedCandidates=0;
   std::size_t anytimeImprovements=0;
   std::size_t anytimeCostBoundPrunes=0;
+  // Extra connector attempts are paced over the full anytime expansion
+  // window; record the first and last to audit scheduling distribution.
+  std::size_t anytimePacedDeferrals=0;
+  std::size_t anytimeFirstExtraShotExpansion=0;
+  std::size_t anytimeLastExtraShotExpansion=0;
   double anytimeFirstCostMeters=0.0;
   double anytimeBestCostMeters=0.0;
   // Primitive generation is map-independent and performed once per plan.
