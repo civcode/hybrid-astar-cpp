@@ -15,16 +15,22 @@ int main(int argc,char** argv) {
     const std::string mode=argc>1?argv[1]:"coupled";
     if(mode!="legacy"&&mode!="coupled"&&mode!="coupled-no-fast"&&
        mode!="analytic-only"&&mode!="combined"&&mode!="weighted"&&
-       mode!="grid-weighted"&&mode!="connector"&&mode!="weighted-connector")
+       mode!="grid-weighted"&&mode!="connector"&&mode!="weighted-connector"&&
+       mode!="heading"&&mode!="heading-connector")
       throw std::invalid_argument(
-          "Use legacy | coupled | coupled-no-fast | analytic-only | combined | weighted | grid-weighted | connector | weighted-connector");
-    if(argc>3)throw std::invalid_argument("Usage: articulated_warehouse_bench [mode] [heuristic_weight]");
+          "Use legacy | coupled | coupled-no-fast | analytic-only | combined | weighted | grid-weighted | connector | weighted-connector | heading | heading-connector");
+    if(argc>4)throw std::invalid_argument(
+        "Usage: articulated_warehouse_bench [mode] [heuristic_weight] [baseline|warehouse-heading|open-heading]");
+    const std::string scenario=argc>=4?argv[3]:"baseline";
+    if(scenario!="baseline"&&scenario!="warehouse-heading"&&scenario!="open-heading")
+      throw std::invalid_argument("Scenario must be baseline, warehouse-heading or open-heading");
     // Preserve all historical default runs. The control differs from
     // 'weighted' only in using the grid heuristic rather than Combined.
     double weight=(mode=="weighted"||mode=="grid-weighted"||
                    mode=="weighted-connector")?1.5:
-                  mode=="connector"?1.2:1.0;
-    if(argc==3) {
+                  (mode=="connector"||mode=="heading"||
+                   mode=="heading-connector")?1.2:1.0;
+    if(argc>=3) {
       const std::string arg=argv[2];
       std::size_t parsed=0;
       weight=std::stod(arg,&parsed);
@@ -40,13 +46,24 @@ int main(int argc,char** argv) {
       for(int y=y0;y<y1;++y)for(int x=x0;x<x1;++x)
         map->cells[std::size_t(y)*map->width+std::size_t(x)]=100;
     };
-    rectangle(48,12,53,48);rectangle(48,92,53,145);
-    rectangle(94,0,99,46);rectangle(94,100,99,160);
-    rectangle(141,12,146,55);rectangle(141,104,146,145);
+    if(scenario!="open-heading") {
+      rectangle(48,12,53,48);rectangle(48,92,53,145);
+      rectangle(94,0,99,46);rectangle(94,100,99,160);
+      rectangle(141,12,146,55);rectangle(141,104,146,145);
+    }
     as::Request request;
     request.map=map;
     request.start={5.0,30.56,0.0,0.0};
     request.goal={18.16,27.98,0.0,0.0};
+    if(scenario=="warehouse-heading") {
+      // Exact 2026-11-06 uploaded warehouse obstacle/heading regression.
+      request.start={4.92,33.53,0.0,0.0};
+      request.goal={30.32,31.48,-std::acos(-1.0)/2.0,0.0};
+    }
+    if(scenario=="open-heading") {
+      request.start={8.42,25.39,0.0,0.0};
+      request.goal={40.13,5.85,-std::acos(-1.0)/2.0,0.0};
+    }
     request.parameters={1.0,1.0,-1.2,1.2,1.0,.8,
                         .95*(1.0+std::cos(1.2))};
     request.bodies.front={-.5,.5,.3};
@@ -62,7 +79,10 @@ int main(int argc,char** argv) {
     if(mode=="combined"||mode=="weighted"||
        mode=="connector"||mode=="weighted-connector")
       request.options.heuristicMode=as::HeuristicMode::Combined;
-    if(mode=="connector"||mode=="weighted-connector")
+    if(mode=="heading"||mode=="heading-connector")
+      request.options.heuristicMode=as::HeuristicMode::CombinedHeadingAware;
+    if(mode=="connector"||mode=="weighted-connector"||
+       mode=="heading-connector")
       request.options.enableGoalConnector=true;
     // Both weighted modes have the same kinematics, costs, map and budgets;
     // only the heuristic changes. Weight >1 is an experiment, not a bound.
@@ -86,7 +106,11 @@ int main(int argc,char** argv) {
     std::cout<<"mode,status,validated,expanded,generated,search_body_checks,"
       "elapsed_ms,stationary_s,coupled_s,drive_m,swept_free,grid_settlements,"
       "heuristic_weight,plan_cost_m,goal_xy_error_m,goal_yaw_error_rad,goal_gamma_error_rad,"
-      "connector_attempts,connector_candidates,connector_validated,connector_checks,connector_evaluations\n";
+      "connector_attempts,connector_candidates,connector_validated,connector_checks,connector_evaluations,"
+      "scenario,connector_rejected_collision,connector_rejected_terminal,connector_rejected_strict,"
+      "connector_global_used,connector_near_used,connector_deferred,"
+      "connector_coupled_candidates,connector_clearance_penalized,"
+      "connector_first_expansion,connector_last_expansion,connector_closest_xy_m\n";
     std::cout<<mode<<','<<static_cast<int>(result.status)<<','
       <<result.independentlySampledBodyValidated<<','
       <<result.diagnostics.expanded<<','<<result.diagnostics.generated<<','
@@ -101,7 +125,19 @@ int main(int argc,char** argv) {
       <<result.diagnostics.goalConnectorCandidates<<','
       <<result.diagnostics.goalConnectorValidated<<','
       <<result.diagnostics.goalConnectorBodyChecks<<','
-      <<result.diagnostics.goalConnectorEvaluations<<'\n';
+      <<result.diagnostics.goalConnectorEvaluations<<','
+      <<scenario<<','
+      <<result.diagnostics.goalConnectorRejectedCollision<<','
+      <<result.diagnostics.goalConnectorRejectedTerminal<<','
+      <<result.diagnostics.goalConnectorRejectedStrict<<','
+      <<result.diagnostics.goalConnectorGlobalUsed<<','
+      <<result.diagnostics.goalConnectorNearUsed<<','
+      <<result.diagnostics.goalConnectorDeferred<<','
+      <<result.diagnostics.goalConnectorCoupledCandidates<<','
+      <<result.diagnostics.goalConnectorClearancePenalized<<','
+      <<result.diagnostics.goalConnectorFirstExpansion<<','
+      <<result.diagnostics.goalConnectorLastExpansion<<','
+      <<result.diagnostics.goalConnectorClosestXYMeters<<'\n';
     return result.status==as::Status::Success?0:2;
   } catch(const std::exception& e) {
     std::cerr<<e.what()<<'\n';
