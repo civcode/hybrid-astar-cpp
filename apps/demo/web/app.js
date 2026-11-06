@@ -257,13 +257,18 @@ function stats(result) {
     ?' · swept-free '+(result.original.searchSweptAabbAccepted||0).toLocaleString()
     :'';
   const gridNote=result.model==='articulated'
-    ?' · grid '+(result.original.gridSettlements||0).toLocaleString()+' settled, '
-      +(result.original.gridFallbacks||0).toLocaleString()+' fallbacks'
+    ?(result.articulatedSearch?.heuristicMode==='coarse'
+      ?' · coarse '+(result.original.coarseGridCells||0).toLocaleString()+
+        ' cells, '+(result.original.coarseGridSettlements||0).toLocaleString()+
+        ' settled, '+(result.original.coarseGridFallbacks||0).toLocaleString()+
+        ' fallbacks, build '+(result.original.coarseGridBuildMilliseconds||0).toFixed(1)+' ms'
+      :' · grid '+(result.original.gridSettlements||0).toLocaleString()+' settled, '+
+        (result.original.gridFallbacks||0).toLocaleString()+' fallbacks')
     :'';
   const effectiveSearch=result.model==='articulated'?result.articulatedSearch:null;
   const heuristicNote=effectiveSearch
     ?' · '+({grid:'Obstacle grid',analytic:'Analytical',combined:'Combined',
-        heading:'Heading-aware combined'}[
+        heading:'Heading-aware combined',coarse:'Coarse-grid combined'}[
         effectiveSearch.heuristicMode]||effectiveSearch.heuristicMode)+
       ' ×'+effectiveSearch.heuristicWeight+
       ' · coupled '+(effectiveSearch.enableCoupledMotion?'on':'off')+
@@ -317,12 +322,13 @@ function syncModelOptions() {
   const articulated=model==='articulated';
   $('articulatedControls').hidden=!articulated;
   for(const id of ['artHeuristicMode','artHeuristicWeight',
-                   'artHeadingGuidanceWeight','artCoupledMotion',
+                   'artCoarseGridResolution','artHeadingGuidanceWeight','artCoupledMotion',
                    'artSweptAabb','artGoalConnector',
                    'artAnytimeRefinement','artAnytimeExtraExpansions'])
     $(id).disabled=!articulated;
   if(articulated) {
     $('artHeadingGuidanceWeight').disabled=$('artHeuristicMode').value!=='heading';
+    $('artCoarseGridResolution').disabled=$('artHeuristicMode').value!=='coarse';
     $('artAnytimeRefinement').disabled=!$('artGoalConnector').checked;
     $('artAnytimeExtraExpansions').disabled=
       !$('artGoalConnector').checked||!$('artAnytimeRefinement').checked;
@@ -415,6 +421,7 @@ async function replan() {
       params.set(key,$(key).value.trim());
     params.set('artHeuristicMode',$('artHeuristicMode').value);
     params.set('artHeuristicWeight',$('artHeuristicWeight').value.trim());
+    params.set('artCoarseGridResolution',$('artCoarseGridResolution').value.trim());
     params.set('artHeadingGuidanceWeight',$('artHeadingGuidanceWeight').value.trim());
     params.set('artCoupledMotion',$('artCoupledMotion').checked?'1':'0');
     params.set('artSweptAabb',$('artSweptAabb').checked?'1':'0');
@@ -507,6 +514,7 @@ $('artHeuristicMode').addEventListener('change',()=>{
   invalidateRoute();
 });
 $('artHeuristicWeight').addEventListener('input',invalidateRoute);
+$('artCoarseGridResolution').addEventListener('input',invalidateRoute);
 $('artHeadingGuidanceWeight').addEventListener('input',invalidateRoute);
 $('artCoupledMotion').addEventListener('change',invalidateRoute);
 $('artSweptAabb').addEventListener('change',invalidateRoute);
