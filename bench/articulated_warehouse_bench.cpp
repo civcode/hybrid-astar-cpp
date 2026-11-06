@@ -17,11 +17,12 @@ int main(int argc,char** argv) {
        mode!="analytic-only"&&mode!="combined"&&mode!="weighted"&&
        mode!="grid-weighted"&&mode!="connector"&&mode!="weighted-connector"&&
        mode!="heading"&&mode!="heading-connector"&&
-       mode!="anytime"&&mode!="heading-anytime")
+       mode!="anytime"&&mode!="heading-anytime"&&
+       mode!="coarse"&&mode!="coarse-connector"&&mode!="coarse-anytime")
       throw std::invalid_argument(
-          "Use legacy | coupled | coupled-no-fast | analytic-only | combined | weighted | grid-weighted | connector | weighted-connector | heading | heading-connector | anytime | heading-anytime");
-    if(argc>5)throw std::invalid_argument(
-        "Usage: articulated_warehouse_bench [mode] [heuristic_weight] [baseline|warehouse-heading|open-heading|uploaded-heading] [extra_expansions]");
+          "Use legacy | coupled | coupled-no-fast | analytic-only | combined | weighted | grid-weighted | connector | weighted-connector | heading | heading-connector | anytime | heading-anytime | coarse | coarse-connector | coarse-anytime");
+    if(argc>6)throw std::invalid_argument(
+        "Usage: articulated_warehouse_bench [mode] [heuristic_weight] [baseline|warehouse-heading|open-heading|uploaded-heading] [extra_expansions] [coarse_resolution_m]");
     const std::string scenario=argc>=4?argv[3]:"baseline";
     if(scenario!="baseline"&&scenario!="warehouse-heading"&&
        scenario!="open-heading"&&scenario!="uploaded-heading")
@@ -32,7 +33,8 @@ int main(int argc,char** argv) {
                    mode=="weighted-connector")?1.5:
                   (mode=="connector"||mode=="heading"||
                    mode=="heading-connector"||mode=="anytime"||
-                   mode=="heading-anytime")?1.2:1.0;
+                   mode=="heading-anytime"||mode=="coarse"||
+                   mode=="coarse-connector"||mode=="coarse-anytime")?1.2:1.0;
     if(argc>=3) {
       const std::string arg=argv[2];
       std::size_t parsed=0;
@@ -91,11 +93,14 @@ int main(int argc,char** argv) {
     if(mode=="heading"||mode=="heading-connector"||
        mode=="heading-anytime")
       request.options.heuristicMode=as::HeuristicMode::CombinedHeadingAware;
+    if(mode=="coarse"||mode=="coarse-connector"||mode=="coarse-anytime")
+      request.options.heuristicMode=as::HeuristicMode::CombinedCoarseGrid;
     if(mode=="connector"||mode=="weighted-connector"||
        mode=="heading-connector"||mode=="anytime"||
-       mode=="heading-anytime")
+       mode=="heading-anytime"||mode=="coarse-connector"||
+       mode=="coarse-anytime")
       request.options.enableGoalConnector=true;
-    if(mode=="anytime"||mode=="heading-anytime")
+    if(mode=="anytime"||mode=="heading-anytime"||mode=="coarse-anytime")
       request.options.enableAnytimeGoalRefinement=true;
     if(argc==5) {
       const std::string extra=argv[4];
@@ -104,6 +109,15 @@ int main(int argc,char** argv) {
       if(used!=extra.size()||value<1||value>100000)
         throw std::invalid_argument("Extra expansion budget must be in [1, 100000]");
       request.options.anytimeExtraExpansions=static_cast<std::size_t>(value);
+    }
+    if(argc==6) {
+      const std::string arg=argv[5];
+      std::size_t used=0;
+      const double resolution=std::stod(arg,&used);
+      if(used!=arg.size()||!std::isfinite(resolution)||
+         resolution<=0.0||resolution>2.0)
+        throw std::invalid_argument("coarse grid resolution must be in (0, 2] m");
+      request.options.coarseGridResolutionMeters=resolution;
     }
     // Both weighted modes have the same kinematics, costs, map and budgets;
     // only the heuristic changes. Weight >1 is an experiment, not a bound.
@@ -135,7 +149,10 @@ int main(int argc,char** argv) {
       "anytime_first_solution_expansion,anytime_extra_expansions,"
       "anytime_extra_connector_attempts,anytime_validated_candidates,"
       "anytime_improvements,anytime_cost_bound_prunes,"
-      "anytime_first_cost_m,anytime_best_cost_m\n";
+      "anytime_first_cost_m,anytime_best_cost_m,"
+      "coarse_resolution_m,coarse_cells,coarse_blocked,coarse_seed_cells,"
+      "coarse_settlements,coarse_queries,coarse_fallbacks,"
+      "coarse_build_ms,coarse_skipped\n";
     std::cout<<mode<<','<<static_cast<int>(result.status)<<','
       <<result.independentlySampledBodyValidated<<','
       <<result.diagnostics.expanded<<','<<result.diagnostics.generated<<','
@@ -170,7 +187,16 @@ int main(int argc,char** argv) {
       <<result.diagnostics.anytimeImprovements<<','
       <<result.diagnostics.anytimeCostBoundPrunes<<','
       <<result.diagnostics.anytimeFirstCostMeters<<','
-      <<result.diagnostics.anytimeBestCostMeters<<'\n';
+      <<result.diagnostics.anytimeBestCostMeters<<','
+      <<result.diagnostics.coarseGridResolutionMeters<<','
+      <<result.diagnostics.coarseGridCells<<','
+      <<result.diagnostics.coarseGridBlockedCells<<','
+      <<result.diagnostics.coarseGridSeedCells<<','
+      <<result.diagnostics.coarseGridSettlements<<','
+      <<result.diagnostics.coarseGridQueries<<','
+      <<result.diagnostics.coarseGridFallbacks<<','
+      <<result.diagnostics.coarseGridBuildMilliseconds<<','
+      <<result.diagnostics.coarseGridSkipped<<'\n';
     return result.status==as::Status::Success?0:2;
   } catch(const std::exception& e) {
     std::cerr<<e.what()<<'\n';
