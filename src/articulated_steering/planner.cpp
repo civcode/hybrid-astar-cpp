@@ -523,8 +523,31 @@ Result plan(const Request& r) {
     RearState reached;
     double cost=0.0;
     double xy=0.0,yaw=0.0,gamma=0.0;
+    GoalConnectorEffort tailEffort{};
+    std::size_t fittedArcs=0;
   };
   std::optional<Incumbent> incumbent;
+  GoalConnectorEffort acceptedTailEffort{};
+  std::size_t acceptedTailFittedArcs=0;
+  auto recordTail=[&](const GoalConnectorEffort& e,std::size_t arcs) {
+    out.diagnostics.goalConnectorTailDrivingMeters=e.drivingMeters;
+    out.diagnostics.goalConnectorTailReverseMeters=e.reverseMeters;
+    out.diagnostics.goalConnectorTailArticulationRadians=
+        e.totalArticulationRadians;
+    out.diagnostics.goalConnectorTailStationarySeconds=
+        e.stationarySteeringSeconds;
+    out.diagnostics.goalConnectorTailPeakGammaRadians=
+        e.peakAbsGammaRadians;
+    out.diagnostics.goalConnectorTailOperationalPenaltyMeters=
+        e.operationalPenaltyMeters;
+    out.diagnostics.goalConnectorTailQualityScoreMeters=
+        e.qualityScoreMeters;
+    out.diagnostics.goalConnectorTailGearChanges=e.gearChanges;
+    out.diagnostics.goalConnectorTailArticulationReversals=
+        e.articulationReversals;
+    out.diagnostics.goalConnectorTailDriveArcs=e.driveArcs;
+    out.diagnostics.goalConnectorTailFittedArcs=arcs;
+  };
   std::size_t firstSolutionExpansion=0;
   auto finishIncumbent=[&]() -> Result {
     if(incumbent) {
@@ -536,6 +559,7 @@ Result plan(const Request& r) {
       out.goalGammaErrorRadians=incumbent->gamma;
       out.independentlySampledBodyValidated=true;
       out.status=Status::Success;
+      recordTail(incumbent->tailEffort,incumbent->fittedArcs);
       out.diagnostics.anytimeExtraExpansions=
           out.diagnostics.expanded-firstSolutionExpansion;
     }
@@ -690,7 +714,8 @@ Result plan(const Request& r) {
       } else ++out.diagnostics.anytimeImprovements;
       incumbent=Incumbent{std::move(out.motions),out.reached,out.costMeters,
                           out.goalXYErrorMeters,out.goalYawErrorRadians,
-                          out.goalGammaErrorRadians};
+                          out.goalGammaErrorRadians,
+                          acceptedTailEffort,acceptedTailFittedArcs};
       out.diagnostics.anytimeBestCostMeters=incumbent->cost;
     };
     const auto optimisticCost=[&](const Node& node) {
@@ -725,7 +750,12 @@ Result plan(const Request& r) {
         ++out.diagnostics.strictGoalCandidates;
         const auto verdict=strictValidate(r,model,*body,nodes,top.node,out);
         if(verdict==StrictResult::Accept) {
-          if(!anytime)return out;
+          acceptedTailEffort={};
+          acceptedTailFittedArcs=0;
+          if(!anytime) {
+            recordTail(acceptedTailEffort,0);
+            return out;
+          }
           captureAccepted();
           continue; // A goal-region node cannot improve by extending it.
         }
@@ -743,11 +773,11 @@ Result plan(const Request& r) {
       // Ackermann RS connector. The proposal itself is NOT Reeds-Shepp:
       // only physically valid finite-rate articulated controls are allowed.
       // A rejected tail never aborts ordinary Hybrid A* search.
-      const bool availableShots=incumbent
-          ?out.diagnostics.anytimeExtraConnectorAttempts<
-               r.options.anytimeExtraConnectorAttempts
-          :out.diagnostics.goalConnectorAttempts<
-               r.options.maxGoalConnectorAttempts;
+      const bool availableShots=
+          out.diagnostics.goalConnectorAttempts<
+              r.options.maxGoalConnectorAttempts&&
+          (!incumbent||out.diagnostics.anytimeExtraConnectorAttempts<
+              r.options.anytimeExtraConnectorAttempts);
       if(r.options.enableGoalConnector&&availableShots&&
          out.diagnostics.goalConnectorBodyChecks<
              r.options.maxGoalConnectorSearchBodyChecks) {
@@ -770,16 +800,41 @@ Result plan(const Request& r) {
             0.4*std::abs(current.rear.gamma-r.goal.gamma);
         const bool improving=approachScore+
             r.options.goalConnectorMinProgressMeters<bestNearApproach;
-        const bool due=connectorSchedule.shouldAttempt(
-            unweightedH,r.options.xyBinMeters);
-        // Once an incumbent exists, the progress filter switches from
-        // nearest-XY score to actual cost-to-come + a kinematic lower bound.
-        // Otherwise a successful early shot can prevent all later shots.
+        // After the first valid path, do NOT spend eight refinement shots
+        // in the next few dozen expansions. Spread them over the entire
+        // configurable anytime window (8 shots / 2000 expansions gives
+        // slots near +222, +444, ... +1778). Exceptionally promising
+        // lower-bound states may shoot slightly earlier, never immediately.
         const bool promising=incumbent&&nearby&&
             optimisticCost(current)<incumbent->cost-1e-9;
+        bool paced=false;
+        if(incumbent&&r.options.anytimeExtraConnectorAttempts>0) {
+          const std::size_t slot=
+              (out.diagnostics.anytimeExtraConnectorAttempts+1)*
+              r.options.anytimeExtraExpansions/
+              (r.options.anytimeExtraConnectorAttempts+1);
+          const std::size_t elapsed=
+              out.diagnostics.expanded-firstSolutionExpansion;
+          const std::size_t headroom=std::max<std::size_t>(
+              1,r.options.anytimeExtraExpansions/
+                (5*(r.options.anytimeExtraConnectorAttempts+1)));
+          const bool exceptional=optimisticCost(current)<
+              .85*incumbent->cost;
+          paced=elapsed>=slot||
+                (exceptional&&elapsed+headroom>=slot);
+          if(promising&&!paced)++out.diagnostics.anytimePacedDeferrals;
+        }
+        const bool due=incumbent?paced:connectorSchedule.shouldAttempt(
+            unweightedH,r.options.xyBinMeters);
         if(due&&(incumbent?promising:(global||(nearby&&improving)))) {
-          if(incumbent)++out.diagnostics.anytimeExtraConnectorAttempts;
-          else if(global)++out.diagnostics.goalConnectorGlobalUsed;
+          if(incumbent) {
+            if(out.diagnostics.anytimeExtraConnectorAttempts==0)
+              out.diagnostics.anytimeFirstExtraShotExpansion=
+                  out.diagnostics.expanded;
+            ++out.diagnostics.anytimeExtraConnectorAttempts;
+            out.diagnostics.anytimeLastExtraShotExpansion=
+                out.diagnostics.expanded;
+          } else if(global)++out.diagnostics.goalConnectorGlobalUsed;
           else {
             ++out.diagnostics.goalConnectorNearUsed;
             bestNearApproach=approachScore;
@@ -796,6 +851,11 @@ Result plan(const Request& r) {
           for(const auto& candidate:candidates) {
             if(cancelled(r)){out.status=Status::Cancelled;return out;}
             ++out.diagnostics.goalConnectorCandidates;
+            if(candidate.fittedArcs==1)
+              ++out.diagnostics.goalConnectorOneArcProposals;
+            else if(candidate.fittedArcs==2)
+              ++out.diagnostics.goalConnectorTwoArcProposals;
+            else ++out.diagnostics.goalConnectorThreeArcProposals;
             if(candidate.includesCoupledMotion)
               ++out.diagnostics.goalConnectorCoupledCandidates;
             if(candidate.clearancePenalty>0.002)
@@ -826,7 +886,12 @@ Result plan(const Request& r) {
                                               &candidate.controls,candidate.costMeters);
             if(verdict==StrictResult::Accept) {
               ++out.diagnostics.goalConnectorValidated;
-              if(!anytime)return out;
+              acceptedTailEffort=candidate.effort;
+              acceptedTailFittedArcs=candidate.fittedArcs;
+              if(!anytime) {
+                recordTail(acceptedTailEffort,acceptedTailFittedArcs);
+                return out;
+              }
               captureAccepted();
               // Continue evaluating other candidates from this approach
               // state. Only a lower-cost independently validated solution
