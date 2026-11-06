@@ -3,6 +3,7 @@
 #include "hybrid_astar/articulated_steering/planner.hpp"
 #include "hybrid_astar/articulated_steering/heuristic.hpp"
 #include "hybrid_astar/articulated_steering/goal_connector.hpp"
+#include "hybrid_astar/articulated_steering/anytime_goal_schedule.hpp"
 #include "hybrid_astar/articulated_steering/coarse_obstacle_grid.hpp"
 #include "hybrid_astar/ackermann/obstacle_grid.hpp"
 #include <array>
@@ -806,4 +807,81 @@ TEST_CASE("Combined coarse heuristic remains independently validated",
   REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
   r.options.coarseGridResolutionMeters=2.1;
   REQUIRE(as::plan(r).status==as::Status::InvalidRequest);
+}
+
+TEST_CASE("Anytime connector attempts span the whole refinement expansion window",
+          "[articulated][connector][anytime][pacing]") {
+  // Previously all eight attempts could be exhausted ~60 expansions
+  // after the first validated solution. The new 2,000-expansion
+  // window reserves increasing absolute slots for later approach states.
+  REQUIRE_FALSE(as::anytimeGoalShotDue(64,0,2000,8));
+  REQUIRE_FALSE(as::anytimeGoalShotDue(64,0,2000,8,true));
+  REQUIRE_FALSE(as::anytimeGoalShotDue(177,0,2000,8,true));
+  REQUIRE(as::anytimeGoalShotDue(178,0,2000,8,true));
+  REQUIRE_FALSE(as::anytimeGoalShotDue(221,0,2000,8));
+  REQUIRE(as::anytimeGoalShotDue(222,0,2000,8));
+  REQUIRE_FALSE(as::anytimeGoalShotDue(443,1,2000,8));
+  REQUIRE(as::anytimeGoalShotDue(444,1,2000,8));
+  REQUIRE_FALSE(as::anytimeGoalShotDue(1776,7,2000,8));
+  REQUIRE(as::anytimeGoalShotDue(1777,7,2000,8));
+  REQUIRE_FALSE(as::anytimeGoalShotDue(2000,8,2000,8));
+  REQUIRE_FALSE(as::anytimeGoalShotDue(5,0,2000,0));
+  REQUIRE_FALSE(as::anytimeGoalShotDue(5,0,0,8));
+}
+
+TEST_CASE("Terminal effort counters ignore segmented control boundaries",
+          "[articulated][connector][quality][metrics]") {
+  auto r=example();
+  const std::vector<as::GoalControl> controls{
+    {{.5,.4},1.0},{{.5,.4},1.0},
+    {{0.0,-.4},2.0},{{-.5,0.0},1.0}
+  };
+  const auto effort=as::summarizeGoalConnectorEffort(
+      controls,r.start,r.options);
+  REQUIRE(effort.drivingMeters==Catch::Approx(1.5));
+  REQUIRE(effort.reverseMeters==Catch::Approx(.5));
+  REQUIRE(effort.totalArticulationRadians==Catch::Approx(1.6));
+  REQUIRE(effort.stationarySteeringSeconds==Catch::Approx(2.0));
+  REQUIRE(effort.peakAbsGammaRadians==Catch::Approx(.8));
+  REQUIRE(effort.gearChanges==1);
+  REQUIRE(effort.articulationReversals==1);
+  REQUIRE(effort.driveArcs==2); // Not three; the first two are one arc.
+  REQUIRE(effort.operationalPenaltyMeters>0.0);
+  REQUIRE(effort.qualityScoreMeters>effort.operationalPenaltyMeters);
+}
+
+TEST_CASE("Simple straight reverse connector wins ahead of complex maneuvers",
+          "[articulated][connector][quality][one-arc]") {
+  auto r=example();
+  r.goal={9.0,10.0,0.0,0.0};
+  as::Model model(r.parameters);
+  std::size_t evaluations=0;
+  const auto proposals=as::proposeGoalConnections(
+      model,r.start,r.goal,r.options,evaluations);
+  REQUIRE_FALSE(proposals.empty());
+  REQUIRE(evaluations<=r.options.maxGoalConnectorEvaluationsPerAttempt);
+  const auto& first=proposals.front();
+  REQUIRE(first.fittedArcs==1);
+  REQUIRE(first.effort.drivingMeters==Catch::Approx(1.0).margin(.2));
+  REQUIRE(first.effort.reverseMeters==Catch::Approx(1.0).margin(.2));
+  REQUIRE(first.effort.stationarySteeringSeconds==Catch::Approx(0).margin(.01));
+  REQUIRE(first.effort.articulationReversals==0);
+  REQUIRE(first.effort.gearChanges==0);
+  REQUIRE(first.effort.qualityScoreMeters>=first.costMeters);
+  r.options.enableGoalConnector=true;
+  r.options.maxExpansions=1;
+  r.options.maxGenerated=100;
+  const auto out=as::plan(r);
+  REQUIRE(out.status==as::Status::Success);
+  REQUIRE(out.independentlySampledBodyValidated);
+  REQUIRE(out.diagnostics.goalConnectorOneArcProposals>=1);
+  REQUIRE(out.diagnostics.goalConnectorTailFittedArcs==1);
+  REQUIRE(out.diagnostics.goalConnectorTailGearChanges==0);
+  REQUIRE(out.diagnostics.goalConnectorTailArticulationReversals==0);
+  REQUIRE(out.diagnostics.goalConnectorTailStationarySeconds==
+          Catch::Approx(0).margin(.01));
+  REQUIRE(out.diagnostics.goalConnectorTailDrivingMeters==
+          Catch::Approx(1.0).margin(.2));
+  REQUIRE(out.diagnostics.goalConnectorTailQualityScoreMeters>=
+          out.diagnostics.goalConnectorTailOperationalPenaltyMeters);
 }
