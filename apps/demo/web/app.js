@@ -271,7 +271,15 @@ function stats(result) {
       ' · goal connector '+(effectiveSearch.enableGoalConnector?'on':'off')+
       (effectiveSearch.enableGoalConnector?' (shots '+
         (result.original.goalConnectorAttempts||0)+
-        ', accepted '+(result.original.goalConnectorValidated||0)+')':'')
+        ', accepted '+(result.original.goalConnectorValidated||0)+')':'')+
+      (effectiveSearch.enableAnytimeGoalRefinement
+        ?' · anytime +'+(result.original.anytimeExtraExpansions||0)+
+          ' expansions, improvements '+(result.original.anytimeImprovements||0)+
+          (result.original.anytimeFirstSolutionExpansion
+            ?', cost '+Number(result.original.anytimeFirstCostMeters).toFixed(2)+
+              ' → '+Number(result.original.anytimeBestCostMeters).toFixed(2)+' m'
+            :'')
+        :'')
     :'';
   $('message').textContent=(valid?(result.model==='articulated'
     ?'Experimental articulated path · '+status+' · two-carriage independently sampled checks · not swept certified'
@@ -310,10 +318,15 @@ function syncModelOptions() {
   $('articulatedControls').hidden=!articulated;
   for(const id of ['artHeuristicMode','artHeuristicWeight',
                    'artHeadingGuidanceWeight','artCoupledMotion',
-                   'artSweptAabb','artGoalConnector'])
+                   'artSweptAabb','artGoalConnector',
+                   'artAnytimeRefinement','artAnytimeExtraExpansions'])
     $(id).disabled=!articulated;
-  if(articulated)
+  if(articulated) {
     $('artHeadingGuidanceWeight').disabled=$('artHeuristicMode').value!=='heading';
+    $('artAnytimeRefinement').disabled=!$('artGoalConnector').checked;
+    $('artAnytimeExtraExpansions').disabled=
+      !$('artGoalConnector').checked||!$('artAnytimeRefinement').checked;
+  }
   if(articulated) {
     // These features are built for rigid three-state paths. Never send an
     // unsupported RS/refinement/heuristic request to the 4D planner.
@@ -406,6 +419,10 @@ async function replan() {
     params.set('artCoupledMotion',$('artCoupledMotion').checked?'1':'0');
     params.set('artSweptAabb',$('artSweptAabb').checked?'1':'0');
     params.set('artGoalConnector',$('artGoalConnector').checked?'1':'0');
+    params.set('artAnytimeRefinement',
+      $('artGoalConnector').checked&&$('artAnytimeRefinement').checked?'1':'0');
+    params.set('artAnytimeExtraExpansions',
+      $('artAnytimeExtraExpansions').value.trim());
   }
   if($('refine').checked)
     params.set('maxAccepted',$('maxAccepted').value);
@@ -484,10 +501,8 @@ $('maxAccepted').addEventListener('change',invalidateRoute);
 $('steeringSmooth').addEventListener('change',()=>{syncModelOptions();invalidateRoute();});
 $('steeringWeight').addEventListener('change',invalidateRoute);
 $('artHeuristicMode').addEventListener('change',()=>{
-  // A selectable, measured performance preset; keep the library's default
-  // grid + weight 1.0 unchanged for existing callers and requests.
-  $('artHeuristicWeight').value=['combined','heading'].includes(
-    $('artHeuristicMode').value)?'1.2':'1.0';
+  // The web UI starts at 1.2. Never discard a user-entered weight merely
+  // because the heuristic mode changes; the core C++ default stays 1.0.
   syncModelOptions();
   invalidateRoute();
 });
@@ -495,7 +510,13 @@ $('artHeuristicWeight').addEventListener('input',invalidateRoute);
 $('artHeadingGuidanceWeight').addEventListener('input',invalidateRoute);
 $('artCoupledMotion').addEventListener('change',invalidateRoute);
 $('artSweptAabb').addEventListener('change',invalidateRoute);
-$('artGoalConnector').addEventListener('change',invalidateRoute);
+$('artGoalConnector').addEventListener('change',()=>{
+  syncModelOptions();invalidateRoute();
+});
+$('artAnytimeRefinement').addEventListener('change',()=>{
+  syncModelOptions();invalidateRoute();
+});
+$('artAnytimeExtraExpansions').addEventListener('input',invalidateRoute);
 $('ompl').addEventListener('change',syncModelOptions);
 $('performance').addEventListener('change',syncModelOptions);
 $('inflate').addEventListener('change',()=>{
