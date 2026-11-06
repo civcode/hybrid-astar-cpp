@@ -412,6 +412,26 @@ def main(exe):
         assert connected["articulatedSearch"]["enableGoalConnector"] is True
         assert connected["original"]["goalConnectorAttempts"] >= 0
         assert connected["original"]["goalConnectorValidated"] >= 0
+        for metric in (
+            "goalConnectorOneArcProposals",
+            "goalConnectorTwoArcProposals",
+            "goalConnectorThreeArcProposals",
+            "goalConnectorTailDrivingMeters",
+            "goalConnectorTailReverseMeters",
+            "goalConnectorTailArticulationRadians",
+            "goalConnectorTailStationarySeconds",
+            "goalConnectorTailPeakGammaRadians",
+            "goalConnectorTailGearChanges",
+            "goalConnectorTailArticulationReversals",
+            "goalConnectorTailDriveArcs",
+            "goalConnectorTailFittedArcs",
+            "goalConnectorTailOperationalPenaltyMeters",
+            "goalConnectorTailQualityScoreMeters",
+            "anytimePacedDeferrals",
+            "anytimeFirstExtraShotExpansion",
+            "anytimeLastExtraShotExpansion",
+        ):
+            assert metric in connected["original"], metric
         code, _, body=post({**art_form,"artHeuristicMode":"combined",
                              "artHeuristicWeight":"1.2","artGoalConnector":"1",
                              "artAnytimeRefinement":"1",
