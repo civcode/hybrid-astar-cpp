@@ -304,6 +304,56 @@ double costOf(const std::vector<GoalControl>& segments,const SearchOptions& o) {
 }
 } // namespace
 
+GoalConnectorEffort summarizeGoalConnectorEffort(
+    const std::vector<GoalControl>& controls,RearState start,
+    const SearchOptions& options) {
+  GoalConnectorEffort effort;
+  double gamma=start.gamma;
+  effort.peakAbsGammaRadians=std::abs(gamma);
+  int previousGear=0,previousSteer=0;
+  bool wasDriving=false;
+  double priorDriveRate=0.0,priorDriveJoint=0.0;
+  for(const auto& section:controls) {
+    const double v=section.control.frontSpeedMetersPerSecond;
+    const double u=section.control.gammaRateRadiansPerSecond;
+    const double length=std::abs(v)*section.durationSeconds;
+    const double steering=std::abs(u)*section.durationSeconds;
+    if(length>1e-9) {
+      effort.drivingMeters+=length;
+      if(v<0.0)effort.reverseMeters+=length;
+      const int gear=v<0.0?-1:1;
+      if(previousGear&&gear!=previousGear)++effort.gearChanges;
+      previousGear=gear;
+      // Chunked identical controls are one continuous arc, NOT several.
+      if(!wasDriving||priorDriveRate!=double(gear)||
+         std::abs(priorDriveJoint-u)>1e-10)++effort.driveArcs;
+      wasDriving=true;
+      priorDriveRate=double(gear);
+      priorDriveJoint=u;
+    } else if(steering>1e-9) {
+      effort.stationarySteeringSeconds+=section.durationSeconds;
+      wasDriving=false;
+    }
+    if(steering>1e-9) {
+      effort.totalArticulationRadians+=steering;
+      const int direction=u<0.0?-1:1;
+      if(previousSteer&&direction!=previousSteer)
+        ++effort.articulationReversals;
+      previousSteer=direction;
+    }
+    gamma+=u*section.durationSeconds;
+    effort.peakAbsGammaRadians=std::max(
+        effort.peakAbsGammaRadians,std::abs(gamma));
+  }
+  effort.operationalPenaltyMeters=operationalPenalty(
+      effort.stationarySteeringSeconds,effort.totalArticulationRadians,
+      effort.gearChanges,effort.articulationReversals,
+      effort.peakAbsGammaRadians,effort.driveArcs);
+  effort.qualityScoreMeters=costOf(controls,options)+
+      effort.operationalPenaltyMeters;
+  return effort;
+}
+
 GoalConnectorObstacleGuide::GoalConnectorObstacleGuide(
     const ackermann::MapSnapshot& map,ackermann::OccupancyPolicy occupancy,
     BodyGeometry geometry)
