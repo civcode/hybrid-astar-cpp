@@ -129,12 +129,20 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
       o.articulatedHeuristicMode=hybrid_astar::articulated_steering::HeuristicMode::AnalyticOnly;
     else if(mode=="combined")
       o.articulatedHeuristicMode=hybrid_astar::articulated_steering::HeuristicMode::Combined;
-    else throw std::invalid_argument("Articulated heuristic mode must be grid, analytic or combined");
+    else if(mode=="heading")
+      o.articulatedHeuristicMode=hybrid_astar::articulated_steering::HeuristicMode::CombinedHeadingAware;
+    else throw std::invalid_argument("Articulated heuristic mode must be grid, analytic, combined or heading");
   }
   if(auto it=params.find("artHeuristicWeight");it!=params.end()) {
     o.articulatedHeuristicWeight=number(it->second);
     if(o.articulatedHeuristicWeight<=0.0||o.articulatedHeuristicWeight>3.0)
       throw std::invalid_argument("Articulated heuristic weight must be in (0, 3]");
+  }
+  if(auto it=params.find("artHeadingGuidanceWeight");it!=params.end()) {
+    o.articulatedHeadingGuidanceWeight=number(it->second);
+    if(o.articulatedHeadingGuidanceWeight<0.0||
+       o.articulatedHeadingGuidanceWeight>3.0)
+      throw std::invalid_argument("Articulated heading guidance weight must be in [0, 3]");
   }
   if(auto it=params.find("artCoupledMotion");it!=params.end())
     o.articulatedEnableCoupledMotion=flag(it->second);
@@ -178,6 +186,7 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
        name!="artFrontHalfWidth" && name!="artRearRearX" &&
        name!="artRearFrontX" && name!="artRearHalfWidth" &&
        name!="artHeuristicMode" && name!="artHeuristicWeight" &&
+       name!="artHeadingGuidanceWeight" &&
        name!="artCoupledMotion" && name!="artSweptAabb" &&
        name!="artGoalConnector")
       throw std::invalid_argument("Unknown articulated option: "+name);
@@ -191,6 +200,7 @@ Options requestOptions(const std::map<std::string,std::string>& params) {
        name!="artFrontHalfWidth"&&name!="artRearRearX"&&
        name!="artRearFrontX"&&name!="artRearHalfWidth"&&
        name!="artHeuristicMode"&&name!="artHeuristicWeight"&&
+       name!="artHeadingGuidanceWeight"&&
        name!="artCoupledMotion"&&name!="artSweptAabb"&&
        name!="artGoalConnector")
       throw std::invalid_argument("Unknown option: "+name);
