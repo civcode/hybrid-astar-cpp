@@ -163,6 +163,25 @@ async function main(){
     'Planning Lab reports reuse rather than per-expansion RK4');
   assert.ok(el('message').textContent.includes('Obstacle grid ×1'),
     'Effective heuristic should appear in the result readout');
+  result.original.goalConnectorTailFittedArcs=2;
+  result.original.goalConnectorTailDrivingMeters=4.25;
+  result.original.goalConnectorTailStationarySeconds=1.5;
+  result.original.goalConnectorTailArticulationRadians=0.8;
+  result.original.goalConnectorTailArticulationReversals=1;
+  result.original.goalConnectorTailGearChanges=0;
+  await call('replan()');
+  assert.ok(el('message').textContent.includes('tail 4.3 m'),
+    'Status includes terminal driving distance');
+  assert.ok(el('message').textContent.includes('stationary 1.5 s'),
+    'Status includes terminal stationary articulation time');
+  assert.ok(el('message').textContent.includes('reversals 1'),
+    'Status includes terminal articulation reversals');
+  delete result.original.goalConnectorTailFittedArcs;
+  delete result.original.goalConnectorTailDrivingMeters;
+  delete result.original.goalConnectorTailStationarySeconds;
+  delete result.original.goalConnectorTailArticulationRadians;
+  delete result.original.goalConnectorTailArticulationReversals;
+  delete result.original.goalConnectorTailGearChanges;
 
   el('artHeuristicMode').value='combined';
   el('artHeuristicMode').listeners.change();
