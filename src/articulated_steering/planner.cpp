@@ -53,6 +53,8 @@ bool validOptions(const SearchOptions& o) {
          positive(o.reverseCostMultiplier)&&
          nonnegative(o.stationaryArticulationPenaltyMeters)&&
          nonnegative(o.heuristicWeight)&&o.heuristicWeight<=3.0&&
+         nonnegative(o.goalHeadingGuidanceWeight)&&
+         o.goalHeadingGuidanceWeight<=3.0&&
          std::isfinite(o.goalConnectorAttemptRatio)&&
          o.goalConnectorAttemptRatio>=1.0&&
          positive(o.maxGoalConnectorArcMeters)&&
@@ -64,6 +66,9 @@ bool validOptions(const SearchOptions& o) {
          o.maxGoalConnectorCandidatesPerAttempt<=32&&
          o.maxGoalConnectorSearchBodyChecks>=2&&
          o.maxGoalConnectorSearchBodyChecks<=2000000&&
+         o.goalConnectorGlobalAttempts<=o.maxGoalConnectorAttempts&&
+         positive(o.goalConnectorNearRadiusMeters)&&
+         nonnegative(o.goalConnectorMinProgressMeters)&&
          o.maxExpansions>0&&o.maxGenerated>1&&
          o.maxSamplesPerPrimitive>=2&&o.maxFinalSamplesPerPrimitive>=2&&
          o.maxTotalFinalBodyChecks>=2;
@@ -582,8 +587,21 @@ Result plan(const Request& r) {
         guidance=grid
             ?grid->estimate({pose.xr,pose.yr,pose.thetaRear},euclidean)
             :euclidean;
-        if(analyticGoal)
-          guidance=std::max(guidance,analyticGoal->estimate(pose,headingOffsets[gammaIndex]));
+        if(analyticGoal) {
+          guidance=std::max(guidance,analyticGoal->estimate(
+              pose,headingOffsets[gammaIndex]));
+          if(r.options.heuristicMode==HeuristicMode::CombinedHeadingAware) {
+            // Performance-only heading emphasis; the grid often dominates
+            // max(grid,articulated) and masks yaw near obstacle-filled goals.
+            // Strongest near the goal, without adding an arbitrary heading
+            // constraint to free-space or the old combined heuristic.
+            const double distance=std::hypot(pose.xr-r.goal.xr,
+                                             pose.yr-r.goal.yr);
+            const double near=8.0/(8.0+distance);
+            guidance+=r.options.goalHeadingGuidanceWeight*near*
+                analyticGoal->headingDrivingCost(pose,headingOffsets[gammaIndex]);
+          }
+        }
       }
       return r.options.heuristicWeight*guidance;
     };
@@ -601,6 +619,15 @@ Result plan(const Request& r) {
     steering::AnalyticExpansionOptions connectorScheduleOptions;
     connectorScheduleOptions.attemptRatio=r.options.goalConnectorAttemptRatio;
     steering::AnalyticExpansionScheduler connectorSchedule(connectorScheduleOptions);
+    std::optional<GoalConnectorObstacleGuide> connectorGuide;
+    if(r.options.enableGoalConnector)
+      connectorGuide.emplace(*r.map,r.occupancy,r.bodies);
+    const double startGoalDistance=std::hypot(r.start.xr-r.goal.xr,
+                                               r.start.yr-r.goal.yr);
+    const double nearGoalRadius=std::max(r.options.goalConnectorNearRadiusMeters,
+                                         0.2*startGoalDistance);
+    double bestNearApproach=std::numeric_limits<double>::infinity();
+    out.diagnostics.goalConnectorClosestXYMeters=startGoalDistance;
     bool sampledIncomplete=false;
     while(!open.empty()) {
       if(cancelled(r)){out.status=Status::Cancelled;return out;}
@@ -635,18 +662,47 @@ Result plan(const Request& r) {
          out.diagnostics.goalConnectorAttempts<r.options.maxGoalConnectorAttempts &&
          out.diagnostics.goalConnectorBodyChecks<
              r.options.maxGoalConnectorSearchBodyChecks) {
+        const double xyDistance=std::hypot(current.rear.xr-r.goal.xr,
+                                           current.rear.yr-r.goal.yr);
+        out.diagnostics.goalConnectorClosestXYMeters=std::min(
+            xyDistance,out.diagnostics.goalConnectorClosestXYMeters);
         const double unweightedH=r.options.heuristicWeight>0.0
             ?estimate(current.rear,current.gammaIndex)/r.options.heuristicWeight
-            :std::hypot(current.rear.xr-r.goal.xr,current.rear.yr-r.goal.yr);
-        if(connectorSchedule.shouldAttempt(unweightedH,r.options.xyBinMeters)) {
+            :xyDistance;
+        // First-node and broad adaptive shots remain unrestricted. Once the
+        // small broad-phase tranche is spent, save work for states with
+        // improved XY + rear heading near the actual four-state goal.
+        const bool global=out.diagnostics.goalConnectorGlobalUsed<
+                          r.options.goalConnectorGlobalAttempts;
+        const bool nearby=xyDistance<=nearGoalRadius;
+        const double approachScore=xyDistance+
+            0.9*yawError(current.rear.thetaRear,r.goal.thetaRear)+
+            0.4*std::abs(current.rear.gamma-r.goal.gamma);
+        const bool improving=approachScore+
+            r.options.goalConnectorMinProgressMeters<bestNearApproach;
+        if(connectorSchedule.shouldAttempt(unweightedH,r.options.xyBinMeters)&&
+           (global||(nearby&&improving))) {
+          if(global)++out.diagnostics.goalConnectorGlobalUsed;
+          else {
+            ++out.diagnostics.goalConnectorNearUsed;
+            bestNearApproach=approachScore;
+          }
+          if(out.diagnostics.goalConnectorAttempts==0)
+            out.diagnostics.goalConnectorFirstExpansion=out.diagnostics.expanded;
           ++out.diagnostics.goalConnectorAttempts;
+          out.diagnostics.goalConnectorLastExpansion=out.diagnostics.expanded;
           std::size_t evaluations=0;
           const auto candidates=proposeGoalConnections(
-              model,current.rear,r.goal,r.options,evaluations);
+              model,current.rear,r.goal,r.options,evaluations,
+              connectorGuide?&*connectorGuide:nullptr);
           out.diagnostics.goalConnectorEvaluations+=evaluations;
           for(const auto& candidate:candidates) {
             if(cancelled(r)){out.status=Status::Cancelled;return out;}
             ++out.diagnostics.goalConnectorCandidates;
+            if(candidate.includesCoupledMotion)
+              ++out.diagnostics.goalConnectorCoupledCandidates;
+            if(candidate.clearancePenalty>0.002)
+              ++out.diagnostics.goalConnectorClearancePenalized;
             const auto preliminary=checkGoalTail(r,model,*body,current.rear,
                                                   candidate,out);
             if(preliminary==TailCheck::Cancelled) {
@@ -676,6 +732,8 @@ Result plan(const Request& r) {
             if(verdict==StrictResult::Incomplete)sampledIncomplete=true;
             ++out.diagnostics.goalConnectorRejectedStrict;
           }
+        } else if(!global) {
+          ++out.diagnostics.goalConnectorDeferred;
         }
       }
       for(const auto& templateMotion:primitives.atGamma[current.gammaIndex]) {
