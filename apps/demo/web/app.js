@@ -286,12 +286,21 @@ function stats(result) {
             :'')
         :'')
     :'';
+  const tailQualityNote=result.model==='articulated'&&valid&&
+      (result.original.goalConnectorTailFittedArcs||0)>0
+    ?' · tail '+Number(result.original.goalConnectorTailDrivingMeters).toFixed(1)+' m'+
+     ', stationary '+Number(result.original.goalConnectorTailStationarySeconds).toFixed(1)+' s'+
+     ', joint '+Number(result.original.goalConnectorTailArticulationRadians).toFixed(1)+' rad'+
+     ', reversals '+(result.original.goalConnectorTailArticulationReversals||0)+
+     ', gear changes '+(result.original.goalConnectorTailGearChanges||0)
+    :'';
   $('message').textContent=(valid?(result.model==='articulated'
     ?'Experimental articulated path · '+status+' · two-carriage independently sampled checks · not swept certified'
     :'Validated geometric path · '+status+(refinement?' · refinement: '+refinement+acceptedLabel:'')+' · sampled footprint checking'):
     ('No validated path · '+status+failureDetail+
      (exhausted&&limit?' · limit '+limit.maxExpansions.toLocaleString()+' expansions':'')))+
-    templateNote+gridNote+broadphaseNote+motionNote+heuristicNote;
+    templateNote+gridNote+broadphaseNote+motionNote+heuristicNote+
+    tailQualityNote;
   $('cost').textContent=valid?path.cost.toFixed(2)+' m':'—';
   $('length').textContent=valid?path.length.toFixed(2)+' m':'—';
   $('reverseLen').textContent=valid?path.reverseLength.toFixed(2)+' m':'—';
