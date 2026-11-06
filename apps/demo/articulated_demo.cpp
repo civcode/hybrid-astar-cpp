@@ -110,6 +110,20 @@ void pathJson(std::ostream& os,const art::Result& r) {
     <<",\"goalConnectorDeferred\":"<<r.diagnostics.goalConnectorDeferred
     <<",\"goalConnectorCoupledCandidates\":"<<r.diagnostics.goalConnectorCoupledCandidates
     <<",\"goalConnectorClearancePenalized\":"<<r.diagnostics.goalConnectorClearancePenalized
+    <<",\"goalConnectorOneArcProposals\":"<<r.diagnostics.goalConnectorOneArcProposals
+    <<",\"goalConnectorTwoArcProposals\":"<<r.diagnostics.goalConnectorTwoArcProposals
+    <<",\"goalConnectorThreeArcProposals\":"<<r.diagnostics.goalConnectorThreeArcProposals
+    <<",\"goalConnectorTailDrivingMeters\":"<<r.diagnostics.goalConnectorTailDrivingMeters
+    <<",\"goalConnectorTailReverseMeters\":"<<r.diagnostics.goalConnectorTailReverseMeters
+    <<",\"goalConnectorTailArticulationRadians\":"<<r.diagnostics.goalConnectorTailArticulationRadians
+    <<",\"goalConnectorTailStationarySeconds\":"<<r.diagnostics.goalConnectorTailStationarySeconds
+    <<",\"goalConnectorTailPeakGammaRadians\":"<<r.diagnostics.goalConnectorTailPeakGammaRadians
+    <<",\"goalConnectorTailOperationalPenaltyMeters\":"<<r.diagnostics.goalConnectorTailOperationalPenaltyMeters
+    <<",\"goalConnectorTailQualityScoreMeters\":"<<r.diagnostics.goalConnectorTailQualityScoreMeters
+    <<",\"goalConnectorTailGearChanges\":"<<r.diagnostics.goalConnectorTailGearChanges
+    <<",\"goalConnectorTailArticulationReversals\":"<<r.diagnostics.goalConnectorTailArticulationReversals
+    <<",\"goalConnectorTailDriveArcs\":"<<r.diagnostics.goalConnectorTailDriveArcs
+    <<",\"goalConnectorTailFittedArcs\":"<<r.diagnostics.goalConnectorTailFittedArcs
     <<",\"goalConnectorFirstExpansion\":"<<r.diagnostics.goalConnectorFirstExpansion
     <<",\"goalConnectorLastExpansion\":"<<r.diagnostics.goalConnectorLastExpansion
     <<",\"goalConnectorClosestXYMeters\":"<<r.diagnostics.goalConnectorClosestXYMeters
@@ -119,6 +133,9 @@ void pathJson(std::ostream& os,const art::Result& r) {
     <<",\"anytimeValidatedCandidates\":"<<r.diagnostics.anytimeValidatedCandidates
     <<",\"anytimeImprovements\":"<<r.diagnostics.anytimeImprovements
     <<",\"anytimeCostBoundPrunes\":"<<r.diagnostics.anytimeCostBoundPrunes
+    <<",\"anytimePacedDeferrals\":"<<r.diagnostics.anytimePacedDeferrals
+    <<",\"anytimeFirstExtraShotExpansion\":"<<r.diagnostics.anytimeFirstExtraShotExpansion
+    <<",\"anytimeLastExtraShotExpansion\":"<<r.diagnostics.anytimeLastExtraShotExpansion
     <<",\"anytimeFirstCostMeters\":"<<r.diagnostics.anytimeFirstCostMeters
     <<",\"anytimeBestCostMeters\":"<<r.diagnostics.anytimeBestCostMeters
     <<",\"searchBodyChecks\":"<<r.diagnostics.searchBodyChecks
