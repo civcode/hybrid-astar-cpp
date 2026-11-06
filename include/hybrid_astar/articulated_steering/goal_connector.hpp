@@ -35,6 +35,7 @@ struct GoalConnection {
   double clearancePenalty=0.0; // approximate ranking only; no clearance proof
   bool includesCoupledMotion=false;
   GoalConnectorEffort effort;
+  std::size_t fittedArcs=0; // 1, 2 or 3 active fitted arcs
 };
 
 // Summarize physically commanded controls (with adjacent chunks merged
