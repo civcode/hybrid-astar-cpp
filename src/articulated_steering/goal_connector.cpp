@@ -636,7 +636,8 @@ std::vector<GoalConnection> proposeGoalConnections(
             const auto effort=summarizeGoalConnectorEffort(
                 controls,from,options);
             found.push_back({std::move(controls),best.end,cost,
-                             best.obstaclePenalty,hasCoupled,effort});
+                             best.obstaclePenalty,hasCoupled,effort,
+                             static_cast<std::size_t>(activeArcs)});
           }
         }
       }
